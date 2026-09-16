@@ -4,7 +4,7 @@ Deep detail behind the always-loaded rule in `SKILL.md` → "Reading Linear". Re
 
 ## Why direct SQL, not bare `linearis`
 
-Bare `linearis` reads always hit the rate-limited Linear API. On the shared-quota fleet that burns budget and 429s everyone. The replica (`~/catalyst/catalyst-replica.db`, a SQLite mirror kept current by the per-host `catalyst-cloud-sync` change-feed writer) is a sub-ms local copy that already has the answer — reading it is what makes "every client reads the replica" actually true. It holds every issue field plus labels, relations, projects, cycles, users, and PR/review state.
+Bare `linearis` reads always hit the rate-limited Linear API. On the shared-quota fleet that burns budget and 429s everyone. The replica (`~/.config/catalyst-cloud/replica.db`, a SQLite mirror kept current by the per-host `catalyst-cloud-sync` change-feed writer) is a sub-ms local copy that already has the answer — reading it is what makes "every client reads the replica" actually true. It holds every issue field plus labels, relations, projects, cycles, users, and PR/review state.
 
 ## The freshness gate, copy-paste (portable macOS/Linux)
 
@@ -12,7 +12,7 @@ Prefer the shared helper (`linear_read_ticket`, `SKILL.md`) over re-implementing
 
 ```bash
 # Resolve the DB the way the daemon does: $CATALYST_REPLICA_DB, else $CATALYST_DIR, else $HOME.
-DB="${CATALYST_REPLICA_DB:-${CATALYST_DIR:-$HOME/catalyst}/catalyst-replica.db}"
+DB="${CATALYST_REPLICA_DB:-$HOME/.config/catalyst-cloud/replica.db}"
 replica_fresh() {
   local lock="$DB.writer.lock" now age
   [[ -f "$lock" ]] || return 1

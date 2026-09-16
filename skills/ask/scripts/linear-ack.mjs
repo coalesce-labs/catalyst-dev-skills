@@ -7,8 +7,8 @@
 // token and both READ (find the latest human comment) and WRITE (the direct reaction
 // mutations) against the Linear GraphQL API. That mint is the per-host "Catalyst
 // Orchestrator" credential CTL-1889 exists to retire, so it is GONE:
-//   • the READ moves to the local Catalyst-Cloud replica (credential-free, ~/catalyst/
-//     catalyst-replica.db) via readLatestHumanComment; a missing/unreadable replica throws
+//   • the READ moves to the local Catalyst-Cloud replica (credential-free,
+//     ~/.config/catalyst-cloud/replica.db) via readLatestHumanComment; a missing/unreadable replica throws
 //     LOUDLY (never a silent "no comment"),
 //   • the reaction WRITE was already routed through the CTC-724 `reaction` route (CTL-1961),
 //   • the direct add/remove reaction mutations are DELETED — there is no app-actor write

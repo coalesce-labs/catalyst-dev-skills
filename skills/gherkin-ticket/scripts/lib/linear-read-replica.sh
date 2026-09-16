@@ -31,8 +31,8 @@
 _CATALYST_LINEAR_READ_REPLICA_SH=1
 
 # The replica `catalyst-skills replica start` writes: CATALYST_REPLICA_DB overrides;
-# else ~/.config/catalyst-cloud/replica.db. The daemon-era $CATALYST_DIR/catalyst-replica.db
-# is retired and no longer consulted.
+# else ~/.config/catalyst-cloud/replica.db.
+# The retired daemon-era $CATALYST_DIR/catalyst-replica.db is no longer consulted.
 : "${CATALYST_REPLICA_DB:=${HOME:-}/.config/catalyst-cloud/replica.db}"
 # Freshness threshold in ms (matches the daemon env var); default 5 min.
 : "${CATALYST_LINEAR_REPLICA_STALE_MS:=300000}"

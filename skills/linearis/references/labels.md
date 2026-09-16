@@ -44,7 +44,7 @@ The failure is **name→id resolution**, not a missing vocabulary: the name reso
 **Step 1 — replica first (free, no API quota).** This is a label-id lookup, not a ticket read, so it is outside `linear_read_ticket`'s scope — confirm cloud detection has already passed (SKILL.md → "Reading Linear") before running this, then find which team's issues actually carry the name, and get the label id, without touching Linear:
 
 ```bash
-sqlite3 -separator '  ' ~/catalyst/catalyst-replica.db "
+sqlite3 -separator '  ' "${CATALYST_REPLICA_DB:-$HOME/.config/catalyst-cloud/replica.db}" "
   SELECT l.name, l.id, i.team_key, COUNT(*) AS issues
     FROM issue_labels il
     JOIN labels l  ON l.id = il.label_id

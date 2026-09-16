@@ -1,5 +1,5 @@
 // replica-comment-read.mjs — CTL-1958. Credential-free "latest human comment" +
-// issue-id reads from the local Catalyst-Cloud replica (~/catalyst/catalyst-replica.db),
+// issue-id reads from the local Catalyst-Cloud replica (~/.config/catalyst-cloud/replica.db),
 // replacing the app-actor GraphQL read that linear-reply.mjs / linear-ack.mjs used to
 // mint a client_credentials token for. Moving this read to the replica is what lets
 // the per-host "Catalyst Orchestrator" Linear app be uninstalled (CTL-1889).

@@ -1,7 +1,7 @@
 ---
 name: linearis-cli
 description:
-  Linear access rule + Linearis CLI reference. READS → query the local replica by direct SQL (`~/catalyst/catalyst-replica.db`); WRITES and list/search → the `linearis` CLI. Use when working with Linear tickets, cycles, projects, milestones, or ticket IDs like TEAM-123.
+  Linear access rule + Linearis CLI reference. READS → query the local replica by direct SQL (`~/.config/catalyst-cloud/replica.db`); WRITES and list/search → the `linearis` CLI. Use when working with Linear tickets, cycles, projects, milestones, or ticket IDs like TEAM-123.
 ---
 
 # Linearis CLI Reference
