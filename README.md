@@ -74,11 +74,12 @@ The installed folder takes the skill's frontmatter `name`, which is the director
 
 **Layout.**
 - `skills/<name>/`: one skill. `SKILL.md` is the common path; `references/` holds detail read on demand; `scripts/` and `assets/` hold what the skill runs.
-- `vendor-src/`: the single source of every file two or more skills share (`scripts/…`, `references/…`, `agents/…`, `templates/…`).
+- `agents/`: the plugin's research subagents (`catalyst-dev:codebase-locator` and the rest), which Claude Code loads from the plugin root. It is also the one source of the subagent prompts skills carry under `assets/agents/`.
+- `vendor-src/`: the single source of every other file two or more skills share (`scripts/…`, `references/…`, `templates/…`).
 - `.claude-plugin/`: the Claude Code plugin (`catalyst-dev`) and its marketplace (`catalyst-dev-skills`). The repository root is the plugin root, which the Catalyst Cloud runner image bakes as its catalyst-dev bundle.
 - `scripts/estimate/reference-class-corpus.json`: the estimation corpus the runner reads from the plugin root.
 
-**Shared files are vendored, never edited in place.** A skill lists what it needs in `agents/vendor.yaml`. Edit the file under `vendor-src/`, then regenerate the copies:
+**Shared files are vendored, never edited in place.** A skill lists what it needs in `agents/vendor.yaml`. Edit the file under `vendor-src/` (or `agents/` for a subagent prompt), then regenerate the copies:
 
 ```sh
 node scripts/vendor.mjs --write   # refresh every copy and agents/vendor.lock.json
@@ -89,6 +90,7 @@ node scripts/vendor.mjs --check   # CI: fails when a copy differs from its sourc
 - each skill runs from its own directory (`skill-self-containment`, `skill-dir-isolation`), with no `${CLAUDE_PLUGIN_ROOT}`, sibling-skill or `${CLAUDE_SKILL_DIR}/../` path;
 - the skill shape holds: an 80-line `SKILL.md` and 150-line references, each one linked;
 - every skill that mentions `linearis` documents the phase-container skip (`linearis-guard`);
+- every `catalyst-dev:<name>` a skill uses is a skill or a plugin subagent in `agents/` (`plugin-agents`);
 - the workflow-input, handoff, review-skill and Linear-write contracts hold, and the vendored replica reader finds `~/.config/catalyst-cloud/replica.db`.
 
 CI also runs:

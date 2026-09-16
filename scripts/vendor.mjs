@@ -2,7 +2,8 @@
 // vendor.mjs — one source, generated copies.
 //
 // Every skill runs from its own directory on any harness, so every script and subagent prompt
-// it uses lives inside it. A file two skills share keeps ONE source under vendor-src/
+// it uses lives inside it. A file two skills share keeps ONE source: a subagent prompt in the
+// plugin's own agents/ (which Claude Code loads as `catalyst-dev:<name>`), anything else under vendor-src/
 // (scripts/…, agents/<name>.md, references/<name>.md, templates/<name>) and each skill lists it
 // in `agents/vendor.yaml`. `--write` writes byte-identical copies (keeping the source's mode)
 // and records them in `agents/vendor.lock.json`; `--check` (the default) fails on drift. The
@@ -146,13 +147,19 @@ const readFileEntry = (path) =>
     ? { base64: readFileSync(path).toString("base64"), mode: statSync(path).mode & 0o777 }
     : null;
 
+/** sourceLabel(from) → where a manifest entry's one source lives, relative to the repository root. */
+export function sourceLabel(from) {
+  return from.startsWith("agents/") ? from : `vendor-src/${from}`;
+}
+
+const sourcePath = (repoRoot, from) => join(repoRoot, sourceLabel(from));
+
 /**
  * readVendorInputs(repoRoot) → planVendoredCopies' input: one entry per skill under skills/ that
- * has an `agents/vendor.yaml` or an `agents/vendor.lock.json`, with sources read from vendor-src/.
+ * has an `agents/vendor.yaml` or an `agents/vendor.lock.json`, with sources read by sourcePath.
  */
 export function readVendorInputs(repoRoot) {
   const skillsRoot = join(repoRoot, "skills");
-  const sourceRoot = join(repoRoot, "vendor-src");
   const entries = [];
   for (const skillId of readdirSync(skillsRoot).sort()) {
     const skillDir = join(skillsRoot, skillId);
@@ -174,7 +181,7 @@ export function readVendorInputs(repoRoot) {
     const sources = {};
     const current = {};
     for (const from of files) {
-      sources[from] = readFileEntry(join(sourceRoot, from));
+      sources[from] = readFileEntry(sourcePath(repoRoot, from));
       const copy = readFileEntry(join(skillDir, vendorDestination(from)));
       if (copy) current[vendorDestination(from)] = copy;
     }
@@ -218,7 +225,7 @@ function main(args, repoRoot) {
   if (args.includes("--write")) {
     const plan = applyVendoring(repoRoot);
     console.log(`VENDOR: ${plan.skillCount} skill(s), wrote ${plan.writes.length} copy(ies), pruned ${plan.prunes.length}`);
-    for (const w of plan.writes) console.log(`  skills/${w.skillId}/${w.to}  ← vendor-src/${w.from}`);
+    for (const w of plan.writes) console.log(`  skills/${w.skillId}/${w.to}  ← ${sourceLabel(w.from)}`);
     for (const p of plan.prunes) console.log(`  pruned skills/${p.skillId}/${p.to} (no longer in agents/vendor.yaml)`);
     return 0;
   }
@@ -229,10 +236,10 @@ function main(args, repoRoot) {
   }
   const plan = planVendoring(repoRoot);
   for (const e of plan.errors) console.error(`ERROR  skills/${e.skillId}: ${e.from} (${e.reason})`);
-  for (const d of plan.drift) console.error(`DRIFT  skills/${d.skillId}/${d.to} ${d.reason}${d.from ? ` (source vendor-src/${d.from})` : ""}`);
+  for (const d of plan.drift) console.error(`DRIFT  skills/${d.skillId}/${d.to} ${d.reason}${d.from ? ` (source ${sourceLabel(d.from)})` : ""}`);
   console.log(`VENDOR: ${plan.skillCount} skill(s), ${plan.drift.length} drifted, ${plan.errors.length} error(s)`);
   if (plan.errors.length > 0 || plan.drift.length > 0) {
-    console.error("Run 'node scripts/vendor.mjs --write' and commit the copies — edit the source under vendor-src/, never a copy.");
+    console.error("Run 'node scripts/vendor.mjs --write' and commit the copies — edit the source (agents/ or vendor-src/), never a copy.");
     return 1;
   }
   return 0;

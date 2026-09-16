@@ -23,6 +23,7 @@ import {
   planVendoredCopies,
   planVendoring,
   applyVendoring,
+  sourceLabel,
 } from "../scripts/vendor.mjs";
 
 const repoRoot = fileURLToPath(new URL("..", import.meta.url));
@@ -162,6 +163,14 @@ describe("planVendoredCopies", () => {
 });
 
 
+describe("sourceLabel", () => {
+  test("a subagent prompt's source is the plugin's agents/; everything else is under vendor-src/", () => {
+    expect(sourceLabel("agents/codebase-locator.md")).toBe("agents/codebase-locator.md");
+    expect(sourceLabel("scripts/lib/draft-pr.sh")).toBe("vendor-src/scripts/lib/draft-pr.sh");
+    expect(sourceLabel("references/x.md")).toBe("vendor-src/references/x.md");
+  });
+});
+
 describe("parseVendorYaml", () => {
   test("reads the manifest shape: document marker, comments and a files block list", () => {
     const text = "---\n# a comment\nfiles:\n  - scripts/a.sh\n  - \"agents/b.md\"  # trailing\n";
@@ -179,10 +188,11 @@ describe("vendoring a real tree (scratch repo): write, then remove an entry, the
   afterAll(() => rmSync(root, { recursive: true, force: true }));
   const skill = join(root, "skills/sample");
   mkdirSync(join(root, "vendor-src/scripts"), { recursive: true });
-  mkdirSync(join(root, "vendor-src/agents"), { recursive: true });
+  // A subagent prompt's one source is the plugin's own agents/ directory, which Claude Code loads.
+  mkdirSync(join(root, "agents"), { recursive: true });
   writeFileSync(join(root, "vendor-src/scripts/helper.sh"), "#!/usr/bin/env bash\necho helper\n");
   chmodSync(join(root, "vendor-src/scripts/helper.sh"), 0o755);
-  writeFileSync(join(root, "vendor-src/agents/finder.md"), "# finder\n");
+  writeFileSync(join(root, "agents/finder.md"), "# finder\n");
   mkdirSync(join(skill, "agents"), { recursive: true });
   writeFileSync(join(skill, "SKILL.md"), "---\nname: sample\ndescription: d\n---\nbody\n");
   const manifest = (files) => writeFileSync(join(skill, "agents/vendor.yaml"), `files:\n${files.map((f) => `  - ${f}`).join("\n")}\n`);
@@ -192,7 +202,7 @@ describe("vendoring a real tree (scratch repo): write, then remove an entry, the
     applyVendoring(root);
     expect(readFileSync(join(skill, "scripts/helper.sh"), "utf8")).toContain("echo helper");
     expect(statSync(join(skill, "scripts/helper.sh")).mode & 0o777).toBe(0o755);
-    expect(existsSync(join(skill, "assets/agents/finder.md"))).toBe(true);
+    expect(readFileSync(join(skill, "assets/agents/finder.md"), "utf8")).toBe("# finder\n");
     const again = planVendoring(root);
     expect(again.drift).toEqual([]);
     expect(again.skillCount).toBe(1);
