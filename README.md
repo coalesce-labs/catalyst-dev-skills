@@ -10,7 +10,7 @@ One command, for every coding agent on the machine:
 npx skills@latest add coalesce-labs/catalyst-dev-skills --all
 ```
 
-It installs all 33 skills for each agent it detects (Claude Code, Codex, OpenCode, Cursor and the rest). Add `-g` to install into your home directory instead of the project. Skills installed this way do not auto-update; run `npx skills update -y` to refresh them.
+It installs all 34 skills for each agent it detects (Claude Code, Codex, OpenCode, Cursor and the rest). Add `-g` to install into your home directory instead of the project. Skills installed this way do not auto-update; run `npx skills update -y` to refresh them.
 
 <details><summary><strong>Alternative for Claude Code: the plugin marketplace</strong></summary>
 
@@ -48,6 +48,7 @@ The installed folder takes the skill's frontmatter `name`, which is the director
 - `review-code`, `review-security`: review a branch's diff for real defects and exploitable vulnerabilities.
 - `fix-typescript`, `scan-reward-hacking`, `validate-type-safety`: TypeScript errors fixed without shortcuts, and the gate that checks it.
 - `agent-browser`: browser automation for checking a UI.
+- `unslop`: edit text to remove the patterns that mark it as AI-written (third-party, see below).
 
 **Shipping**
 - `commit`, `create-pr`, `describe-pr`, `review-comments`, `merge-pr`, `triage-aging-prs`: commit through merge, including review feedback and an aging PR backlog.
@@ -62,6 +63,10 @@ The installed folder takes the skill's frontmatter `name`, which is the director
 - `compound-estimate`, `ticket-compound`, `ticket-retro`: the post-merge learning loop.
 
 **In a Catalyst Cloud phase container** (`CATALYST_PHASE` set), every skill that uses `linearis` skips those calls, because the runner owns the ticket write-back there. They also skip when the `linearis` CLI is not installed.
+
+## Third-party skills
+
+- `skills/unslop` is copied unchanged from [cursor/plugins](https://github.com/cursor/plugins/blob/main/pstack/skills/unslop/SKILL.md), by Lauren Tan, under the MIT License. Its licence is in [`skills/unslop/LICENSE`](skills/unslop/LICENSE) and its attribution in [`skills/unslop/NOTICE.md`](skills/unslop/NOTICE.md).
 
 ## For contributors
 

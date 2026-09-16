@@ -37,7 +37,8 @@ describe("collision check", () => {
 
   test("the installed folder name is the frontmatter name, which may differ from the directory", () => {
     const ours = skillNames(repoRoot);
-    expect(ours.length).toBe(33);
+    expect(ours.length).toBe(34);
+    expect(ours.find((s) => s.dir === "unslop")?.name).toBe("unslop");
     expect(ours.find((s) => s.dir === "linearis")?.name).toBe("linearis-cli");
     expect(collisions(ours, [])).toEqual([]);
   });
