@@ -1,0 +1,78 @@
+name: ci
+
+on:
+  pull_request:
+  push:
+    branches:
+      - main
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: actions/setup-node@v6
+        with:
+          node-version: 22
+
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: 1.3.14
+
+      - name: Tools the shell suites need
+        run: |
+          missing=""
+          for tool in sqlite3 jq zsh; do command -v "$tool" >/dev/null 2>&1 || missing="$missing $tool"; done
+          if [ -n "$missing" ]; then sudo apt-get update -q && sudo apt-get install -y -q $missing; fi
+
+      - name: Vendored copies match their sources
+        run: node scripts/vendor.mjs --check
+
+      - name: Tests (bun suites, then every tests/*.test.sh)
+        run: bash scripts/run-tests.sh
+
+      - name: Skill names do not collide with the other Coalesce Labs packs
+        run: |
+          git clone -q --depth 1 https://github.com/coalesce-labs/catalyst-cloud-skills "$RUNNER_TEMP/catalyst-cloud-skills"
+          git clone -q --depth 1 https://github.com/coalesce-labs/catalyst-pm-skills "$RUNNER_TEMP/catalyst-pm-skills"
+          node scripts/check-name-collisions.mjs "$RUNNER_TEMP/catalyst-cloud-skills" "$RUNNER_TEMP/catalyst-pm-skills"
+
+      - name: Install smoke (skills@1.5.26 into a scratch HOME, three harnesses)
+        run: bash scripts/install-smoke.sh
+
+  secrets:
+    runs-on: ubuntu-latest
+    env:
+      GITLEAKS_VERSION: 8.30.1
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+
+      - name: Install gitleaks
+        run: |
+          cd "$RUNNER_TEMP"
+          base="https://github.com/gitleaks/gitleaks/releases/download/v${GITLEAKS_VERSION}"
+          curl -fsSLO "${base}/gitleaks_${GITLEAKS_VERSION}_linux_x64.tar.gz"
+          curl -fsSLO "${base}/gitleaks_${GITLEAKS_VERSION}_checksums.txt"
+          grep " gitleaks_${GITLEAKS_VERSION}_linux_x64.tar.gz\$" "gitleaks_${GITLEAKS_VERSION}_checksums.txt" | sha256sum -c -
+          tar -xzf "gitleaks_${GITLEAKS_VERSION}_linux_x64.tar.gz" gitleaks
+          echo "$RUNNER_TEMP" >> "$GITHUB_PATH"
+
+      - name: gitleaks (history and working tree)
+        run: |
+          gitleaks git --redact --no-banner .
+          gitleaks dir --redact --no-banner .
+
+      - name: Internal-pattern scan
+        run: |
+          bash scripts/scan-internal.sh --self-test
+          bash scripts/scan-internal.sh

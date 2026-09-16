@@ -1,0 +1,16 @@
+{
+  "name": "catalyst-dev-skills",
+  "owner": {
+    "name": "Coalesce Labs"
+  },
+  "metadata": {
+    "description": "The catalyst-dev development-workflow skills for Claude Code."
+  },
+  "plugins": [
+    {
+      "name": "catalyst-dev",
+      "source": "./",
+      "description": "Complete development workflow: research → plan → implement → validate → ship."
+    }
+  ]
+}

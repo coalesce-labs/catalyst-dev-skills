@@ -1,0 +1,13 @@
+{
+  "name": "catalyst-dev-skills",
+  "private": true,
+  "description": "The catalyst-dev skills as an npx-installable pack for Claude Code, Codex and OpenCode.",
+  "license": "MIT",
+  "type": "module",
+  "scripts": {
+    "test": "bash scripts/run-tests.sh",
+    "vendor:check": "node scripts/vendor.mjs --check",
+    "vendor:write": "node scripts/vendor.mjs --write",
+    "smoke:install": "bash scripts/install-smoke.sh"
+  }
+}
