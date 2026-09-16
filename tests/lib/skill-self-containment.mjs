@@ -13,8 +13,10 @@
 //                               `../merge-pr/references/y.md`); it is read with THIS skill's directory
 //                               as the base, and a flat skills-CLI install renames the sibling anyway.
 //   skill-dir-path-missing      a `${CLAUDE_SKILL_DIR}/<path>` names a file the skill does not carry.
-//   skill-dir-path-escapes      a `${CLAUDE_SKILL_DIR}/../<path>` climbs out of the skill; whatever sits
-//                               beside it here is not beside it in an installed skills directory.
+//   skill-dir-path-escapes      a `${CLAUDE_SKILL_DIR}/../<path>` (braced or not) climbs out of the skill;
+//                               whatever sits beside it here is not beside it in an installed skills
+//                               directory (CTL-2310). Vendor the shared file instead
+//                               (vendor.mjs: references/x.md → assets/references/x.md).
 //   missing-skill-dir-preamble  the skill runs a `${CLAUDE_SKILL_DIR}` command but never tells a
 //                               non-Claude harness how to set the variable (`skill_dir_unresolved`).
 //   script-sibling-missing      a script under scripts/ reaches a file through a directory variable
@@ -39,6 +41,7 @@ const PROSE_DIRS = ["references", "assets"];
 // ${CLAUDE_PLUGIN_ROOT}, or a repo-relative path into the plugin tree (resolves only inside the catalyst checkout).
 const PLUGIN_ROOT_PATTERN = /\$\{?CLAUDE_PLUGIN_ROOT\}?|plugins\/[a-z0-9-]+\/(?:scripts|skills|references|templates|agents)\//;
 const SKILL_DIR_PATH_PATTERN = /\$\{CLAUDE_SKILL_DIR\}\/([A-Za-z0-9_./-]+)/g;
+const ANY_SKILL_DIR_PATH_PATTERN = /\$\{?CLAUDE_SKILL_DIR\}?\/([A-Za-z0-9_./-]+)/g;
 const PREAMBLE_MARKER = "skill_dir_unresolved";
 // A line addressed to catalyst maintainers working inside a catalyst checkout says so; only such a
 // line may name a repo-relative plugin path.
@@ -155,12 +158,18 @@ export function checkSkillSelfContainment(skillDir) {
         }
       }
       if (text.includes(PREAMBLE_MARKER)) hasPreamble = true;
+      const escapes = (target) => relative(skillDir, normalize(join(skillDir, target))).startsWith("..");
+      // Braced or not: `$CLAUDE_SKILL_DIR/../x` climbs out as surely as `${CLAUDE_SKILL_DIR}/../x`.
+      for (const match of text.matchAll(ANY_SKILL_DIR_PATH_PATTERN)) {
+        const target = match[1].replace(/[.,;:]+$/, "");
+        if (escapes(target)) {
+          violations.push({ rule: "skill-dir-path-escapes", file: rel(skillDir, file), line: idx + 1, detail: target });
+        }
+      }
       for (const match of text.matchAll(SKILL_DIR_PATH_PATTERN)) {
         usesSkillDir = true;
         const target = match[1].replace(/[.,;:]+$/, "");
-        if (relative(skillDir, normalize(join(skillDir, target))).startsWith("..")) {
-          violations.push({ rule: "skill-dir-path-escapes", file: rel(skillDir, file), line: idx + 1, detail: target });
-        } else if (!existsSync(join(skillDir, target))) {
+        if (!escapes(target) && !existsSync(join(skillDir, target))) {
           violations.push({ rule: "skill-dir-path-missing", file: rel(skillDir, file), line: idx + 1, detail: target });
         }
       }

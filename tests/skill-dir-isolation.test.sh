@@ -123,6 +123,10 @@ done
 for skill in create-pr merge-pr review-comments; do
   run_isolated "${skill}: carries review-thread-resolution" "$skill" 'test -s "$CLAUDE_SKILL_DIR/assets/references/review-thread-resolution.md"'
 done
+# CTL-2310: the shared finding-resolution reference travels with each skill that cites it.
+for skill in remediate-plan review-comments triage-aging-prs; do
+  run_isolated "${skill}: carries resolving-review-findings" "$skill" 'test -s "$CLAUDE_SKILL_DIR/assets/references/resolving-review-findings.md"'
+done
 # The Catalyst Bash tool runs zsh, where ${BASH_SOURCE[0]} is unset: the sibling-skip helper
 # must still find its team-keys lib from a lone copy with no CLAUDE_PLUGIN_ROOT (CTL-633 shape).
 if command -v zsh >/dev/null 2>&1; then

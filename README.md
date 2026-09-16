@@ -68,6 +68,8 @@ The installed folder takes the skill's frontmatter `name`, which is the director
 
 - `skills/unslop` is copied unchanged from [cursor/plugins](https://github.com/cursor/plugins/blob/main/pstack/skills/unslop/SKILL.md), by Lauren Tan, under the MIT License. Its licence is in [`skills/unslop/LICENSE`](skills/unslop/LICENSE) and its attribution in [`skills/unslop/NOTICE.md`](skills/unslop/NOTICE.md).
 
+- `vendor-src/references/resolving-review-findings.md` (vendored into `remediate-plan`, `review-comments` and `triage-aging-prs`) is adapted from [obra/superpowers](https://github.com/obra/superpowers/blob/main/skills/receiving-code-review/SKILL.md) (commit `3fb75974`), by Jesse Vincent, under the MIT License; the file's header carries the credit and what changed.
+
 ## For contributors
 
 **Layout.**

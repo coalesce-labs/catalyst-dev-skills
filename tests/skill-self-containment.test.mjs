@@ -129,6 +129,26 @@ describe("the checker sees each violation it exists to catch (positive controls)
     expect(v.map((x) => [x.rule, x.detail])).toContainEqual(["skill-dir-path-escapes", "../other/scripts/helper.sh"]);
   });
 
+  // CTL-2310: `${CLAUDE_SKILL_DIR}/../../references/x.md` resolves in the catalyst checkout and in
+  // the runner image's baked plugin tree, but a flat skills install has no plugin directory above
+  // the skill. The unbraced `$CLAUDE_SKILL_DIR/../` form climbs out just the same.
+  test("a braced or unbraced skill-dir path that climbs into the plugin tree", () => {
+    const parent = join(scratch, "climbing-plugin");
+    mkdirSync(join(parent, "references"), { recursive: true });
+    writeFileSync(join(parent, "references", "shared.md"), "x\n");
+    const dir = join(parent, "skills", "climber");
+    mkdirSync(dir, { recursive: true });
+    writeFileSync(
+      join(dir, "SKILL.md"),
+      `---\nname: climber\n---\n${PREAMBLE}\nRead \`\${CLAUDE_SKILL_DIR}/../../references/shared.md\` and "$CLAUDE_SKILL_DIR/../../references/shared.md".\n`
+    );
+    const v = checkSkillSelfContainment(dir).violations;
+    expect(v.map((x) => [x.rule, x.detail])).toEqual([
+      ["skill-dir-path-escapes", "../../references/shared.md"],
+      ["skill-dir-path-escapes", "../../references/shared.md"],
+    ]);
+  });
+
   test("a skill-dir command with no harness preamble", () => {
     const dir = fixtureSkill("no-preamble", {
       "SKILL.md": '---\nname: x\n---\n```bash\n"${CLAUDE_SKILL_DIR}/scripts/ok.sh"\n```\n',
