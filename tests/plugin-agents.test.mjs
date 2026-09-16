@@ -70,9 +70,10 @@ describe("plugin subagents", () => {
     expect(unresolved(repoRoot)).toEqual([]);
   });
 
-  test("a plugin agent is a Claude Code agent file with a matching frontmatter name", () => {
+  // Claude Code loads every agents/*.md as a subagent, so a README there becomes `catalyst-dev:README`.
+  test("every agents/*.md is a Claude Code agent file with a matching frontmatter name", () => {
     const agentsDir = join(repoRoot, "agents");
-    const files = existsSync(agentsDir) ? readdirSync(agentsDir).filter((f) => f.endsWith(".md") && f !== "README.md") : [];
+    const files = existsSync(agentsDir) ? readdirSync(agentsDir).filter((f) => f.endsWith(".md")) : [];
     expect(files.length).toBeGreaterThan(0);
     for (const f of files) {
       const front = readFileSync(join(agentsDir, f), "utf8").match(/^---\n([\s\S]*?)\n---/);

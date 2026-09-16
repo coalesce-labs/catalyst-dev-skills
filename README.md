@@ -74,7 +74,7 @@ The installed folder takes the skill's frontmatter `name`, which is the director
 
 **Layout.**
 - `skills/<name>/`: one skill. `SKILL.md` is the common path; `references/` holds detail read on demand; `scripts/` and `assets/` hold what the skill runs.
-- `agents/`: the plugin's research subagents (`catalyst-dev:codebase-locator` and the rest), which Claude Code loads from the plugin root. It is also the one source of the subagent prompts skills carry under `assets/agents/`.
+- `agents/`: the plugin's research subagents (`catalyst-dev:codebase-locator` and the rest), which Claude Code loads from the plugin root; [`docs/agents.md`](docs/agents.md) describes them. Every `agents/*.md` must be an agent file, because Claude Code loads each one as a subagent. It is also the one source of the subagent prompts skills carry under `assets/agents/`.
 - `vendor-src/`: the single source of every other file two or more skills share (`scripts/…`, `references/…`, `templates/…`).
 - `.claude-plugin/`: the Claude Code plugin (`catalyst-dev`) and its marketplace (`catalyst-dev-skills`). The repository root is the plugin root, which the Catalyst Cloud runner image bakes as its catalyst-dev bundle.
 - `scripts/estimate/reference-class-corpus.json`: the estimation corpus the runner reads from the plugin root.

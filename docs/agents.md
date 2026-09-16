@@ -429,7 +429,5 @@ Agents specify required tools in frontmatter:
 
 ## See Also
 
-- `../../docs/frontmatter-standard.md` - Frontmatter validation rules
-- `../../docs/architecture.md` - Architecture and agent patterns
-- `../../README.md` - Workspace overview
-- `../../scripts/README.md` - Setup scripts documentation
+- [`../agents/`](../agents/) - The agent files this page describes
+- [`../README.md`](../README.md) - Repository overview
