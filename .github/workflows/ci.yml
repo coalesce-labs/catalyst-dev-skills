@@ -39,6 +39,9 @@ jobs:
       - name: Tests (bun suites, then every tests/*.test.sh)
         run: bash scripts/run-tests.sh
 
+      - name: Skills install to one declared scope (test:guards)
+        run: bun run test:guards
+
       - name: Skill names do not collide with the other Coalesce Labs packs
         run: |
           git clone -q --depth 1 https://github.com/coalesce-labs/catalyst-cloud-skills "$RUNNER_TEMP/catalyst-cloud-skills"
@@ -47,6 +50,9 @@ jobs:
 
       - name: Install smoke (skills@1.5.26 into a scratch HOME, three harnesses)
         run: bash scripts/install-smoke.sh
+
+      - name: Install scope (documented command, repository stays empty)
+        run: bash scripts/install-scope-smoke.sh
 
   secrets:
     runs-on: ubuntu-latest
