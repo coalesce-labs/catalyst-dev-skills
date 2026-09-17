@@ -1,2 +1,11 @@
 node_modules/
 .DS_Store
+
+# CTC-2558: a repository-scoped install (the documented command run without -g) writes these.
+# Ignoring them stops a mistyped install from being committed; `bun run test:guards` and
+# `scripts/install-scope-smoke.sh` are what actually catch it, since a git-based check would
+# otherwise be masked by this very entry.
+/.claude/skills/
+/.agents/skills/
+/agent/
+/skills-lock.json
