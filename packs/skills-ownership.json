@@ -1,0 +1,51 @@
+{
+  "comment": [
+    "Where every skill in this bundle installs. CTC-2558.",
+    "These skills are a person's own tools, not a repository's: they install to the home scope",
+    "(npx skills … -g) and never into a project directory. A skill in skills/ that is not listed",
+    "here fails `bun run test:guards`; add it rather than letting it ship unowned.",
+    "Hand-maintained on purpose — there is no --write mode, because a generated entry would mean",
+    "a new skill could never be caught as unowned."
+  ],
+  "version": 1,
+  "scopes": {
+    "home": "Under the person's $HOME: ~/.claude/skills, ~/.agents/skills and the other agent roots the CLI writes with -g.",
+    "repository": "Inside a project directory: <repo>/.claude/skills, <repo>/.agents/skills, <repo>/agent/skills and <repo>/skills-lock.json. Not shipped by this bundle."
+  },
+  "skills": [
+    { "dir": "agent-browser", "name": "agent-browser", "scope": "home" },
+    { "dir": "ask", "name": "ask", "scope": "home" },
+    { "dir": "briefing-followup", "name": "briefing-followup", "scope": "home" },
+    { "dir": "commit", "name": "commit", "scope": "home" },
+    { "dir": "compound-estimate", "name": "compound-estimate", "scope": "home" },
+    { "dir": "concierge", "name": "concierge", "scope": "home" },
+    { "dir": "create-handoff", "name": "create-handoff", "scope": "home" },
+    { "dir": "create-plan", "name": "create-plan", "scope": "home" },
+    { "dir": "create-pr", "name": "create-pr", "scope": "home" },
+    { "dir": "create-worktree", "name": "create-worktree", "scope": "home" },
+    { "dir": "describe-pr", "name": "describe-pr", "scope": "home" },
+    { "dir": "fix-typescript", "name": "fix-typescript", "scope": "home" },
+    { "dir": "gherkin-ticket", "name": "gherkin-ticket", "scope": "home" },
+    { "dir": "implement-plan", "name": "implement-plan", "scope": "home" },
+    { "dir": "iterate-plan", "name": "iterate-plan", "scope": "home" },
+    { "dir": "linear", "name": "linear", "scope": "home" },
+    { "dir": "linearis", "name": "linearis-cli", "scope": "home" },
+    { "dir": "merge-pr", "name": "merge-pr", "scope": "home" },
+    { "dir": "morning-briefing", "name": "morning-briefing", "scope": "home" },
+    { "dir": "project-orchestrator", "name": "project-orchestrator", "scope": "home" },
+    { "dir": "remediate-plan", "name": "remediate-plan", "scope": "home" },
+    { "dir": "research-codebase", "name": "research-codebase", "scope": "home" },
+    { "dir": "resume-handoff", "name": "resume-handoff", "scope": "home" },
+    { "dir": "review-code", "name": "review-code", "scope": "home" },
+    { "dir": "review-comments", "name": "review-comments", "scope": "home" },
+    { "dir": "review-security", "name": "review-security", "scope": "home" },
+    { "dir": "scan-reward-hacking", "name": "scan-reward-hacking", "scope": "home" },
+    { "dir": "steward", "name": "steward", "scope": "home" },
+    { "dir": "ticket-compound", "name": "ticket-compound", "scope": "home" },
+    { "dir": "ticket-retro", "name": "ticket-retro", "scope": "home" },
+    { "dir": "triage-aging-prs", "name": "triage-aging-prs", "scope": "home" },
+    { "dir": "unslop", "name": "unslop", "scope": "home" },
+    { "dir": "validate-plan", "name": "validate-plan", "scope": "home" },
+    { "dir": "validate-type-safety", "name": "validate-type-safety", "scope": "home" }
+  ]
+}

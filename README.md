@@ -7,10 +7,14 @@ The Catalyst development workflow as agent skills: research → plan → impleme
 One command, for every coding agent on the machine:
 
 ```sh
-npx skills@latest add coalesce-labs/catalyst-dev-skills --all
+npx skills@latest add coalesce-labs/catalyst-dev-skills --all -g
 ```
 
-It installs all 34 skills for each agent it detects (Claude Code, Codex, OpenCode, Cursor and the rest). Add `-g` to install into your home directory instead of the project. Skills installed this way do not auto-update; run `npx skills update -y` to refresh them.
+It installs all 34 skills for each agent it detects (Claude Code, Codex, OpenCode, Cursor and the rest). These skills are yours, not a repository's: `-g` installs into your home directory, and a project-scoped install is not a supported shape (CTC-2558). If you already have one — a `.claude/skills/`, `.agents/skills/`, `agent/skills/` or `skills-lock.json` inside a project — remove it with `npx skills remove --all` from that directory, then install again with `-g`. Skills installed this way do not auto-update; refresh them with:
+
+```sh
+npx skills@latest update -g -y
+```
 
 <details><summary><strong>Alternative for Claude Code: the plugin marketplace</strong></summary>
 
@@ -25,9 +29,9 @@ The plugin installs the set as a managed bundle, under the `catalyst-dev:` prefi
 <details><summary><strong>One agent at a time</strong></summary>
 
 ```sh
-npx skills@latest add coalesce-labs/catalyst-dev-skills -a codex
-npx skills@latest add coalesce-labs/catalyst-dev-skills -a opencode
-npx skills@latest add coalesce-labs/catalyst-dev-skills -a claude-code
+npx skills@latest add coalesce-labs/catalyst-dev-skills -a codex -g
+npx skills@latest add coalesce-labs/catalyst-dev-skills -a opencode -g
+npx skills@latest add coalesce-labs/catalyst-dev-skills -a claude-code -g
 ```
 
 Without `--all` the installer asks which skills to take and which agents to install them on. `--skill <name>` takes one skill.
@@ -94,7 +98,9 @@ node scripts/vendor.mjs --check   # CI: fails when a copy differs from its sourc
 - the workflow-input, handoff, review-skill and Linear-write contracts hold, and the vendored replica reader finds `~/.config/catalyst-cloud/replica.db`.
 
 CI also runs:
+- `test:guards` (`scripts/check-skill-scope.mjs` + `tests/skill-scope.test.mjs`), which fails when a skill is unowned by `packs/skills-ownership.json`, when this checkout carries a repository-scoped install, or when a documented install command has lost `-g`;
 - `scripts/install-smoke.sh`, which installs the repository with `skills@1.5.26` into a scratch HOME and checks all three harness paths;
+- `scripts/install-scope-smoke.sh`, which runs the documented install command for real with `cwd` and `$HOME` as two different directories and proves the repository directory stays empty (CTC-2558);
 - a skill-name collision check against `catalyst-cloud-skills` and `catalyst-pm-skills`;
 - gitleaks;
 - `scripts/scan-internal.sh`, which refuses internal hosts, paths and tokens in this public repository.

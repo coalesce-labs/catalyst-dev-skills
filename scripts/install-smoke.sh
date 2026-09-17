@@ -16,17 +16,21 @@ SKILLS_CLI="${SKILLS_CLI:-skills@1.5.26}"
 
 EXPECTED="$(find "$REPO_ROOT/skills" -mindepth 2 -maxdepth 2 -name SKILL.md | wc -l | tr -d ' ')"
 SMOKE_HOME="$(mktemp -d)"
-trap 'rm -rf "$SMOKE_HOME"' EXIT
+# CTC-2558: cwd is deliberately NOT $SMOKE_HOME — a scope regression (this line losing -g) must
+# be observable, which it cannot be if cwd and $HOME resolve to the same place.
+SMOKE_CWD="$(mktemp -d)"
+git init -q "$SMOKE_CWD"
+trap 'rm -rf "$SMOKE_HOME" "$SMOKE_CWD"' EXIT
 
 FAIL=0
 ok()   { printf '  PASS: %s\n' "$1"; }
 fail() { FAIL=$((FAIL+1)); printf '  FAIL: %s\n    %s\n' "$1" "${2:-}"; }
 
-echo "install smoke: $SKILLS_CLI add $SOURCE (HOME=$SMOKE_HOME)"
+echo "install smoke: $SKILLS_CLI add $SOURCE (HOME=$SMOKE_HOME, cwd=$SMOKE_CWD)"
 # The scratch HOME is the whole point: the CLI writes only there. Keep npm's cache outside it so
 # a warm cache still helps, and keep the CLI's telemetry off.
 NPM_CACHE="${npm_config_cache:-$(npm config get cache 2>/dev/null)}"
-(cd "$SMOKE_HOME" && HOME="$SMOKE_HOME" npm_config_cache="$NPM_CACHE" DISABLE_TELEMETRY=1 DO_NOT_TRACK=1 \
+(cd "$SMOKE_CWD" && HOME="$SMOKE_HOME" npm_config_cache="$NPM_CACHE" DISABLE_TELEMETRY=1 DO_NOT_TRACK=1 \
   npx -y "$SKILLS_CLI" add "$SOURCE" --skill '*' -a claude-code -a codex -a opencode -g -y) > "$SMOKE_HOME/.install.log" 2>&1
 rc=$?
 if [ "$rc" -ne 0 ]; then
@@ -78,6 +82,15 @@ if [ -x "$AGENTS_DIR/implement-plan/scripts/add-finding.sh" ]; then
   ok "the install keeps a script's executable bit"
 else
   fail "the install keeps a script's executable bit" "$(ls -l "$AGENTS_DIR/implement-plan/scripts/add-finding.sh" 2>&1)"
+fi
+
+# CTC-2558: cwd stayed empty — everything landed under $HOME, nothing under the directory the
+# install was run from.
+cwd_residue="$(find "$SMOKE_CWD" -mindepth 1 -not -path '*/.git*' 2>/dev/null | wc -l | tr -d ' ')"
+if [ "$cwd_residue" -eq 0 ]; then
+  ok "the working directory the install ran from stayed empty"
+else
+  fail "the working directory the install ran from stayed empty" "found $cwd_residue path(s) under $SMOKE_CWD"
 fi
 
 echo ""
