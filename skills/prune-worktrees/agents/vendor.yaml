@@ -1,0 +1,4 @@
+---
+files:
+  - scripts/lib/worktree-remove-guard.sh
+  - scripts/lib/plugin-dirs.sh

@@ -1,0 +1,7 @@
+{
+  "generatedBy": "catalyst-packaging vendor",
+  "files": [
+    "scripts/lib/plugin-dirs.sh",
+    "scripts/lib/worktree-remove-guard.sh"
+  ]
+}

@@ -33,6 +33,7 @@
     { "dir": "merge-pr", "name": "merge-pr", "scope": "home" },
     { "dir": "morning-briefing", "name": "morning-briefing", "scope": "home" },
     { "dir": "project-orchestrator", "name": "project-orchestrator", "scope": "home" },
+    { "dir": "prune-worktrees", "name": "prune-worktrees", "scope": "home" },
     { "dir": "remediate-plan", "name": "remediate-plan", "scope": "home" },
     { "dir": "research-codebase", "name": "research-codebase", "scope": "home" },
     { "dir": "resume-handoff", "name": "resume-handoff", "scope": "home" },
