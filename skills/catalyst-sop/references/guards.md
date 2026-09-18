@@ -39,6 +39,18 @@
 
 ⚠️ A corollary already recorded elsewhere: a guard that writes its number only to `$GITHUB_STEP_SUMMARY` leaves **no greppable trace on a pass**, because no REST endpoint can read a step summary. A measurement that only renders on the run page is not a measurement anyone can audit later.
 
+## Rule 3 — prove the passing runs EXECUTED the suite before calling a failure intermittent
+
+⛔ **A skipped or not-run gate is UNKNOWN, never a pass.** Before computing any flake rate, partition the "passing" heads into **ran** vs **skipped**, and read the gate's own run/skip line — never the badge.
+
+**Worked example, 2026-09-18, and it is the best one here.** A "Privileged fixture race" was classified as intermittent by **three** sessions, measured at *"5 of 9 on guests vs 1 of 13 hosted"*, and nearly triggered a $283/day CI routing flip. It was not intermittent. It was a **deterministic regression** from CTC-2625 (#5104): every job that actually ran the host-agent fixture after 16:44Z failed **14 of 14**. Every "green" run after it carried `"run": false` in its log, because the privileged relevance gate skipped the suite on PRs that did not touch its inputs. **The substrate ratio was tracking which files each PR touched, not which substrate was flaky.** Fixed by CTC-2762 (#5206, `80bc3c82b`).
+
+⚠️ **How the bad measurement survived three reviewers:** every number in it was real. The runs existed, the pass/fail labels were accurate, the ratio was computed correctly. The only defect was that half the denominator had not executed the code under test.
+
+**Same family as the turbo-replay rule:** a green `Check` can be a replayed cache log, where the hash never moved, turbo replays an old pass and prints ✓. In both cases the instrument reports green **without doing the work** — which is this skill's thesis in its CI form.
+
+⛔ **The merge queue has this hole too.** `.mergify.yml` matches `or: [check-success=<gate>, check-skipped=<gate>]` for `Check`, `Check (full)` and `Privileged integration` (lines 135–163). A draft→ready transition leaves two check runs per gate on one sha, and the SKIPPED duplicate satisfies the condition — so **#5104 merged with its real Privileged run red**. `CTC-2773` (P1) is the gate fix. Until it lands, "a green, thread-free PR self-enqueues" means *green or skipped*, and skipped is not green.
+
 ## Attribution
 
-Both rules: concierge + github-actions-on-mini, 2026-09-18. Rule 2 is also recorded as memory `actions-runs-timing-returns-billable-zero-for-every-run-here`. The three-run reproduction and the in-progress control above are this drafter's own, run before the rule was written down.
+Rules 1 and 2: concierge + github-actions-on-mini, 2026-09-18. Rule 3: concierge, 2026-09-18, from the Privileged-fixture investigation; also recorded as memory `a-green-privileged-job-can-be-a-relevance-skip-that-hid-a-deterministic-regression`. The `.mergify.yml` line numbers and the CTC-2762/CTC-2773 states were re-verified against `origin/main` before this was written down. Rule 2 is also recorded as memory `actions-runs-timing-returns-billable-zero-for-every-run-here`. The three-run reproduction and the in-progress control above are this drafter's own, run before the rule was written down.
