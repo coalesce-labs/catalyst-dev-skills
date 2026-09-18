@@ -4,6 +4,11 @@ Every run — whether it removes anything or not — writes one JSONL file at
 `${CATALYST_LOGS_DIR}/prune-worktrees/<UTC-ISO8601-basic-timestamp>-<mode>.jsonl`, one JSON object per
 line, ending with a summary record. `mode` is `dry-run`, `dry-run-first-run` or `apply`.
 
+The name is claimed with `noclobber`, and a run that finds it taken takes the next `.2`, `.3`, …
+suffix instead. Two runs in the same second and mode — a manual run racing the timer, or the
+documented `--dry-run` then `--apply` pair — therefore keep **both** audit records; no run ever
+truncates another's log.
+
 ## Per-candidate record
 
 ```json
@@ -27,8 +32,13 @@ line, ending with a summary record. `mode` is `dry-run`, `dry-run-first-run` or 
 ## Summary record (always the last line)
 
 ```json
-{"kind":"summary","ts":"2026-09-18T21:00:03Z","mode":"apply","scanned":11,"removed":2,"kept":9,"host":"buildbox-01"}
+{"kind":"summary","ts":"2026-09-18T21:00:03Z","mode":"apply","scanned":11,"removed":2,"wouldRemove":0,"kept":9,"host":"buildbox-01"}
 ```
+
+`removed` counts trees this run **actually deleted** — it is always `0` in `dry-run` and
+`dry-run-first-run`, i.e. for every first run on every machine. What a dry run would have removed is
+`wouldRemove`; in `apply` mode that field is `0`. A record's `verdict` is the classification either
+way, so a `REMOVE` record in a dry-run log means "would have been removed".
 
 Written even when `removed` is 0 and even when the farm was empty — a scheduled run that changed
 nothing still has to prove it ran.
@@ -38,7 +48,8 @@ nothing still has to prove it ran.
 ```sh
 LOG=$(ls -t "${CATALYST_LOGS_DIR}/prune-worktrees"/*.jsonl | head -1)
 jq -c 'select(.verdict=="KEEP")' "$LOG"                     # every tree kept, and why
-jq -c 'select(.verdict=="REMOVE")' "$LOG"                    # every tree actually removed
+jq -c 'select(.verdict=="REMOVE")' "$LOG"                    # every tree removed, or (dry run) that would be
+jq -e 'select(.kind=="summary") | .mode=="apply"' "$LOG"     # ...was this an applying run at all?
 jq -c 'select(.kind=="summary")' "$LOG"                      # the one-line outcome
 jq -r 'select(.reason) | .reason' "$LOG" | sort | uniq -c     # a reason histogram across the farm
 ```

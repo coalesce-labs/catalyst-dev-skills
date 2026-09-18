@@ -44,6 +44,23 @@ while [ $# -gt 0 ]; do
   shift
 done
 
+# Validate BEFORE touching the config: a non-integer retention window used to reach `jq
+# --argjson`, which failed, and the unchecked write then truncated the operator's config to an
+# empty file while reporting success (C2).
+case "$RETENTION_DAYS" in
+  ''|*[!0-9]*)
+    echo "offer-schedule: refusing — --retention-days must be a non-negative integer (got '${RETENTION_DAYS}'); nothing was written" >&2
+    exit 2
+    ;;
+esac
+case "$SCHEDULE" in
+  daily|weekly) ;;
+  *)
+    echo "offer-schedule: refusing — --schedule must be daily or weekly (got '${SCHEDULE}'); nothing was written" >&2
+    exit 2
+    ;;
+esac
+
 CONFIG_PATH="${CATALYST_PRUNE_CONFIG:-$(dirname "$(plugin_dirs_machine_config_path)")/housekeeping.json}"
 
 jitter_for_host() {
@@ -63,12 +80,15 @@ read_config() {
 }
 
 write_merged() {
-  # write_merged <patch-json>
+  # write_merged <patch-json> — refuses rather than writing anything it could not build (C2)
   local patch="$1" existing merged dir tmp
   existing="$(read_config)" || return 1
   dir="$(dirname "$CONFIG_PATH")"
   mkdir -p "$dir"
-  merged="$(printf '%s' "$existing" | jq --argjson patch "$patch" '. * $patch')"
+  if ! merged="$(printf '%s' "$existing" | jq --argjson patch "$patch" '. * $patch')" || [ -z "$merged" ]; then
+    echo "offer-schedule: refusing — could not merge the answer into ${CONFIG_PATH}; leaving it untouched" >&2
+    return 1
+  fi
   tmp="$(mktemp "${CONFIG_PATH}.XXXXXX")"
   printf '%s\n' "$merged" > "$tmp"
   mv "$tmp" "$CONFIG_PATH"
@@ -77,7 +97,10 @@ write_merged() {
 case "$ACTION" in
   reset)
     existing="$(read_config)" || exit 1
-    updated="$(printf '%s' "$existing" | jq 'del(.housekeeping)')"
+    if ! updated="$(printf '%s' "$existing" | jq 'del(.housekeeping)')" || [ -z "$updated" ]; then
+      echo "offer-schedule: refusing — could not rewrite ${CONFIG_PATH}; leaving it untouched" >&2
+      exit 1
+    fi
     mkdir -p "$(dirname "$CONFIG_PATH")"
     tmp="$(mktemp "${CONFIG_PATH}.XXXXXX")"
     printf '%s\n' "$updated" > "$tmp"
@@ -89,12 +112,16 @@ case "$ACTION" in
   accept|decline)
     ts="${CATALYST_PRUNE_NOW:-$(date -u +%Y-%m-%dT%H:%M:%SZ)}"
     actor="${CATALYST_PRUNE_ACTOR:-${USER:-unknown}@$(hostname 2>/dev/null || echo unknown-host)}"
-    patch="$(jq -n --arg answer "$ACTION" --arg schedule "$SCHEDULE" --argjson retentionDays "$RETENTION_DAYS" \
+    if ! patch="$(jq -n --arg answer "$ACTION" --arg schedule "$SCHEDULE" --argjson retentionDays "$RETENTION_DAYS" \
       --arg answeredAt "$ts" --arg actor "$actor" --arg skillVersion "1.0.0" \
-      '{housekeeping: {answer: $answer, schedule: $schedule, retentionDays: $retentionDays, answeredAt: $answeredAt, actor: $actor, skillVersion: $skillVersion}}')"
+      '{housekeeping: {answer: $answer, schedule: $schedule, retentionDays: $retentionDays, answeredAt: $answeredAt, actor: $actor, skillVersion: $skillVersion}}')" || [ -z "$patch" ]; then
+      echo "offer-schedule: refusing — could not build the answer record; ${CONFIG_PATH} is untouched" >&2
+      exit 1
+    fi
     write_merged "$patch" || exit 1
     if [ "$ACTION" = "accept" ]; then
-      installargs=(--install)
+      # the answer the operator just gave is what gets installed — cadence AND window (M1/C4)
+      installargs=(--install --schedule "$SCHEDULE" --retention-days "$RETENTION_DAYS")
       [ -n "$ROOT" ] && installargs+=(--root "$ROOT")
       if ! "${SCRIPT_DIR}/install-schedule.sh" "${installargs[@]}"; then
         echo "offer-schedule: recorded acceptance, but installing the schedule failed" >&2

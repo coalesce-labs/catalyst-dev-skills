@@ -88,10 +88,14 @@ else
 fi
 
 # 2d. references/fail-closed.md names every KEEP/REMOVE reason string the script can emit
-reasons_in_script="$(grep -oE '"(dirty|locked|prunable|detached|content-not-in:\$\{def\}|no-commits-beyond-base|unpushed-commits|no-merge-base|unsupported-farm-depth|no-primary-checkout|not-a-registered-worktree|refs-stale:fetch-failed|default-branch-unresolved|cwd-containment|liveness-unprovable|live-handles|removal-refused-by-git|hook-upgrade-ignored)"' "${SKILL_DIR}/scripts/prune-worktrees.sh" | tr -d '"' | sort -u)"
+reasons_in_script="$(grep -oE '"(dirty|locked|prunable|detached|content-not-in:\$\{def\}|merged:ancestor-of-\$\{def\}|within-retention-window:\$\{RETENTION_DAYS\}d|no-commits-beyond-base|unpushed-commits|no-merge-base|unsupported-farm-depth|no-primary-checkout|not-a-registered-worktree|refs-stale:fetch-failed|default-branch-unresolved|cwd-containment|liveness-unprovable|live-handles|removal-refused-by-git|hook-unusable:crashed|hook-unusable:unparseable|hook-upgrade-ignored)"' "${SKILL_DIR}/scripts/prune-worktrees.sh" | tr -d '"' | sort -u)"
 missing=""
 for r in $reasons_in_script; do
-  case "$r" in "content-not-in:"*) r="content-not-in" ;; esac
+  case "$r" in
+    "content-not-in:"*) r="content-not-in" ;;
+    "merged:ancestor-of-"*) r="merged:ancestor-of" ;;
+    "within-retention-window:"*) r="within-retention-window" ;;
+  esac
   grep -qF "$r" "${SKILL_DIR}/references/fail-closed.md" || missing="${missing} ${r}"
 done
 if [ -z "$missing" ]; then
@@ -545,13 +549,53 @@ else
   fail "control: stub systemctl not invoked under --root" "$(cat "$STUBLOG")"
 fi
 
-# refusal: requested platform's scheduler AND crontab both unavailable, no --root → nothing written
-out_refuse="$(env PATH=/usr/bin:/bin HOME="${SCRATCH}/refuse-home" bash "${SKILL_DIR}/scripts/install-schedule.sh" --install --platform systemd 2>&1)"; rc_refuse=$?
+# refusal: requested platform's scheduler AND crontab both unavailable, no --root → nothing written.
+#
+# The scheduler-free PATH is CONSTRUCTED, not assumed. `PATH=/usr/bin:/bin` only means "no
+# scheduler" on a bare container: an ordinary Linux box — every GitHub ubuntu runner — carries
+# /usr/bin/systemctl and /usr/bin/crontab, so this test used to take the real install path there,
+# write a unit into $HOME and fail its own "writes nothing" assertion. Green locally, red in CI.
+NOSCHED_BIN="${SCRATCH}/nosched-bin"
+mkdir -p "$NOSCHED_BIN"
+for t in bash sh hostname cksum awk uname dirname basename mktemp jq chmod mkdir mv rm cat sed grep id date find ls; do
+  t_src="$(command -v "$t" 2>/dev/null)" && ln -sf "$t_src" "${NOSCHED_BIN}/${t}"
+done
+if PATH="$NOSCHED_BIN" command -v systemctl >/dev/null 2>&1 \
+  || PATH="$NOSCHED_BIN" command -v launchctl >/dev/null 2>&1 \
+  || PATH="$NOSCHED_BIN" command -v crontab >/dev/null 2>&1; then
+  fail "control: the constructed PATH carries no scheduler" "$(ls "$NOSCHED_BIN")"
+else
+  ok "control: the constructed PATH carries no systemctl/launchctl/crontab"
+fi
+out_refuse="$(env PATH="$NOSCHED_BIN" HOME="${SCRATCH}/refuse-home" bash "${SKILL_DIR}/scripts/install-schedule.sh" --install --platform systemd 2>&1)"; rc_refuse=$?
 if [ "$rc_refuse" -ne 0 ] && printf '%s' "$out_refuse" | grep -qi 'systemd' && printf '%s' "$out_refuse" | grep -qi 'cron' \
   && [ ! -e "${SCRATCH}/refuse-home/.config/systemd" ]; then
   ok "no usable scheduler on PATH: refuses, names both, writes nothing"
 else
   fail "no-scheduler refusal" "rc=$rc_refuse out=$out_refuse"
+fi
+
+# positive control: the refusal above is a real branch, not a vacuous one — put a crontab on the
+# same PATH and the installer falls back to cron, says so, and installs the block.
+FALLBACK_BIN="${SCRATCH}/fallback-bin"
+cp -a "$NOSCHED_BIN" "$FALLBACK_BIN"
+CRONTAB_STUB_LOG="${SCRATCH}/crontab-stub.log"
+cat > "${FALLBACK_BIN}/crontab" <<EOS
+#!/usr/bin/env bash
+if [ "\${1:-}" = "-l" ]; then
+  [ -f "${CRONTAB_STUB_LOG}" ] && cat "${CRONTAB_STUB_LOG}"
+  exit 0
+fi
+cat > "${CRONTAB_STUB_LOG}"
+exit 0
+EOS
+chmod +x "${FALLBACK_BIN}/crontab"
+out_fb="$(env PATH="$FALLBACK_BIN" HOME="${SCRATCH}/fallback-home" bash "${SKILL_DIR}/scripts/install-schedule.sh" --install --platform systemd 2>&1)"; rc_fb=$?
+if [ "$rc_fb" -eq 0 ] && printf '%s' "$out_fb" | grep -qi 'falling back to cron' \
+  && grep -q '# BEGIN catalyst-prune-worktrees' "$CRONTAB_STUB_LOG" 2>/dev/null; then
+  ok "control: with crontab present the installer falls back to cron, names the fallback, installs the block"
+else
+  fail "control: cron fallback installs" "rc=$rc_fb out=$out_fb crontab=$(cat "$CRONTAB_STUB_LOG" 2>/dev/null)"
 fi
 
 # ── 5. offer-schedule.sh: propose / accept / decline / persist ──────────────────────────────
@@ -617,6 +661,264 @@ rm -f "$OFFER_CFG"
 run_offer --decline >/dev/null
 out_o9="$(run_offer --json 2>&1)"
 printf '%s' "$out_o9" | jq -e . >/dev/null 2>&1 && ok "--json prints the recorded answer as one JSON object" || fail "--json output parses" "$out_o9"
+
+
+# ── 6. Regressions fixed in the CTC-2550 remediate round ────────────────────────────────────
+# Every check below fails against the scripts as they stood at 306a4ce.
+echo ""
+echo "Regressions (remediate round)"
+
+# C1 — an unmerged branch whose only change is a path containing a space must never be REMOVE.
+# `git diff --quiet -- $paths` unquoted split it into two pathspecs that matched nothing, and a
+# pathspec matching nothing exits 0 — the fail-open this skill exists to prevent.
+# C5 — a branch merged with a real merge commit must be reclaimed, not reported as if it had no
+# work ("no-commits-beyond-base").
+SPACEBASE="${SCRATCH}/space-farm"
+mkdir -p "$SPACEBASE"
+build_farm_fixture "$SPACEBASE"
+git -C "${SPACEBASE}/primary" worktree add -q -b CTC-SP "${SPACEBASE}/wt/repo/CTC-SP" origin/main
+( cd "${SPACEBASE}/wt/repo/CTC-SP" && git config user.email t@t.t && git config user.name t \
+    && echo secret-unmerged-work > "a file.txt" && git add -A && git commit -q -m sp )
+git -C "${SPACEBASE}/primary" worktree add -q -b CTC-MC "${SPACEBASE}/wt/repo/CTC-MC" origin/main
+( cd "${SPACEBASE}/wt/repo/CTC-MC" && git config user.email t@t.t && git config user.name t \
+    && echo mc1 > mc1.txt && git add mc1.txt && git commit -q -m mc1 )
+( cd "${SPACEBASE}/primary" && git checkout -q main && git pull -q origin main \
+    && git merge -q --no-ff -m "merge CTC-MC" CTC-MC && git push -q origin main )
+out_reg="$(CATALYST_WORKTREES_DIR="${SPACEBASE}/wt" CATALYST_LOGS_DIR="${SCRATCH}/logs-reg" \
+  CATALYST_WORKTREE_STALE_DAYS=0 WT_GUARD_LSOF="$LSOF_STUB" \
+  bash "${SKILL_DIR}/scripts/prune-worktrees.sh" --dry-run --json 2>&1)"
+line_of() { printf '%s\n' "$out_reg" | grep "\"path\":\"${SPACEBASE}/wt/repo/$1\"" | head -1; }
+
+if printf '%s' "$(line_of CTC-SP)" | grep -q '"verdict":"KEEP"'; then
+  ok "C1: an unmerged branch touching 'a file.txt' is KEEP, not REMOVE (quoted pathspec)"
+else
+  fail "C1: spaced path must not read as merged" "$(line_of CTC-SP)"
+fi
+# control: the same branch IS the one with a spaced path, and git agrees it is unmerged
+if git -C "${SPACEBASE}/primary" merge-base --is-ancestor refs/heads/CTC-SP origin/main 2>/dev/null; then
+  fail "control: CTC-SP really is unmerged" "git says it is an ancestor of origin/main"
+else
+  ok "control: git itself confirms CTC-SP is not in origin/main"
+fi
+if printf '%s' "$(line_of CTC-MC)" | grep -q '"verdict":"REMOVE","reason":"merged:ancestor-of-origin/main"'; then
+  ok "C5: a branch merged by merge-commit is REMOVE/merged:ancestor-of-origin/main"
+else
+  fail "C5: merge-commit-merged branch is reclaimed" "$(line_of CTC-MC)"
+fi
+
+# C6 — a trailing slash on the farm root must not turn the whole run into a silent no-op.
+out_slash="$(CATALYST_WORKTREES_DIR="${BASE}/wt/" CATALYST_LOGS_DIR="${SCRATCH}/logs-slash" \
+  CATALYST_WORKTREE_STALE_DAYS=0 bash "${SKILL_DIR}/scripts/prune-worktrees.sh" --dry-run --json 2>&1)"
+slash_a="$(printf '%s\n' "$out_slash" | grep "\"path\":\"${BASE}/wt/repo/CTC-A\"" | head -1)"
+if printf '%s' "$slash_a" | grep -q '"verdict":"REMOVE"' \
+  && ! printf '%s\n' "$out_slash" | grep -q '"reason":"unsupported-farm-depth:[3-9]'; then
+  ok "C6: a farm root with a trailing slash classifies exactly as one without"
+else
+  fail "C6: trailing slash must not break depth resolution" "$slash_a"
+fi
+
+# C3 / M2 — the retention window is a real gate (it was left with no coverage at all), and it is
+# built with POSIX `find -mtime`, never GNU-only `touch -d "-N days"` whose macOS fallback
+# stamped the threshold at NOW and disabled the gate silently.
+out_ret="$(CATALYST_WORKTREES_DIR="${BASE}/wt" CATALYST_LOGS_DIR="${SCRATCH}/logs-ret" \
+  env -u CATALYST_WORKTREE_STALE_DAYS bash "${SKILL_DIR}/scripts/prune-worktrees.sh" --dry-run --json 2>&1)"
+ret_a="$(printf '%s\n' "$out_ret" | grep "\"path\":\"${BASE}/wt/repo/CTC-A\"" | head -1)"
+if printf '%s' "$ret_a" | grep -q '"verdict":"KEEP","reason":"within-retention-window:14d"'; then
+  ok "M2: with the default window, a freshly-touched merged tree is KEEP/within-retention-window:14d"
+else
+  fail "M2: the retention window keeps a fresh merged tree" "$ret_a"
+fi
+# control: the same tree with the window disabled is REMOVE — so the KEEP above is the window,
+# not some other gate
+if printf '%s' "$(printf '%s\n' "$out" | grep "\"path\":\"${BASE}/wt/repo/CTC-A\"" | head -1)" | grep -q '"verdict":"REMOVE"'; then
+  ok "control: the same tree with CATALYST_WORKTREE_STALE_DAYS=0 is REMOVE"
+else
+  fail "control: window=0 removes the same tree"
+fi
+# (comment lines describing the rejected spelling are not invocations — exclude them, as 2a does)
+touch_hits="$(grep -n 'touch -d' "${SKILL_DIR}/scripts/prune-worktrees.sh" | grep -vE '^[0-9]+:[[:space:]]*#')"
+if [ -n "$touch_hits" ]; then
+  fail "C3: no GNU-only 'touch -d' threshold in the retention gate" "$touch_hits"
+else
+  ok "C3: the retention gate uses no GNU-only 'touch -d' threshold"
+fi
+tmp_touch="$(mktemp)"; printf '  touch -d "-${days} days" "$threshold"\n' > "$tmp_touch"
+if [ -n "$(grep -n 'touch -d' "$tmp_touch" | grep -vE '^[0-9]+:[[:space:]]*#')" ]; then
+  ok "control: a planted 'touch -d' line IS reported"
+else
+  fail "control: planted 'touch -d' reported"
+fi
+rm -f "$tmp_touch"
+out_badret="$(CATALYST_WORKTREES_DIR="${BASE}/wt" CATALYST_LOGS_DIR="${SCRATCH}/logs-badret" \
+  CATALYST_WORKTREE_STALE_DAYS=notanumber bash "${SKILL_DIR}/scripts/prune-worktrees.sh" --dry-run 2>&1)"; rc_badret=$?
+if [ "$rc_badret" -eq 3 ] && printf '%s' "$out_badret" | grep -qF 'CATALYST_WORKTREE_STALE_DAYS'; then
+  ok "a non-numeric retention window refuses the run (exit 3) instead of evaluating to 'no window'"
+else
+  fail "non-numeric retention window refuses" "rc=$rc_badret out=$out_badret"
+fi
+
+# C8 — a classifier hook that cannot be used must keep the tree. D7 makes it a downgrade-only
+# safety valve; a crashed valve told us nothing, and nothing is not consent to delete.
+HOOK_CRASH="${SCRATCH}/bin/hook-crash.sh"
+printf '#!/usr/bin/env bash\ncat >/dev/null\nexit 7\n' > "$HOOK_CRASH"; chmod +x "$HOOK_CRASH"
+outc8="$(CATALYST_WORKTREES_DIR="${BASE}/wt" CATALYST_LOGS_DIR="${SCRATCH}/logs-c8a" CATALYST_WORKTREE_STALE_DAYS=0 \
+  CATALYST_WT_CLASSIFIER="$HOOK_CRASH" bash "${SKILL_DIR}/scripts/prune-worktrees.sh" --dry-run --json 2>&1)"
+if printf '%s\n' "$outc8" | grep "\"path\":\"${BASE}/wt/repo/CTC-A\"" | grep -q '"verdict":"KEEP","reason":"hook-unusable:crashed"'; then
+  ok "C8: a hook that exits non-zero keeps the tree (hook-unusable:crashed)"
+else
+  fail "C8: crashed hook keeps the tree" "$(printf '%s\n' "$outc8" | grep "${BASE}/wt/repo/CTC-A" | head -1)"
+fi
+HOOK_GARBAGE="${SCRATCH}/bin/hook-garbage.sh"
+printf '#!/usr/bin/env bash\ncat >/dev/null\nprintf %%s "not json at all"\n' > "$HOOK_GARBAGE"; chmod +x "$HOOK_GARBAGE"
+outc8b="$(CATALYST_WORKTREES_DIR="${BASE}/wt" CATALYST_LOGS_DIR="${SCRATCH}/logs-c8b" CATALYST_WORKTREE_STALE_DAYS=0 \
+  CATALYST_WT_CLASSIFIER="$HOOK_GARBAGE" bash "${SKILL_DIR}/scripts/prune-worktrees.sh" --dry-run --json 2>&1)"
+if printf '%s\n' "$outc8b" | grep "\"path\":\"${BASE}/wt/repo/CTC-A\"" | grep -q '"verdict":"KEEP","reason":"hook-unusable:unparseable"'; then
+  ok "C8: a hook whose output cannot be parsed keeps the tree (hook-unusable:unparseable)"
+else
+  fail "C8: unparseable hook output keeps the tree" "$(printf '%s\n' "$outc8b" | grep "${BASE}/wt/repo/CTC-A" | head -1)"
+fi
+
+# C9 — no world-predictable /tmp redirect target on a shared machine (`>` follows a symlink).
+if grep -RnE '2>/tmp/' "${SKILL_DIR}/scripts" >/dev/null; then
+  fail "C9: no predictable /tmp redirect targets in scripts/" "$(grep -RnE '2>/tmp/' "${SKILL_DIR}/scripts")"
+else
+  ok "C9: no predictable /tmp redirect targets in scripts/"
+fi
+tmp_redir="$(mktemp)"; printf 'cmd 2>/tmp/prune-wt-guard-err.$$\n' > "$tmp_redir"
+grep -qE '2>/tmp/' "$tmp_redir" && ok "control: a planted '2>/tmp/...' redirect IS reported" || fail "control: planted /tmp redirect reported"
+rm -f "$tmp_redir"
+
+# C10 — a dry run reports what it WOULD remove; `removed` counts only real deletions.
+if [ -n "$LOG1" ] && grep '"kind":"summary"' "$LOG1" | jq -e '.removed == 0 and .wouldRemove == 3' >/dev/null 2>&1; then
+  ok "C10: the dry run's summary is removed=0, wouldRemove=3"
+else
+  fail "C10: dry-run summary separates removed from wouldRemove" "$(grep '"kind":"summary"' "${LOG1}")"
+fi
+if grep -h '"kind":"summary"' "${APPLYLOGS}/prune-worktrees"/*-apply.jsonl 2>/dev/null \
+    | jq -se 'any(.[]; .removed > 0 and .wouldRemove == 0)' >/dev/null 2>&1; then
+  ok "C10: an applying run counts its deletions in removed, with wouldRemove=0"
+else
+  fail "C10: apply summary counts removals" "$(grep -h '"kind":"summary"' "${APPLYLOGS}/prune-worktrees"/*-apply.jsonl 2>/dev/null)"
+fi
+
+# C11 — two runs in the same second and mode must both keep their log.
+COLLOGS="${SCRATCH}/collide-logs"
+for _ in 1 2; do
+  CATALYST_WORKTREES_DIR="${BASE}/wt" CATALYST_LOGS_DIR="$COLLOGS" CATALYST_WORKTREE_STALE_DAYS=0 \
+    CATALYST_PRUNE_NOW="2026-01-02T03:04:05Z" bash "${SKILL_DIR}/scripts/prune-worktrees.sh" --dry-run >/dev/null 2>&1
+done
+col_n="$(ls "${COLLOGS}/prune-worktrees"/*.jsonl 2>/dev/null | wc -l | tr -d ' ')"
+col_summaries="$(grep -lh '"kind":"summary"' "${COLLOGS}/prune-worktrees"/*.jsonl 2>/dev/null | wc -l | tr -d ' ')"
+if [ "$col_n" = 2 ] && [ "$col_summaries" = 2 ]; then
+  ok "C11: two runs with the same timestamp and mode keep both logs, each with its summary"
+else
+  fail "C11: same-second runs must not overwrite each other's log" "logs=$col_n with-summary=$col_summaries"
+fi
+
+# ── M1 / C4: the accepted answer is what actually gets installed ─────────────────────────────
+echo ""
+echo "The accepted schedule and window reach the unit (M1/C4)"
+
+r_sys_w="$(bash "${SKILL_DIR}/scripts/install-schedule.sh" --render systemd --schedule weekly --retention-days 30)"
+printf '%s' "$r_sys_w" | grep -qF 'OnCalendar=weekly' && ok "systemd: --schedule weekly renders OnCalendar=weekly" || fail "systemd cadence is plumbed" "$r_sys_w"
+printf '%s' "$r_sys_w" | grep -qF 'Environment=CATALYST_WORKTREE_STALE_DAYS=30' && ok "systemd: --retention-days 30 reaches the unit's Environment=" || fail "systemd retention is plumbed" "$r_sys_w"
+
+r_lau_w="$(bash "${SKILL_DIR}/scripts/install-schedule.sh" --render launchd --schedule weekly --retention-days 30)"
+printf '%s' "$r_lau_w" | grep -qF '<key>Weekday</key>' && ok "launchd: weekly adds a Weekday key" || fail "launchd cadence is plumbed" "$r_lau_w"
+printf '%s' "$r_lau_w" | grep -qF 'CATALYST_WORKTREE_STALE_DAYS' && printf '%s' "$r_lau_w" | grep -qF '<string>30</string>' \
+  && ok "launchd: the window reaches EnvironmentVariables" || fail "launchd retention is plumbed" "$r_lau_w"
+lau_opens="$(printf '%s' "$r_lau_w" | grep -oc '<dict>')"; lau_closes="$(printf '%s' "$r_lau_w" | grep -oc '</dict>')"
+[ "$lau_opens" = "$lau_closes" ] && ok "launchd weekly plist keeps <dict> balance (${lau_opens})" || fail "launchd weekly dict balance" "$lau_opens/$lau_closes"
+
+r_cron_w="$(bash "${SKILL_DIR}/scripts/install-schedule.sh" --render cron --schedule weekly --retention-days 30)"
+printf '%s' "$r_cron_w" | grep -qE '^[0-9]+ 3 \* \* 0 ' && ok "cron: weekly renders a day-of-week field" || fail "cron cadence is plumbed" "$r_cron_w"
+printf '%s' "$r_cron_w" | grep -qF 'CATALYST_WORKTREE_STALE_DAYS=30' && ok "cron: the window is exported on the scheduled line" || fail "cron retention is plumbed" "$r_cron_w"
+cron_w_lines="$(printf '%s' "$r_cron_w" | sed -n '/# BEGIN catalyst-prune-worktrees/,/# END catalyst-prune-worktrees/p' | sed '1d;$d' | grep -c .)"
+[ "$cron_w_lines" = 1 ] && ok "cron: still exactly one line between BEGIN/END" || fail "cron block is one line" "$cron_w_lines"
+
+# C7 — the cron line creates its log directory before the append redirect, and follows
+# CATALYST_LOGS_DIR. A `>>` redirect is evaluated BEFORE the command execs, so a line that only
+# redirects dies on every run on a host where the directory does not exist yet.
+printf '%s' "$r_cron_w" | grep -qE 'mkdir -p "[^"]+/prune-worktrees" && .*prune-worktrees\.sh --apply >>' \
+  && ok "C7: the cron line creates its log directory before redirecting into it" || fail "C7: cron log directory is created" "$r_cron_w"
+r_cron_logs="$(CATALYST_LOGS_DIR=/var/log/catalyst bash "${SKILL_DIR}/scripts/install-schedule.sh" --render cron)"
+printf '%s' "$r_cron_logs" | grep -qF '/var/log/catalyst/prune-worktrees/cron.log' \
+  && ok "C7: the cron line honours CATALYST_LOGS_DIR instead of hard-coding the XDG default" || fail "C7: cron honours CATALYST_LOGS_DIR" "$r_cron_logs"
+
+# the recorded answer, with no flags at all — this is what made accepting mean something
+PLUMB_CFG="${SCRATCH}/plumb-housekeeping.json"
+PLUMB_STAGE="${SCRATCH}/plumb-stage"
+CATALYST_PRUNE_CONFIG="$PLUMB_CFG" bash "${SKILL_DIR}/scripts/offer-schedule.sh" \
+  --accept --schedule weekly --retention-days 30 --root "$PLUMB_STAGE" >/dev/null 2>&1
+r_recorded="$(CATALYST_PRUNE_CONFIG="$PLUMB_CFG" bash "${SKILL_DIR}/scripts/install-schedule.sh" --render systemd)"
+if printf '%s' "$r_recorded" | grep -qF 'OnCalendar=weekly' \
+  && printf '%s' "$r_recorded" | grep -qF 'Environment=CATALYST_WORKTREE_STALE_DAYS=30'; then
+  ok "M1: with no flags, the installer renders the answer recorded in housekeeping.json"
+else
+  fail "M1: the recorded answer drives the rendered unit" "$r_recorded"
+fi
+staged_all="$(cat "${PLUMB_STAGE}/systemd/user/catalyst-prune-worktrees.timer" \
+  "${PLUMB_STAGE}/systemd/user/catalyst-prune-worktrees.service" \
+  "${PLUMB_STAGE}/Library/LaunchAgents/dev.catalyst.prune-worktrees.plist" \
+  "${PLUMB_STAGE}/crontab-block" 2>/dev/null)"
+if printf '%s' "$staged_all" | grep -qE 'CATALYST_WORKTREE_STALE_DAYS=30|<string>30</string>' \
+  && printf '%s' "$staged_all" | grep -qE 'OnCalendar=weekly|<key>Weekday</key>|3 \* \* 0'; then
+  ok "M1: --accept --schedule weekly --retention-days 30 stages a unit carrying both"
+else
+  fail "M1: the accepted answer reaches the staged unit" "$staged_all"
+fi
+# control: accepting the defaults stages a daily unit — the assertion above tracks the answer
+PLUMB_CFG2="${SCRATCH}/plumb-housekeeping-2.json"
+PLUMB_STAGE2="${SCRATCH}/plumb-stage-2"
+CATALYST_PRUNE_CONFIG="$PLUMB_CFG2" bash "${SKILL_DIR}/scripts/offer-schedule.sh" \
+  --accept --root "$PLUMB_STAGE2" >/dev/null 2>&1
+staged_all2="$(cat "${PLUMB_STAGE2}/systemd/user/catalyst-prune-worktrees.timer" \
+  "${PLUMB_STAGE2}/systemd/user/catalyst-prune-worktrees.service" \
+  "${PLUMB_STAGE2}/Library/LaunchAgents/dev.catalyst.prune-worktrees.plist" \
+  "${PLUMB_STAGE2}/crontab-block" 2>/dev/null)"
+if printf '%s' "$staged_all2" | grep -qE 'CATALYST_WORKTREE_STALE_DAYS=14|<string>14</string>' \
+  && ! printf '%s' "$staged_all2" | grep -qF 'OnCalendar=weekly'; then
+  ok "control: accepting the defaults stages the daily/14-day form, not the weekly/30 one"
+else
+  fail "control: default answer stages the default form" "$staged_all2"
+fi
+
+# ── C2: a write the script could not build must leave the operator's config alone ────────────
+echo ""
+echo "offer-schedule.sh refuses rather than truncating (C2)"
+
+C2CFG="${SCRATCH}/c2-cfg.json"
+printf '{"other":{"keep":"me"}}\n' > "$C2CFG"
+out_c2="$(CATALYST_PRUNE_CONFIG="$C2CFG" bash "${SKILL_DIR}/scripts/offer-schedule.sh" --decline --retention-days "" 2>&1)"; rc_c2=$?
+if [ "$rc_c2" -ne 0 ] && jq -e '.other.keep == "me"' "$C2CFG" >/dev/null 2>&1 \
+  && ! jq -e 'has("housekeeping")' "$C2CFG" >/dev/null 2>&1; then
+  ok "C2: an empty --retention-days refuses, and the unrelated key is still there"
+else
+  fail "C2: a bad --retention-days must not touch the config" "rc=$rc_c2 out=$out_c2 cfg=$(cat "$C2CFG")"
+fi
+out_c2b="$(CATALYST_PRUNE_CONFIG="$C2CFG" bash "${SKILL_DIR}/scripts/offer-schedule.sh" --decline --schedule hourly 2>&1)"; rc_c2b=$?
+if [ "$rc_c2b" -ne 0 ] && jq -e '.other.keep == "me"' "$C2CFG" >/dev/null 2>&1; then
+  ok "C2: an unsupported --schedule refuses, and the config is untouched"
+else
+  fail "C2: a bad --schedule must not touch the config" "rc=$rc_c2b out=$out_c2b"
+fi
+JQSTUB="${SCRATCH}/jq-stub"
+mkdir -p "$JQSTUB"
+printf '#!/usr/bin/env bash\nexit 1\n' > "${JQSTUB}/jq"; chmod +x "${JQSTUB}/jq"
+before_c2="$(cat "$C2CFG")"
+out_c2c="$(PATH="${JQSTUB}:${PATH}" CATALYST_PRUNE_CONFIG="$C2CFG" bash "${SKILL_DIR}/scripts/offer-schedule.sh" --decline 2>&1)"; rc_c2c=$?
+if [ "$rc_c2c" -ne 0 ] && [ "$(cat "$C2CFG")" = "$before_c2" ] && [ -s "$C2CFG" ]; then
+  ok "C2: a failing jq refuses and leaves the config byte-identical, never an empty file"
+else
+  fail "C2: a failing jq must not truncate the config" "rc=$rc_c2c out=$out_c2c cfg=$(cat "$C2CFG")"
+fi
+# control: the same command with a working jq DOES record the answer
+CATALYST_PRUNE_CONFIG="$C2CFG" bash "${SKILL_DIR}/scripts/offer-schedule.sh" --decline >/dev/null 2>&1
+if jq -e '.housekeeping.answer == "decline" and .other.keep == "me"' "$C2CFG" >/dev/null 2>&1; then
+  ok "control: with a working jq the same call records the answer and keeps the unrelated key"
+else
+  fail "control: a normal decline still records" "$(cat "$C2CFG")"
+fi
 
 echo ""
 echo "PASS: $PASS  FAIL: $FAIL"

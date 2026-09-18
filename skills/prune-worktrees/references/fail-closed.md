@@ -17,8 +17,12 @@ A cleanup needs to answer "is this branch's content already in the default branc
 mine left unpushed?" Five candidate answers were built against a real git fixture (two branches
 squash-merged in sequence, matching an ordinary repository) and four were falsified:
 
-- `git merge-base --is-ancestor <branch> origin/main` — a squash merge is never an ancestor. Always
-  says "not merged" for a genuinely merged branch.
+- `git merge-base --is-ancestor <branch> origin/main` — a squash merge is never an ancestor, so this
+  alone says "not merged" for a genuinely squash-merged branch. It is still **sound in the positive
+  direction**, and the skill uses it that way: a tip that IS an ancestor of the default branch is in
+  the default branch's history, commits and bytes both, with nothing left unpushed. Without that
+  positive arm, a repository that merges with merge commits or fast-forwards reclaims nothing at all
+  — every such tree reads `no-commits-beyond-base` forever.
 - `git rev-list --count origin/main..branch` — still counts the branch's own commits after a squash
   merge. Always > 0.
 - `git cherry -v origin/main branch` — reports `+` (not upstream) for every squash-merged commit.
@@ -34,10 +38,17 @@ squash-merged in sequence, matching an ordinary repository) and four were falsif
 actually touched:
 
 ```
+git merge-base --is-ancestor refs/heads/<branch> <default>    # merged outright → REMOVE-eligible
 base  = git merge-base <default> refs/heads/<branch>
-paths = git diff --name-only <base> refs/heads/<branch>       # must be non-empty
-git diff --quiet <default> refs/heads/<branch> -- $paths      # must exit 0
+paths = git diff -z --name-only <base> refs/heads/<branch>    # must be non-empty
+git diff --quiet <default> refs/heads/<branch> -- "${paths[@]}"   # must exit 0
 ```
+
+**The pathspec must stay quoted.** `-z` into an array, never an unquoted `$paths`: a path containing
+a space splits into two pathspecs that match nothing, and `git diff --quiet` with a pathspec matching
+nothing exits **0** — which reads as "every path this branch touched is already in the default
+branch" for a branch that was never merged. That is a fail-OPEN, the one thing this skill may never
+do, and it is covered by a fixture branch whose only change is a filename with a space in it.
 
 plus a second, independent check that nothing is unpushed: `refs/remotes/origin/<branch>` is absent,
 or it points at the same commit as `refs/heads/<branch>` — required because many repositories do not
@@ -75,9 +86,20 @@ net-zero branch never slips through as "content already in main".
 | `live-handles` | the removal guard found a live, foreign process handle under the target (exit 5) |
 | `removal-refused-by-git` | `git worktree remove` itself refused (dirty/locked changed between classify and act) |
 | `hook-keep:<reason>` | `CATALYST_WT_CLASSIFIER` returned `KEEP` with this reason |
+| `hook-unusable:crashed` | `CATALYST_WT_CLASSIFIER` exited non-zero — a downgrade-only safety valve that crashed told us nothing, and nothing is not consent to delete |
+| `hook-unusable:unparseable` | the hook's output could not be read (no `jq` on this host, or malformed JSON) — same reasoning |
 | `hook-upgrade-ignored` | the classifier hook returned `REMOVE` for a tree the built-in gates called `KEEP`; the hook's verdict is logged and ignored — a hook may only ever downgrade toward `KEEP`, never upgrade toward `REMOVE` (`CATALYST_WT_CLASSIFIER`, D7) |
 
-The only `REMOVE`-eligible reason is `merged:content-in-<default>+nothing-unpushed`.
+Two reasons — and only these two — are `REMOVE`-eligible:
+
+- `merged:content-in-<default>+nothing-unpushed` — the path-scoped oracle above (squash merges).
+- `merged:ancestor-of-<default>` — the branch tip is an ancestor of the default branch (merge-commit
+  or fast-forward merges), so every commit it carries is already in the default branch's history.
+
+The retention window is a gate, never a trigger: it can only ever *prevent* a removal. A window this
+skill cannot evaluate — a non-numeric `CATALYST_WORKTREE_STALE_DAYS`, a `find` that failed — keeps
+the tree. `find -mtime -N` is used rather than a `touch -d "-N days"` threshold file precisely
+because the latter is GNU-only and its fallback silently disabled the gate on macOS.
 
 ## Why `merged` proves closed, not "merged-or-closed"
 

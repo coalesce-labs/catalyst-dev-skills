@@ -32,6 +32,7 @@ every `KEEP` reason, the rejected oracles and why — is in `references/fail-clo
 "${CLAUDE_SKILL_DIR}/scripts/install-schedule.sh" --render systemd   # preview the recurring schedule
 "${CLAUDE_SKILL_DIR}/scripts/offer-schedule.sh"                # propose a schedule + retention window; writes nothing
 "${CLAUDE_SKILL_DIR}/scripts/offer-schedule.sh" --accept       # accept and install the schedule
+"${CLAUDE_SKILL_DIR}/scripts/offer-schedule.sh" --accept --schedule weekly --retention-days 30   # the answer is what gets installed
 "${CLAUDE_SKILL_DIR}/scripts/offer-schedule.sh" --decline      # decline, recorded once — not asked again
 ```
 

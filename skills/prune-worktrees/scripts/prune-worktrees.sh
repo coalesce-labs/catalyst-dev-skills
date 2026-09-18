@@ -52,9 +52,21 @@ else
   exit 3
 fi
 
+# A trailing slash on the farm root ("~/catalyst/wt/" in a shell profile or a systemd
+# Environment= line) is an ordinary thing to write, and it used to make "${path#"$FARM"/}"
+# never match — every candidate then measured its depth from the absolute path and the whole
+# run became a silent no-op that still exited 0 (C6). Normalise once, here.
+while [ "${#FARM}" -gt 1 ] && [ "${FARM%/}" != "$FARM" ]; do FARM="${FARM%/}"; done
+
 LOGS_DIR="${CATALYST_LOGS_DIR:-${XDG_STATE_HOME:-$HOME/.local/state}/catalyst/logs}"
 REPO_ROOT_FALLBACK="${CATALYST_REPO_ROOT:-${CATALYST_HOME:-$HOME/catalyst}/repos}"
 RETENTION_DAYS="${CATALYST_WORKTREE_STALE_DAYS:-14}"
+case "$RETENTION_DAYS" in
+  ''|*[!0-9]*)
+    echo "prune-worktrees: refusing — CATALYST_WORKTREE_STALE_DAYS must be a non-negative integer (got '${RETENTION_DAYS}')" >&2
+    exit 3
+    ;;
+esac
 ACTOR="${CATALYST_PRUNE_ACTOR:-${USER:-unknown}@$(hostname 2>/dev/null || echo unknown-host)}"
 HOST="$(hostname 2>/dev/null || echo unknown-host)"
 
@@ -76,8 +88,28 @@ if [ "$MODE_REQUESTED" = "apply" ] && [ ! -f "$RECEIPT" ]; then
   RUN_MODE="dry-run-first-run"
 fi
 
-LOG_FILE="${LOG_DIR}/${NOW_BASIC}-${RUN_MODE}.jsonl"
-: > "$LOG_FILE"
+# The name is second-resolution, so a manual run racing the timer — or the documented
+# --dry-run then --apply pair — used to truncate the other run's log and lose one of the two
+# audit records log-format.md promises (C11). Claim the name with noclobber: the first writer
+# wins the plain name, every later one takes the next .N suffix. Never truncate an existing log.
+LOG_FILE=""
+log_seq=0
+while [ "$log_seq" -lt 1000 ]; do
+  if [ "$log_seq" -eq 0 ]; then
+    log_candidate="${LOG_DIR}/${NOW_BASIC}-${RUN_MODE}.jsonl"
+  else
+    log_candidate="${LOG_DIR}/${NOW_BASIC}-${RUN_MODE}.${log_seq}.jsonl"
+  fi
+  if (set -o noclobber; : > "$log_candidate") 2>/dev/null; then
+    LOG_FILE="$log_candidate"
+    break
+  fi
+  log_seq=$((log_seq + 1))
+done
+if [ -z "$LOG_FILE" ]; then
+  LOG_FILE="${LOG_DIR}/${NOW_BASIC}-${RUN_MODE}.$$.jsonl"
+  : > "$LOG_FILE"
+fi
 
 emit() {
   # emit <json-line>
@@ -203,16 +235,31 @@ porcelain_block_for_path() {
 
 merge_proof() {
   # merge_proof <primary> <branch> <default-ref>  — echoes the reason, returns 0 for REMOVE-eligible
-  local p="$1" b="$2" def="$3" base paths
-  base="$(git -C "$p" merge-base "$def" "refs/heads/$b" 2>/dev/null)" || { echo "no-merge-base"; return 1; }
-  paths="$(git -C "$p" diff --name-only "$base" "refs/heads/$b" 2>/dev/null)"
-  [ -n "$paths" ] || { echo "no-commits-beyond-base"; return 1; }
-  if ! git -C "$p" diff --quiet "$def" "refs/heads/$b" -- $paths 2>/dev/null; then
+  local primary="$1" b="$2" def="$3" base one
+  local -a paths=()
+  base="$(git -C "$primary" merge-base "$def" "refs/heads/$b" 2>/dev/null)" || { echo "no-merge-base"; return 1; }
+  # Merged by merge-commit or fast-forward: the tip IS in the default branch's history, so every
+  # commit and every byte is already there and nothing can be unpushed. Without this the touched
+  # path set below comes back empty and the tree reads "no-commits-beyond-base" forever — on a
+  # repository that does not squash-merge, the skill reclaimed nothing at all (C5).
+  if git -C "$primary" merge-base --is-ancestor "refs/heads/$b" "$def" 2>/dev/null; then
+    echo "merged:ancestor-of-${def}"
+    return 0
+  fi
+  # -z into an array, NOT an unquoted "$paths": a path containing a space split into two
+  # pathspecs that match nothing, and `git diff --quiet` with a pathspec matching nothing exits
+  # 0 — which read as "every path this branch touched is byte-identical in the default branch"
+  # for a branch that was never merged. That is the fail-open this skill exists to prevent (C1).
+  while IFS= read -r -d '' one; do
+    [ -n "$one" ] && paths+=("$one")
+  done < <(git -C "$primary" diff -z --name-only "$base" "refs/heads/$b" 2>/dev/null)
+  [ "${#paths[@]}" -gt 0 ] || { echo "no-commits-beyond-base"; return 1; }
+  if ! git -C "$primary" diff --quiet "$def" "refs/heads/$b" -- "${paths[@]}" 2>/dev/null; then
     echo "content-not-in:${def}"
     return 1
   fi
-  if git -C "$p" show-ref -q "refs/remotes/origin/$b"; then
-    if [ "$(git -C "$p" rev-parse "refs/heads/$b" 2>/dev/null)" != "$(git -C "$p" rev-parse "refs/remotes/origin/$b" 2>/dev/null)" ]; then
+  if git -C "$primary" show-ref -q "refs/remotes/origin/$b"; then
+    if [ "$(git -C "$primary" rev-parse "refs/heads/$b" 2>/dev/null)" != "$(git -C "$primary" rev-parse "refs/remotes/origin/$b" 2>/dev/null)" ]; then
       echo "unpushed-commits"
       return 1
     fi
@@ -222,13 +269,17 @@ merge_proof() {
 }
 
 is_within_retention() {
-  # is_within_retention <path> <days> — 0 (true) if any file mtime is newer than <days> ago
-  local path="$1" days="$2" threshold
-  threshold="$(mktemp -u "${TMPDIR:-/tmp}/prune-wt-threshold-XXXXXX")"
-  touch -d "-${days} days" "$threshold" 2>/dev/null || { touch "$threshold"; }
-  local hit
-  hit="$(find "$path" -type f -newer "$threshold" -print -quit 2>/dev/null)"
-  rm -f "$threshold"
+  # is_within_retention <path> <days> — 0 (true) if any file mtime is newer than <days> ago.
+  #
+  # `find -mtime -N` is POSIX and means the same thing on GNU and BSD/macOS. The threshold file
+  # this used to build with `touch -d "-N days"` is GNU-only: BSD touch rejects that spelling and
+  # the fallback stamped the threshold at NOW, after which `-newer` matched nothing and the
+  # window never prevented a single removal — a silent no-op on exactly the platform the launchd
+  # renderer targets (C3). A window we cannot evaluate now KEEPS the tree, never proceeds.
+  local path="$1" days="$2" hit
+  case "$days" in ''|*[!0-9]*) return 0 ;; esac   # unparseable window → fail closed (within)
+  [ "$days" -gt 0 ] || return 1                   # 0 disables the gate, by contract
+  hit="$(find "$path" -type f -mtime "-${days}" -print -quit 2>/dev/null)" || return 0
   [ -n "$hit" ]
 }
 
@@ -241,6 +292,7 @@ run_classifier_hook() {
 
 SCANNED=0
 REMOVED=0
+WOULD_REMOVE=0
 KEPT=0
 
 # candidates: <project>|<ticket>|<path> lines, deduplicated
@@ -383,8 +435,22 @@ while IFS='|' read -r project ticket path; do
   if [ -n "${CATALYST_WT_CLASSIFIER:-}" ]; then
     record_json="{\"repo\":\"$(json_escape "$project")\",\"path\":\"$(json_escape "$path")\",\"branch\":\"$(json_escape "$branch")\",\"builtinVerdict\":\"${verdict}\",\"builtinReason\":\"$(json_escape "$reason")\"}"
     hook_out="$(run_classifier_hook "$record_json")"
-    hook_verdict="$(printf '%s' "$hook_out" | jq -r '.verdict // empty' 2>/dev/null)"
-    hook_reason="$(printf '%s' "$hook_out" | jq -r '.reason // empty' 2>/dev/null)"
+    hook_rc=$?
+    hook_verdict=""
+    hook_reason=""
+    if [ "$hook_rc" -ne 0 ]; then
+      # D7 makes the hook a downgrade-only safety valve. A valve that crashed told us nothing,
+      # and "nothing" must not read as consent to delete (C8).
+      [ "$verdict" = "REMOVE" ] && { verdict="KEEP"; reason="hook-unusable:crashed"; }
+    elif [ -n "$hook_out" ]; then
+      if hook_verdict="$(printf '%s' "$hook_out" | jq -r '.verdict // empty' 2>/dev/null)"; then
+        hook_reason="$(printf '%s' "$hook_out" | jq -r '.reason // empty' 2>/dev/null)"
+      else
+        # the hook spoke and we could not read it (no jq on this host, or malformed output)
+        hook_verdict=""
+        [ "$verdict" = "REMOVE" ] && { verdict="KEEP"; reason="hook-unusable:unparseable"; }
+      fi
+    fi
     if [ "$hook_verdict" = "KEEP" ]; then
       verdict="KEEP"
       reason="hook-keep:${hook_reason:-unspecified}"
@@ -396,9 +462,11 @@ while IFS='|' read -r project ticket path; do
   if [ "$verdict" = "REMOVE" ]; then
     if [ "$RUN_MODE" = "apply" ]; then
       guard_reason=""
-      assert_worktree_removal_safe "$path" 2>/tmp/prune-wt-guard-err.$$
+      # stderr goes to /dev/null, never to a world-predictable /tmp path: `>` follows a symlink,
+      # so a pre-created /tmp/prune-wt-*.<pid> on a shared machine truncates whatever it points
+      # at (CWE-59/CWE-377). Neither file was ever read (C9).
+      assert_worktree_removal_safe "$path" 2>/dev/null
       grc=$?
-      rm -f /tmp/prune-wt-guard-err.$$
       if [ "$grc" -ne 0 ]; then
         case "$grc" in
           3) guard_reason="cwd-containment" ;;
@@ -423,19 +491,19 @@ while IFS='|' read -r project ticket path; do
         KEPT=$((KEPT + 1))
         continue
       fi
-      if git -C "$primary" worktree remove "$path" 2>/tmp/prune-wt-rm-err.$$; then
-        rm -f /tmp/prune-wt-rm-err.$$
+      if git -C "$primary" worktree remove "$path" 2>/dev/null; then
         emit_record "$project" "$path" "${branch:-__NULL__}" "REMOVE" "$reason" "$head_sha"
         REMOVED=$((REMOVED + 1))
       else
-        rm -f /tmp/prune-wt-rm-err.$$
         emit_record "$project" "$path" "${branch:-__NULL__}" "KEEP" "removal-refused-by-git" "$head_sha"
         KEPT=$((KEPT + 1))
       fi
     else
-      # dry-run or dry-run-first-run: report the verdict, remove nothing
+      # dry-run or dry-run-first-run: report the verdict, remove nothing. The count goes to
+      # wouldRemove — a dry run that claims removed=N contradicts its own "nothing removed"
+      # line and makes log-format.md's "every tree actually removed" query a lie (C10).
       emit_record "$project" "$path" "${branch:-__NULL__}" "REMOVE" "$reason" "$head_sha"
-      REMOVED=$((REMOVED + 1))
+      WOULD_REMOVE=$((WOULD_REMOVE + 1))
     fi
   else
     emit_record "$project" "$path" "${branch:-__NULL__}" "KEEP" "$reason" "$head_sha"
@@ -459,7 +527,7 @@ if [ "$RUN_MODE" = "apply" ] && [ "$MODE_REQUESTED" = "apply" ] && [ ! -f "$RECE
   : # first-run-on-this-machine: nothing removed above by construction (RUN_MODE stayed dry-run-first-run)
 fi
 
-emit "{\"kind\":\"summary\",\"ts\":\"${NOW}\",\"mode\":\"${RUN_MODE}\",\"scanned\":${SCANNED},\"removed\":${REMOVED},\"kept\":${KEPT},\"host\":\"$(json_escape "$HOST")\"}"
+emit "{\"kind\":\"summary\",\"ts\":\"${NOW}\",\"mode\":\"${RUN_MODE}\",\"scanned\":${SCANNED},\"removed\":${REMOVED},\"wouldRemove\":${WOULD_REMOVE},\"kept\":${KEPT},\"host\":\"$(json_escape "$HOST")\"}"
 
 if [ "$RUN_MODE" = "dry-run-first-run" ]; then
   echo "prune-worktrees: first run on this machine — nothing removed; run again with --apply to apply" >&2
@@ -470,5 +538,5 @@ cat > "$RECEIPT" <<EOF
 {"mode":"${RUN_MODE}","ts":"${NOW}","host":"$(json_escape "$HOST")","version":"${VERSION}","scanned":${SCANNED}}
 EOF
 
-echo "prune-worktrees: scanned=${SCANNED} removed=${REMOVED} kept=${KEPT} mode=${RUN_MODE} log=${LOG_FILE}"
+echo "prune-worktrees: scanned=${SCANNED} removed=${REMOVED} wouldRemove=${WOULD_REMOVE} kept=${KEPT} mode=${RUN_MODE} log=${LOG_FILE}"
 exit 0

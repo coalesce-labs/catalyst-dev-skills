@@ -3,23 +3,38 @@
 # prune-worktrees.sh: systemd --user timer, launchd LaunchAgent, or a delimited crontab block.
 # Renders before it writes, and stages (--root) before it ever activates anything.
 #
-# Usage: install-schedule.sh --render <systemd|launchd|cron>
+# The cadence and the retention window are NOT baked in: they come from --schedule /
+# --retention-days, or failing that from the answer offer-schedule.sh recorded in
+# housekeeping.json. An operator who accepted a weekly cleanup with a 30-day window gets a unit
+# that runs weekly and passes 30 through to the run (CTC-2550 M1/C4) — otherwise accepting is
+# bookkeeping that changes nothing about what the machine does.
+#
+# Usage: install-schedule.sh --render <systemd|launchd|cron> [--schedule daily|weekly]
+#                            [--retention-days N]
 #        install-schedule.sh --install [--platform <systemd|launchd|cron>] [--root <dir>]
+#                            [--schedule daily|weekly] [--retention-days N]
 #        install-schedule.sh --uninstall [--platform <systemd|launchd|cron>] [--root <dir>]
 #        install-schedule.sh --status [--platform <systemd|launchd|cron>] [--root <dir>]
 set -uo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+# shellcheck source=/dev/null
+source "${SCRIPT_DIR}/lib/plugin-dirs.sh"
 PRUNE_BIN="${SCRIPT_DIR}/prune-worktrees.sh"
 LABEL="catalyst-prune-worktrees"
 LAUNCHD_LABEL="dev.catalyst.prune-worktrees"
 
 usage() {
   cat <<'EOF'
-Usage: install-schedule.sh --render <systemd|launchd|cron>
+Usage: install-schedule.sh --render <systemd|launchd|cron> [--schedule daily|weekly]
+                           [--retention-days N]
        install-schedule.sh --install [--platform <systemd|launchd|cron>] [--root <dir>]
+                           [--schedule daily|weekly] [--retention-days N]
        install-schedule.sh --uninstall [--platform <systemd|launchd|cron>] [--root <dir>]
        install-schedule.sh --status [--platform <systemd|launchd|cron>] [--root <dir>]
+
+  --schedule        daily (default) or weekly; defaults to the recorded answer when there is one
+  --retention-days  passed to the scheduled run as CATALYST_WORKTREE_STALE_DAYS
 EOF
 }
 
@@ -39,6 +54,8 @@ detect_platform() {
 CMD=""
 PLATFORM=""
 ROOT=""
+SCHEDULE=""
+RETENTION_DAYS=""
 while [ $# -gt 0 ]; do
   case "$1" in
     --render) CMD="render"; PLATFORM="${2:-}"; shift ;;
@@ -47,6 +64,8 @@ while [ $# -gt 0 ]; do
     --status) CMD="status" ;;
     --platform) PLATFORM="${2:-}"; shift ;;
     --root) ROOT="${2:-}"; shift ;;
+    --schedule) SCHEDULE="${2:-}"; shift ;;
+    --retention-days) RETENTION_DAYS="${2:-}"; shift ;;
     --help|-h) usage; exit 0 ;;
     *) echo "install-schedule: unknown argument '$1'" >&2; usage >&2; exit 2 ;;
   esac
@@ -56,6 +75,43 @@ done
 [ -n "$CMD" ] || { usage >&2; exit 2; }
 [ -n "$PLATFORM" ] || PLATFORM="$(detect_platform)"
 case "$PLATFORM" in systemd|launchd|cron) ;; *) echo "install-schedule: unknown platform '$PLATFORM'" >&2; exit 2 ;; esac
+
+# ── the accepted answer, when the flags did not carry one ────────────────────────────────────
+CONFIG_PATH="${CATALYST_PRUNE_CONFIG:-$(dirname "$(plugin_dirs_machine_config_path)")/housekeeping.json}"
+
+recorded_value() {
+  # recorded_value <jq-filter> — echoes the recorded value, or nothing
+  local filter="$1" v
+  [ -f "$CONFIG_PATH" ] || return 1
+  command -v jq >/dev/null 2>&1 || return 1
+  v="$(jq -r "${filter} // empty" "$CONFIG_PATH" 2>/dev/null)" || return 1
+  [ -n "$v" ] || return 1
+  printf '%s' "$v"
+}
+
+[ -n "$SCHEDULE" ] || SCHEDULE="$(recorded_value '.housekeeping.schedule')" || SCHEDULE=""
+[ -n "$SCHEDULE" ] || SCHEDULE="daily"
+[ -n "$RETENTION_DAYS" ] || RETENTION_DAYS="$(recorded_value '.housekeeping.retentionDays')" || RETENTION_DAYS=""
+[ -n "$RETENTION_DAYS" ] || RETENTION_DAYS="${CATALYST_WORKTREE_STALE_DAYS:-14}"
+
+case "$SCHEDULE" in daily|weekly) ;; *) echo "install-schedule: unknown schedule '$SCHEDULE' (expected daily or weekly)" >&2; exit 2 ;; esac
+case "$RETENTION_DAYS" in ''|*[!0-9]*) echo "install-schedule: --retention-days must be a non-negative integer (got '${RETENTION_DAYS}')" >&2; exit 2 ;; esac
+
+# cadence, per platform
+case "$SCHEDULE" in
+  weekly) ONCALENDAR="weekly"; CRON_DOW="0"; LAUNCHD_WEEKDAY_XML="    <key>Weekday</key>
+    <integer>0</integer>
+" ;;
+  *)      ONCALENDAR="daily";  CRON_DOW="*"; LAUNCHD_WEEKDAY_XML="" ;;
+esac
+
+log_dir_for_render() {
+  # The log directory as the SCHEDULER will see it — $HOME stays literal so a rendered form
+  # never carries an absolute /home/<user>/ path, and CATALYST_LOGS_DIR is honoured when set.
+  local d="${CATALYST_LOGS_DIR:-\$HOME/.local/state/catalyst/logs}"
+  case "$d" in "${HOME}"/*) d="\$HOME/${d#"${HOME}"/}" ;; esac
+  printf '%s/prune-worktrees' "$d"
+}
 
 JITTER="$(jitter_for_host)"
 
@@ -70,13 +126,14 @@ Description=catalyst prune-worktrees — reclaim disk from the worktree farm, fa
 Type=oneshot
 Nice=19
 IOSchedulingClass=idle
+Environment=CATALYST_WORKTREE_STALE_DAYS=${RETENTION_DAYS}
 ExecStart=${PRUNE_BIN} --apply
 ===FILE:systemd/user/${LABEL}.timer===
 [Unit]
 Description=catalyst prune-worktrees timer (CTC-2550)
 
 [Timer]
-OnCalendar=daily
+OnCalendar=${ONCALENDAR}
 Persistent=true
 RandomizedDelaySec=${delay}s
 
@@ -99,9 +156,14 @@ render_launchd() {
     <string>${PRUNE_BIN}</string>
     <string>--apply</string>
   </array>
+  <key>EnvironmentVariables</key>
+  <dict>
+    <key>CATALYST_WORKTREE_STALE_DAYS</key>
+    <string>${RETENTION_DAYS}</string>
+  </dict>
   <key>StartCalendarInterval</key>
   <dict>
-    <key>Hour</key>
+${LAUNCHD_WEEKDAY_XML}    <key>Hour</key>
     <integer>3</integer>
     <key>Minute</key>
     <integer>${JITTER}</integer>
@@ -118,10 +180,15 @@ EOF
 }
 
 render_cron() {
+  # `mkdir -p` FIRST, in the same line: the shell evaluates a >> redirect before it execs the
+  # command, so on a host where the log directory does not exist yet every scheduled run used to
+  # die at the redirect and the skill never ran at all (C7). The directory also follows
+  # CATALYST_LOGS_DIR rather than hard-coding the XDG default.
+  local logdir; logdir="$(log_dir_for_render)"
   cat <<EOF
 ===FILE:crontab-block===
 # BEGIN ${LABEL}
-${JITTER} 3 * * * ${PRUNE_BIN} --apply >> \$HOME/.local/state/catalyst/logs/prune-worktrees/cron.log 2>&1
+${JITTER} 3 * * ${CRON_DOW} mkdir -p "${logdir}" && CATALYST_WORKTREE_STALE_DAYS=${RETENTION_DAYS} ${PRUNE_BIN} --apply >> "${logdir}/cron.log" 2>&1
 # END ${LABEL}
 EOF
 }
