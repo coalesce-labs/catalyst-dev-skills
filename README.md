@@ -10,7 +10,7 @@ One command, for every coding agent on the machine:
 npx skills@latest add coalesce-labs/catalyst-dev-skills --all -g
 ```
 
-It installs all 34 skills for each agent it detects (Claude Code, Codex, OpenCode, Cursor and the rest). These skills are yours, not a repository's: `-g` installs into your home directory, and a project-scoped install is not a supported shape (CTC-2558). If you already have one — a `.claude/skills/`, `.agents/skills/`, `agent/skills/` or `skills-lock.json` inside a project — remove it with `npx skills remove --all` from that directory, then install again with `-g`. Skills installed this way do not auto-update; refresh them with:
+It installs all 35 skills for each agent it detects (Claude Code, Codex, OpenCode, Cursor and the rest). These skills are yours, not a repository's: `-g` installs into your home directory, and a project-scoped install is not a supported shape (CTC-2558). If you already have one — a `.claude/skills/`, `.agents/skills/`, `agent/skills/` or `skills-lock.json` inside a project — remove it with `npx skills remove --all` from that directory, then install again with `-g`. Skills installed this way do not auto-update; refresh them with:
 
 ```sh
 npx skills@latest update -g -y
@@ -57,6 +57,7 @@ The installed folder takes the skill's frontmatter `name`, which is the director
 **Shipping**
 - `commit`, `create-pr`, `describe-pr`, `review-comments`, `merge-pr`, `triage-aging-prs`: commit through merge, including review feedback and an aging PR backlog.
 - `create-worktree`: a git worktree for parallel work.
+- `prune-worktrees`: reclaim disk from the worktree farm, on a schedule, without deleting unmerged work.
 
 **Linear and coordination**
 - `linear`, `linearis`: ticket workflow, and the Linearis CLI reference with the read-from-replica rule.
@@ -95,7 +96,8 @@ node scripts/vendor.mjs --check   # CI: fails when a copy differs from its sourc
 - the skill shape holds: an 80-line `SKILL.md` and 150-line references, each one linked;
 - every skill that mentions `linearis` documents the phase-container skip (`linearis-guard`);
 - every `catalyst-dev:<name>` a skill uses is a skill or a plugin subagent in `agents/` (`plugin-agents`);
-- the workflow-input, handoff, review-skill and Linear-write contracts hold, and the vendored replica reader finds `~/.config/catalyst-cloud/replica.db`.
+- the workflow-input, handoff, review-skill and Linear-write contracts hold, and the vendored replica reader finds `~/.config/catalyst-cloud/replica.db`;
+- the prune-worktrees fail-closed invariants hold: no `--force`, no ref deletion, and an ambiguous tree is always reported rather than removed (`prune-worktrees`).
 
 CI also runs:
 - `test:guards` (`scripts/check-skill-scope.mjs` + `tests/skill-scope.test.mjs`), which fails when a skill is unowned by `packs/skills-ownership.json`, when this checkout carries a repository-scoped install, or when a documented install command has lost `-g`;

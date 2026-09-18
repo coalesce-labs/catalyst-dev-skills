@@ -18,7 +18,7 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO_ROOT="$(cd "${SCRIPT_DIR}/.." && pwd)"
 SKILLS_ROOT="${REPO_ROOT}/skills"
 
-SKILLS="agent-browser ask briefing-followup commit compound-estimate concierge create-handoff create-plan create-pr create-worktree describe-pr fix-typescript gherkin-ticket implement-plan iterate-plan linear linearis merge-pr morning-briefing project-orchestrator remediate-plan research-codebase resume-handoff review-code review-comments review-security scan-reward-hacking steward ticket-compound ticket-retro triage-aging-prs unslop validate-plan validate-type-safety"
+SKILLS="agent-browser ask briefing-followup commit compound-estimate concierge create-handoff create-plan create-pr create-worktree describe-pr fix-typescript gherkin-ticket implement-plan iterate-plan linear linearis merge-pr morning-briefing project-orchestrator prune-worktrees remediate-plan research-codebase resume-handoff review-code review-comments review-security scan-reward-hacking steward ticket-compound ticket-retro triage-aging-prs unslop validate-plan validate-type-safety"
 
 PASS=0
 FAIL=0
@@ -269,6 +269,18 @@ done
 for agent in codebase-locator codebase-analyzer codebase-pattern-finder; do
   run_isolated "iterate-plan: carries the ${agent} subagent prompt" iterate-plan "test -s \"\$CLAUDE_SKILL_DIR/assets/agents/${agent}.md\""
 done
+
+# Cluster 4e — prune-worktrees (CTC-2550). No scheduler exists in this container, so only
+# --help and --render are exercised here; the behaviour suite (tests/prune-worktrees.test.sh)
+# runs the full classify/apply/schedule/offer paths against a real git fixture.
+run_isolated "prune-worktrees: prune-worktrees.sh --help" prune-worktrees \
+  '"$CLAUDE_SKILL_DIR/scripts/prune-worktrees.sh" --help >/dev/null'
+run_isolated "prune-worktrees: install-schedule.sh --render systemd" prune-worktrees \
+  '"$CLAUDE_SKILL_DIR/scripts/install-schedule.sh" --render systemd | grep -q OnCalendar'
+run_isolated "prune-worktrees: offer-schedule.sh --help" prune-worktrees \
+  '"$CLAUDE_SKILL_DIR/scripts/offer-schedule.sh" --help >/dev/null'
+run_isolated "prune-worktrees: carries the removal guard and the config helper" prune-worktrees \
+  'source "$CLAUDE_SKILL_DIR/scripts/lib/worktree-remove-guard.sh" && declare -F assert_worktree_removal_safe >/dev/null && source "$CLAUDE_SKILL_DIR/scripts/lib/plugin-dirs.sh" && declare -F plugin_dirs_machine_config_path >/dev/null'
 
 echo ""
 echo "PASS: $PASS  FAIL: $FAIL"

@@ -4,7 +4,7 @@
 // Run: bun test tests/skill-scope.test.mjs
 
 import { describe, test, expect, afterAll } from "bun:test";
-import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -40,8 +40,8 @@ describe("ownership manifest", () => {
   test("every skill in this repository is owned, at home scope", () => {
     const declared = readOwnership(repoRoot).skills;
     const actual = skillNames(repoRoot);
-    expect(declared.length).toBe(34);
-    expect(actual.length).toBe(34);
+    expect(declared.length).toBe(35);
+    expect(actual.length).toBe(35);
     expect(declared.every((s) => s.scope === "home")).toBe(true);
     expect(declared.find((s) => s.dir === "linearis")?.name).toBe("linearis-cli");
     expect(ownershipProblems(declared, actual)).toEqual([]);
@@ -269,5 +269,24 @@ describe("the documented install is home-scoped", () => {
     const problems = documentedInstallProblems(dir);
     expect(problems.join("\n")).toContain("verbatim");
     rmSync(dir, { recursive: true, force: true });
+  });
+});
+
+// CTC-2550 (pattern from CTC-2560): the install sentence names a count, and until now nothing
+// checked the digit. documentedInstallProblems() checks -g and byte-identity, never the number —
+// verified by setting both sentences to a wrong value and watching every gate stay green.
+describe("the documented skill count matches the tree", () => {
+  const real = readdirSync(join(repoRoot, "skills")).filter((n) => existsSync(join(repoRoot, "skills", n, "SKILL.md"))).length;
+  for (const rel of ["README.md", ".agents/install-block.md"]) {
+    test(`${rel} states ${real} skills`, () => {
+      const m = readFileSync(join(repoRoot, rel), "utf8").match(/installs all (\d+) skills/);
+      expect(m).not.toBeNull();
+      expect(Number(m[1])).toBe(real);
+    });
+  }
+  // POSITIVE CONTROL: the regex does find a planted wrong number.
+  test("the checker reports a wrong count", () => {
+    const m = "It installs all 7 skills for each agent".match(/installs all (\d+) skills/);
+    expect(Number(m[1])).not.toBe(real);
   });
 });
