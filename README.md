@@ -10,7 +10,7 @@ One command, for every coding agent on the machine:
 npx skills@latest add coalesce-labs/catalyst-dev-skills --all -g
 ```
 
-It installs all 34 skills for each agent it detects (Claude Code, Codex, OpenCode, Cursor and the rest). These skills are yours, not a repository's: `-g` installs into your home directory, and a project-scoped install is not a supported shape (CTC-2558). If you already have one — a `.claude/skills/`, `.agents/skills/`, `agent/skills/` or `skills-lock.json` inside a project — remove it with `npx skills remove --all` from that directory, then install again with `-g`. Skills installed this way do not auto-update; refresh them with:
+It installs all 35 skills for each agent it detects (Claude Code, Codex, OpenCode, Cursor and the rest). These skills are yours, not a repository's: `-g` installs into your home directory, and a project-scoped install is not a supported shape (CTC-2558). If you already have one — a `.claude/skills/`, `.agents/skills/`, `agent/skills/` or `skills-lock.json` inside a project — remove it with `npx skills remove --all` from that directory, then install again with `-g`. Skills installed this way do not auto-update; refresh them with:
 
 ```sh
 npx skills@latest update -g -y
@@ -61,6 +61,7 @@ The installed folder takes the skill's frontmatter `name`, which is the director
 **Linear and coordination**
 - `linear`, `linearis`: ticket workflow, and the Linearis CLI reference with the read-from-replica rule.
 - `ask`: raise a decision for a human as a ticket and close it when answered.
+- `catalyst-sop`: the decision ladder for held work — which lever moves a held ticket, what to do when nobody answers, and when a repeat failure is a scope signal.
 - `steward`, `concierge`, `project-orchestrator`: long-running owners of a project, of a human's board, and of a project's ready backlog.
 - `create-handoff`, `resume-handoff`: hand work to another session and pick it up.
 - `morning-briefing`, `briefing-followup`: a daily briefing and its walk-through.
