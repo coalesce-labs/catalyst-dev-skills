@@ -12,7 +12,7 @@ set -uo pipefail
 REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 
 PATTERNS='cloud-token-value|CATALYST_CLOUD_TOKEN=[^[:space:]"'"'"'<$]
-openai-key|sk-[A-Za-z0-9_-]{16,}
+openai-key|(^|[^A-Za-z0-9_-])sk-[A-Za-z0-9_-]{16,}
 github-token|gh[po]_[A-Za-z0-9]{16,}
 linear-key|lin_api_[A-Za-z0-9]{16,}
 private-ip-10|(^|[^0-9.])10\.[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}([^0-9]|$)
@@ -65,11 +65,16 @@ EOF
 if [ "${1:-}" = "--self-test" ]; then
   tmp="$(mktemp -d)"
   trap 'rm -rf "$tmp"' EXIT
-  printf 'a 10.1.2.3 b\nhttp://100.65.1.2:80\n/Users/someone/x\nCATALYST_CLOUD_TOKEN=abc123\nversion 1.10.2.3\n' > "$tmp/planted.txt"
+  # The planted sk- value is deliberately zero-entropy and is NOT written as an
+  # assignment: gitleaks' `generic-api-key` rule fires on `<name>=<high-entropy>`
+  # and would flag a realistic-looking one in THIS file. It still exercises the
+  # rule, which only needs `sk-` + 16 chars of [A-Za-z0-9_-]. The line after it
+  # is the false positive this rule's left boundary exists to reject.
+  printf 'a 10.1.2.3 b\nhttp://100.65.1.2:80\n/Users/someone/x\nCATALYST_CLOUD_TOKEN=abc123\nversion 1.10.2.3\na sk-EXAMPLEEXAMPLEEXAMPLE b\nthe ask-default-execution flag and ask-default-execution-mode.ts\n' > "$tmp/planted.txt"
   hits="$(scan "$tmp")"
   n="$(printf '%s\n' "$hits" | grep -c .)"
-  if [ "$n" -eq 4 ]; then echo "scan-internal self-test: PASS (4 planted hits found, the version string ignored)"; exit 0; fi
-  echo "scan-internal self-test: FAIL (expected 4 hits, got $n)"
+  if [ "$n" -eq 5 ]; then echo "scan-internal self-test: PASS (5 planted hits found; the version string and the ask-default-execution flag name ignored)"; exit 0; fi
+  echo "scan-internal self-test: FAIL (expected 5 hits, got $n)"
   printf '%s\n' "$hits"
   exit 1
 fi
