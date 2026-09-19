@@ -11,6 +11,7 @@ import { fileURLToPath } from "node:url";
 
 import {
   SCOPES,
+  documentedCountProblems,
   documentedInstallProblems,
   observeInstall,
   ownershipProblems,
@@ -234,6 +235,27 @@ describe("the documented install is home-scoped", () => {
     const problems = documentedInstallProblems(dir);
     expect(problems.join("\n")).toContain(".agents/install-block.md");
     expect(problems.join("\n")).toContain("-g/--global");
+    rmSync(dir, { recursive: true, force: true });
+  });
+
+  // CTC-2767: adding the 35th skill bumped three hardcoded counts in tests and left the count in
+  // BOTH prose files at 34 — nothing read them. Derive it from skills/ so the next skill cannot
+  // drift them again.
+  test("the documented skill count matches skills/", () => {
+    expect(documentedCountProblems(repoRoot, skillNames(repoRoot).length)).toEqual([]);
+  });
+
+  test("control: a documented count that disagrees with skills/ is reported, naming the file", () => {
+    const dir = mkdtempSync(join(tmpdir(), "doc-count-"));
+    mkdirSync(join(dir, ".agents"), { recursive: true });
+    writeFileSync(join(dir, "README.md"), "It installs all 7 skills for each agent.\n");
+    writeFileSync(join(dir, ".agents", "install-block.md"), "It installs all 9 skills for each agent.\n");
+    const problems = documentedCountProblems(dir, 9);
+    expect(problems.join("\n")).toContain("README.md");
+    expect(problems.join("\n")).toContain("7");
+    expect(problems.join("\n")).toContain("9");
+    // the file that is already correct is not reported
+    expect(problems.some((p) => p.includes("install-block.md"))).toBe(false);
     rmSync(dir, { recursive: true, force: true });
   });
 

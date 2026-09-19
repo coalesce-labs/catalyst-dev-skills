@@ -280,6 +280,25 @@ export function documentedInstallProblems(repoDir) {
   return problems;
 }
 
+/** documentedCountProblems(repoDir, expected) — the prose in README.md and .agents/install-block.md
+ * claims how many skills an install lands ("It installs all N skills …"). CTC-2767: that number was
+ * hand-maintained in two files and read by nothing, so the 35th skill left both saying 34 while
+ * three hardcoded counts in tests were dutifully bumped. `expected` comes from skills/ on disk.
+ * A file that makes no such claim is not a problem — only a claim that disagrees is. */
+export function documentedCountProblems(repoDir, expected) {
+  const problems = [];
+  for (const rel of ["README.md", join(".agents", "install-block.md")]) {
+    const path = join(repoDir, rel);
+    if (!existsSync(path)) continue;
+    for (const m of readFileSync(path, "utf8").matchAll(/It installs all (\d+) skills/g)) {
+      if (Number(m[1]) !== expected) {
+        problems.push(`${rel}: says it installs ${m[1]} skills, but skills/ holds ${expected}`);
+      }
+    }
+  }
+  return problems;
+}
+
 function report(problems, prefix) {
   for (const p of problems) console.error(`${prefix}  ${p}`);
 }
@@ -302,6 +321,7 @@ function main(args, repoRoot) {
     problems.push(`this checkout carries a repository-scoped install artifact at ${path}`);
   }
   problems.push(...documentedInstallProblems(repoRoot));
+  problems.push(...documentedCountProblems(repoRoot, actual.length));
 
   let homeArg = null;
   let repoArg = null;
