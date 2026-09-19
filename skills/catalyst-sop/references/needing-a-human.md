@@ -2,6 +2,22 @@
 
 `catalyst-dev:ask` owns the mechanics — the body grammar the decision trigger parses, the `--blocks` requirement, threading, closing. `catalyst-dev:steward` → `references/escalation.md` owns the four gates. **Neither is repeated here.** This page covers the two things they do not: how to tell an instance apart from a policy, and how to check whether the decision has already been made.
 
+## Reversibility decides who decides (Ryan, 2026-09-18, from delegate-research)
+
+⛔ **Do not file an ask whose default is REVERSIBLE.** Execute it immediately and add a `[bookkeeping]` line saying what you did and why. Re-plan, retry and unpark are reversible: they cost fleet time and change no product meaning. An ask for a reversible default spends the scarcest resource in the system — a human's attention — to authorise something that could be undone for free.
+
+⛔ **The reversible list lives in CODE, never in an agent's judgement.** This is the recommendation's own stated main risk: *a default marked reversible that is not*. So the list is short, enumerated in the product, and an agent consults it rather than reasoning about it. If a default is not on the list, it is not reversible.
+
+**Every ask is one of exactly two kinds, and it says which:**
+1. **Armed** — it carries an `**Auto-executes:**` line, so the existing deadline executor runs its default. Recorded as **"executed by default"** with **no decider**. ⛔ Nothing may ever record a human as having decided something they did not decide.
+2. **Explicit answer required** — marked as such, and it waits. No timer, no default firing.
+
+There is no third kind. An ask that is neither armed nor marked is the bug CTC-2688 describes: today **0 of 341** asks carry the marker, so every printed "Default if silent" is decorative.
+
+**Irreversible decisions stay with the human**, made cheap by bulk answers rather than by delegation: minting or rotating a credential, authorising spend, changing live customer state, deleting acceptance criteria (a descope), and overruling a prior human decision. Measured over the 56 open asks on 2026-09-18, **9 of the 12 genuine ones** were exactly these. ⛔ **No admin accept route** — an `accept` is an irreversible judgement and stays on the human's answer path by design.
+
+**Standing decisions feed both halves.** An entry in the register either **suppresses** the ask (this class is already decided — execute and log) or **arms** it with a short deadline. An entry stores a route and a lever, never a bare option letter.
+
 ## Standing decisions — check before you compose the question
 
 ✅ **The register EXISTS: `.agents/references/standing-decisions.md`**, created 2026-09-18 by the concierge seat out of this draft. ⚠️ Status as of writing: it lands in **PR #5166** (branch `CTC-2741`), which is **open, not merged** — so check that it is on `main` before relying on it, and read the file itself rather than this page for the current entries.
