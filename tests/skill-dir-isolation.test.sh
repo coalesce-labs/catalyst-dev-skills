@@ -18,7 +18,7 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO_ROOT="$(cd "${SCRIPT_DIR}/.." && pwd)"
 SKILLS_ROOT="${REPO_ROOT}/skills"
 
-SKILLS="agent-browser ask briefing-followup commit compound-estimate concierge create-handoff create-plan create-pr create-worktree describe-pr fix-typescript gherkin-ticket implement-plan iterate-plan linear linearis merge-pr morning-briefing project-orchestrator remediate-plan research-codebase resume-handoff review-code review-comments review-security scan-reward-hacking steward ticket-compound ticket-retro triage-aging-prs unslop validate-plan validate-type-safety"
+SKILLS="agent-browser ask briefing-followup catalyst-sop commit compound-estimate concierge create-handoff create-plan create-pr create-worktree describe-pr fix-typescript gherkin-ticket implement-plan iterate-plan linear linearis merge-pr morning-briefing project-orchestrator remediate-plan research-codebase resume-handoff review-code review-comments review-security scan-reward-hacking steward ticket-compound ticket-retro triage-aging-prs unslop validate-plan validate-type-safety"
 
 PASS=0
 FAIL=0
