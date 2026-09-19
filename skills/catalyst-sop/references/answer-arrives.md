@@ -28,7 +28,7 @@ Two traps that make a recorded answer inert:
 
 **The rule: an option nobody can execute is not offerable.** If you cannot name the executor for an option at filing time, do not put it in the list.
 
-⛔ **And name the LEVER, not just the option.** "A — re-plan" executed with a Linear state write is a no-op; executed with `relay-rewind-to-plan` it works. Each hold kind has exactly one correct route — `references/levers.md` is the single copy of that table, and reaching for `validate-unhold` on a no-change hold is the recorded mistake that left CTC-2485 and CTC-2490 unmoved.
+⛔ **And name the LEVER, not just the option.** "A — re-plan" executed with a Linear state write is a no-op; executed with `relay-rewind-to-plan` it works. Each hold kind has exactly one correct route — `references/levers.md` is the single copy of that table, and reaching for `relay-clear-no-change-hold` on a head-unchanged *validate-budget* hold is the recorded mistake: on CTC-2490 it returned the success-shaped `{cleared:false, hold:null}` and left the ticket unmoved; `validate-unhold` is what moved it. CTC-2485 is the other shape — plan-doc drift, which has **no agent-executable route at all** (`references/validate-failing.md`), so no lever would have moved it either.
 
 ## 3. Verify the execution, on a different instrument than the one that recorded it
 

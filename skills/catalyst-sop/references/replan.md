@@ -57,7 +57,7 @@ A ticket in `Plan` on the board is not evidence of anything. Check one of:
 - plan-conformance FAIL with a partial build;
 - the ticket's premise changed under it.
 
-**Wrong when:** plan-conformance **PASSES** (a rewind discards a conformant build — remediate instead), plan-conformance fails but every other gate passes (**plan-doc drift** — amend the plan text or accept), the head has not moved since the last FAIL (clear the no-change hold or move the head), the failing gate is type-safety (hand-fix), the ACs **were** attempted and failed (escalate), or the round is **converging** (`GET /admin/review-convergence`, judged by `roundThreshold.counted`, never `attempt=N`).
+**Wrong when:** plan-conformance **PASSES** (a rewind discards a conformant build — remediate instead), plan-conformance fails but every other gate passes (**plan-doc drift** — amend the plan text or accept), the head has not moved since the last FAIL (release the *validate round-budget* hold with `validate-unhold` — never `relay-clear-no-change-hold`, `references/levers.md` — or move the head), the failing gate is type-safety (hand-fix), the ACs **were** attempted and failed (escalate), or the round is **converging** (`GET /admin/review-convergence`, judged by `roundThreshold.counted`, never `attempt=N`).
 
 ## After a re-plan
 

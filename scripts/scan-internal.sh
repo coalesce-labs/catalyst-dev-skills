@@ -1,7 +1,8 @@
 #!/usr/bin/env bash
 # scan-internal.sh — this repository is public; refuse internal values gitleaks does not look for.
 #
-# Patterns: a CATALYST_CLOUD_TOKEN assignment with a literal value, OpenAI-style `sk-` keys,
+# Patterns: a CATALYST_CLOUD_TOKEN assignment with a literal value, OpenAI-style `sk-` keys
+# (anchored left, so an identifier that merely ends in `ask-`/`task-` is not a key),
 # GitHub `ghp_`/`gho_` tokens, Linear `lin_api_` keys, private and CGNAT (Tailscale) IPv4
 # addresses, and absolute home-directory paths. Prints file:line and the pattern name, never the
 # matched value. A known, reviewed hit is listed in ALLOW as `<path>|<pattern name>`.
@@ -12,7 +13,7 @@ set -uo pipefail
 REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 
 PATTERNS='cloud-token-value|CATALYST_CLOUD_TOKEN=[^[:space:]"'"'"'<$]
-openai-key|sk-[A-Za-z0-9_-]{16,}
+openai-key|(^|[^A-Za-z0-9_-])sk-[A-Za-z0-9_-]{16,}
 github-token|gh[po]_[A-Za-z0-9]{16,}
 linear-key|lin_api_[A-Za-z0-9]{16,}
 private-ip-10|(^|[^0-9.])10\.[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}([^0-9]|$)
@@ -65,11 +66,11 @@ EOF
 if [ "${1:-}" = "--self-test" ]; then
   tmp="$(mktemp -d)"
   trap 'rm -rf "$tmp"' EXIT
-  printf 'a 10.1.2.3 b\nhttp://100.65.1.2:80\n/Users/someone/x\nCATALYST_CLOUD_TOKEN=abc123\nversion 1.10.2.3\n' > "$tmp/planted.txt"
+  printf 'a 10.1.2.3 b\nhttp://100.65.1.2:80\n/Users/someone/x\nCATALYST_CLOUD_TOKEN=abc123\nversion 1.10.2.3\nOPENAI_API_KEY=sk-PLANTED_NOT_A_REAL_KEY\nthe ask-default-execution flag is shadow\n' > "$tmp/planted.txt"
   hits="$(scan "$tmp")"
   n="$(printf '%s\n' "$hits" | grep -c .)"
-  if [ "$n" -eq 4 ]; then echo "scan-internal self-test: PASS (4 planted hits found, the version string ignored)"; exit 0; fi
-  echo "scan-internal self-test: FAIL (expected 4 hits, got $n)"
+  if [ "$n" -eq 5 ]; then echo "scan-internal self-test: PASS (5 planted hits found; the version string and ask-default-execution ignored)"; exit 0; fi
+  echo "scan-internal self-test: FAIL (expected 5 hits, got $n)"
   printf '%s\n' "$hits"
   exit 1
 fi

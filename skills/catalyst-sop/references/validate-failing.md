@@ -32,7 +32,7 @@ The cleanest available proof of "read the ladder verdict, not the ask": all five
 | CTC-2490 | PC FAIL + CR FAIL, every deliverable exists | **remediate** |
 | CTC-2485 | PC FAIL, **every other gate PASS**, "the code is good" | **plan-doc drift** — amend the plan text or accept. **Not a re-plan** |
 
-**Outcome, 2026-09-18** — six of the seven M6 holds were cleared by an agent with no human input: CTC-2502 unparked, CTC-2496 released with `validate-unhold`, CTC-2391 and CTC-2499 rewound (`reset [plan, implement]`, `clearedHold:true`), CTC-2490 released with `validate-unhold` after the wrong-lever null, and four hold asks closed Done.
+**Outcome, 2026-09-18** — four of these five M6 holds were cleared by an agent with no human input: CTC-2496 released with `validate-unhold`, CTC-2391 and CTC-2499 rewound (`reset [plan, implement]`, `clearedHold:true`), and CTC-2490 released with `validate-unhold` after the wrong-lever null. CTC-2502 was cleared in the same sweep but is not in this table — it was parked with no ask at all (`references/levers.md`) and was unparked. Four hold asks closed Done.
 
 ⛔ **CTC-2485 was deliberately NOT released, and this is a gap in the product, not a judgement call.** The plan-doc-drift shape has **no agent-executable route at all**: there is no admin accept route, and clearing its budget hold would only re-validate the same head against the same drifted plan — a guaranteed re-hold. So it waits on a human clicking option B. **Every other sub-shape in this table can be executed by an agent; this one cannot.** Until an accept route exists, plan-doc drift is the one validate failure that legitimately reaches a human — and it should reach them as *one* ask, not as a recurring one.
 
