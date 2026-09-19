@@ -16,6 +16,7 @@
     { "dir": "agent-browser", "name": "agent-browser", "scope": "home" },
     { "dir": "ask", "name": "ask", "scope": "home" },
     { "dir": "briefing-followup", "name": "briefing-followup", "scope": "home" },
+    { "dir": "catalyst-sop", "name": "catalyst-sop", "scope": "home" },
     { "dir": "commit", "name": "commit", "scope": "home" },
     { "dir": "compound-estimate", "name": "compound-estimate", "scope": "home" },
     { "dir": "concierge", "name": "concierge", "scope": "home" },
