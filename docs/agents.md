@@ -265,7 +265,8 @@ Agents are distributed as part of the Catalyst plugin system:
 **Install Catalyst plugin**:
 
 ```bash
-/plugin install catalyst-dev
+/plugin marketplace add coalesce-labs/catalyst-dev-skills
+/plugin install catalyst-dev@catalyst-dev-skills
 ```
 
 This installs all agents automatically.
@@ -275,7 +276,7 @@ This installs all agents automatically.
 **Update plugin**:
 
 ```bash
-/plugin update catalyst-dev
+/plugin update catalyst-dev@catalyst-dev-skills
 ```
 
 Agents are pure research logic with no project-specific configuration, so updates are always safe.

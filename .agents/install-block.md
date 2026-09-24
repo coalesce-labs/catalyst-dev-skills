@@ -4,6 +4,8 @@ This file is the one copy of the install wording. The README carries the same co
 
 **The two rails are exclusive.** `npx skills` copies the skills into each coding agent's own skills directory. The Claude Code plugin installs the same set as a managed bundle. A reader who runs both ends up with every skill twice, so every rendering of this block keeps the exclusivity sentence.
 
+**The source is this repository.** The `catalyst-dev@catalyst` plugin in `coalesce-labs/catalyst` is a separate, deprecated copy. New development-skills installs use `coalesce-labs/catalyst-dev-skills`. Tenant operation uses the separate `coalesce-labs/catalyst-cloud-skills` pack.
+
 ---
 
 ## Install

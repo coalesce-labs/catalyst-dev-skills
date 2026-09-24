@@ -36,6 +36,9 @@ jobs:
       - name: Vendored copies match their sources
         run: node scripts/vendor.mjs --check
 
+      - name: Development pack and Claude plugin versions agree
+        run: npm run version:check
+
       - name: Tests (bun suites, then every tests/*.test.sh)
         run: bash scripts/run-tests.sh
 
