@@ -2,6 +2,8 @@
 
 The Catalyst development workflow as agent skills: research → plan → implement → validate → ship, plus the Linear, pull-request and coordination skills around it. Each skill is a directory under [`skills/`](skills) with a `SKILL.md` and everything it runs, so the same files work in Claude Code, Codex and OpenCode.
 
+This is the supported source for development skills on a workstation or in a Catalyst Cloud runner image. The `coalesce-labs/catalyst` repository is deprecated as a local runtime; its `catalyst-dev@catalyst` plugin is a separate, older copy. Use this repository for new installs. For tenant setup and operation, also install [`coalesce-labs/catalyst-cloud-skills`](https://github.com/coalesce-labs/catalyst-cloud-skills).
+
 ## Install
 
 One command, for every coding agent on the machine:
@@ -38,6 +40,8 @@ Without `--all` the installer asks which skills to take and which agents to inst
 </details>
 
 The installed folder takes the skill's frontmatter `name`, which is the directory name for every skill except `skills/linearis`, which installs as `linearis-cli`.
+
+The `npx skills` install reads this repository's `skills/` tree; it does not publish an npm package. The optional Claude plugin reads that same tree. A Git commit identifies the exact skills in either rail. `package.json` records the development pack's release version, and CI checks that `.claude-plugin/plugin.json` has the same number. This version is independent of `catalyst-cloud-skills` and of the deprecated `catalyst` plugin.
 
 ## What's inside
 
