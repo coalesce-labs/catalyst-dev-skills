@@ -34,3 +34,8 @@ files:
   - scripts/ask-triage.sh
   - scripts/human-blocked.sh
   - scripts/lib/tenant-contract.default.json
+  - scripts/lib/replica-path.mjs
+  - scripts/lib/paths/index.js
+  - scripts/lib/paths/node.js
+  - scripts/lib/paths/legacy-installer.js
+  - scripts/lib/paths/provenance.json
