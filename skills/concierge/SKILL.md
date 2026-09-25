@@ -5,6 +5,8 @@ description:
   status board, or on any scope no steward owns; when a new project must be scaffolded from a request; or
   when an ask has gone unanswered. Owns the board, the ask inbox, and routing. Never commands a steward.
 user-invocable: true
+metadata:
+  internal: true
 ---
 
 # Concierge — one door, one page

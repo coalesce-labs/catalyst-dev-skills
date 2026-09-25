@@ -12,11 +12,13 @@ One command, for every coding agent on the machine:
 npx skills@latest add coalesce-labs/catalyst-dev-skills --all -g
 ```
 
-It installs all 35 skills for each agent it detects (Claude Code, Codex, OpenCode, Cursor and the rest). These skills are yours, not a repository's: `-g` installs into your home directory, and a project-scoped install is not a supported shape (CTC-2558). If you already have one — a `.claude/skills/`, `.agents/skills/`, `agent/skills/` or `skills-lock.json` inside a project — remove it with `npx skills remove --all` from that directory, then install again with `-g`. Skills installed this way do not auto-update; refresh them with:
+It installs all 33 skills for each agent it detects (Claude Code, Codex, OpenCode, Cursor and the rest). These skills are yours, not a repository's: `-g` installs into your home directory, and a project-scoped install is not a supported shape (CTC-2558). If you already have one — a `.claude/skills/`, `.agents/skills/`, `agent/skills/` or `skills-lock.json` inside a project — remove it with `npx skills remove --all` from that directory, then install again with `-g`. Skills installed this way do not auto-update; refresh them with:
 
 ```sh
 npx skills@latest update -g -y
 ```
+
+**Operator skills.** `concierge` and `linearis-cli` coordinate Coalesce Labs' own fleet and use a personal Linearis credential, so they are marked internal and a default install leaves them out. An operator installs them by name: `npx skills@latest add coalesce-labs/catalyst-dev-skills --skill concierge --skill linearis-cli -g`. `npx skills update -g` keeps an installed copy current. Tenant ticket work (reading, commenting, moving, labelling and creating tickets) belongs to [`coalesce-labs/catalyst-cloud-skills`](https://github.com/coalesce-labs/catalyst-cloud-skills), whose writes go through the tenant's route as the Catalyst app actor.
 
 <details><summary><strong>Alternative for Claude Code: the plugin marketplace</strong></summary>
 
@@ -39,7 +41,7 @@ npx skills@latest add coalesce-labs/catalyst-dev-skills -a claude-code -g
 Without `--all` the installer asks which skills to take and which agents to install them on. `--skill <name>` takes one skill.
 </details>
 
-The installed folder takes the skill's frontmatter `name`, which is the directory name for every skill except `skills/linearis`, which installs as `linearis-cli`.
+The installed folder takes the skill's frontmatter `name`, which is the directory name for every skill except `skills/linearis`, which installs as `linearis-cli`. The Claude Code plugin carries every skill, the two operator skills included, because the Catalyst Cloud runner image bakes the plugin and expects both.
 
 The `npx skills` install reads this repository's `skills/` tree; it does not publish an npm package. The optional Claude plugin reads that same tree. A Git commit identifies the exact skills in either rail. `package.json` records the development pack's release version, and CI checks that `.claude-plugin/plugin.json` has the same number. This version is independent of `catalyst-cloud-skills` and of the deprecated `catalyst` plugin.
 
@@ -63,9 +65,10 @@ The `npx skills` install reads this repository's `skills/` tree; it does not pub
 - `create-worktree`: a git worktree for parallel work.
 
 **Linear and coordination**
-- `linear`, `linearis`: ticket workflow, and the Linearis CLI reference with the read-from-replica rule.
+- `linear`: ticket workflow on a Catalyst Cloud tenant (create from a thoughts doc, comment, move, search), through the Cloud pack's `catalyst-skills` CLI as the tenant's app actor.
 - `ask`: raise a decision for a human as a ticket and close it when answered.
-- `steward`, `concierge`, `project-orchestrator`: long-running owners of a project, of a human's board, and of a project's ready backlog.
+- `steward`, `project-orchestrator`: long-running owners of a project and of a project's ready backlog.
+- `concierge`, `linearis`: operator-only (see Install): the owner of a human's board, and the Linearis CLI reference with the read-from-replica rule.
 - `create-handoff`, `resume-handoff`: hand work to another session and pick it up.
 - `morning-briefing`, `briefing-followup`: a daily briefing and its walk-through.
 - `compound-estimate`, `ticket-compound`, `ticket-retro`: the post-merge learning loop.

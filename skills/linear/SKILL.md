@@ -1,41 +1,50 @@
 ---
 name: linear
 description:
-  "Manage Linear tickets with workflow automation. **ALWAYS use when** the user says 'create a
+  "Manage Linear tickets on a Catalyst Cloud tenant. **ALWAYS use when** the user says 'create a
   ticket', 'update the ticket', 'move ticket to', 'search Linear', or wants to create tickets from
-  thoughts documents, update ticket status, or manage the Linear workflow. Uses Linearis CLI."
+  thoughts documents, comment on a ticket, or move it through the workflow. Reads and writes go
+  through the Catalyst Cloud CLI as the tenant's app actor."
 disable-model-invocation: false
-allowed-tools: Bash(linearis *), Bash(source *), Bash(linear_read_ticket *), Read, Write, Edit, Grep
-version: 1.0.0
+allowed-tools: Bash(catalyst-skills *), Bash(npx @catalyst-cloud/catalyst-skills *), Read, Write, Edit, Grep
+version: 2.0.0
 ---
 
 # Linear - Ticket Management
 
-Create tickets from thoughts documents, update existing tickets, and follow the Linearis-CLI workflow.
+Create tickets from thoughts documents, comment on them, move them and search them, on the Catalyst Cloud tenant this machine is connected to.
 
-**Paths.** Commands below name files inside this skill's own directory as `${CLAUDE_SKILL_DIR}/…`. Claude Code fills that in. On any other harness, set CLAUDE_SKILL_DIR to the absolute directory that contains this SKILL.md before running them. If you cannot, stop and report `skill_dir_unresolved`.
+Tenant ticket work belongs to the Cloud pack (`coalesce-labs/catalyst-cloud-skills`). Its `catalyst-linear` skill is the full reference for reading and writing a tenant's tickets. This skill is the coding-workflow entry point to the same path: every read and write below is one `catalyst-skills` verb, which reads the tenant contract, posts to the tenant's write route as the Catalyst app actor, and needs no Linear credential of its own.
 
 ## Setup check (first, every session)
 
-`node "${CLAUDE_SKILL_DIR}/scripts/identity-report.mjs"` — one line per identity (tenant, human, team, cloud host), and every `unresolved` line is a stop-and-say (CTL-2300). A write addressed to the wrong team or the wrong workspace does not error; it lands somewhere plausible, which is why this runs before the first read as well as the first write.
+Run `catalyst-skills status`. If the command is missing, use `npx @catalyst-cloud/catalyst-skills status`. It names the tenant this machine is connected to. If it says the machine is not connected, stop and tell the person: connecting is the Cloud pack's setup (`npx skills@latest add coalesce-labs/catalyst-cloud-skills --all -g`, then its `catalyst-setup` skill). Never ask for a personal Linear token and never call Linear directly; a write that does not go through the tenant route is the path this skill replaces.
+
+**Phase-container guard:** when `CATALYST_PHASE` is set you are inside a Catalyst Cloud phase container, where the runner owns every ticket write. Skip every write here, say so in one line, and continue.
 
 ## REQUIRED: ticket format gate
 
-**Before creating ANY ticket, apply the `/catalyst-dev:gherkin-ticket` standard** — an outcome-first title (`<actor> should <outcome> [so that <benefit>]`, no `[Component]` prefix) and a body leading with a plain-English use case, then tiered Gherkin acceptance criteria. Hard gate: do not draft a title/description without it. Component goes in a label, not the title.
+**Before creating ANY ticket, apply the `/catalyst-dev:gherkin-ticket` standard**: an outcome-first title (`<actor> should <outcome> [so that <benefit>]`, no `[Component]` prefix) and a body leading with a plain-English use case, then tiered Gherkin acceptance criteria. Hard gate: do not draft a title or description without it. A component goes in a label, not the title.
 
-## Reading Linear, and cloud detection
+## The verbs
 
-A **single ticket** read goes through the `linearis` skill's "Reading Linear" rule and its `linear_read_ticket` helper (source `"${CLAUDE_SKILL_DIR}/scripts/lib/linear-read-replica.sh"`, which this skill carries) — do NOT hand-roll a second version. A **scope-wide list/search** (across a project, team, or query) is NOT something that helper does — it covers one ticket at a time — so that stays on the `linearis` CLI directly, same as the `linearis` skill's Core Operations.
+| want | run |
+| -- | -- |
+| one ticket, with its comments, relations, labels and PRs | `catalyst-skills query issue <ID>` |
+| a search across tickets, PRs and projects | `catalyst-skills query search <terms>` |
+| a team's tickets, filtered | `catalyst-skills query issues --team <KEY> [--state <name>] [--all]` |
+| a comment | `catalyst-skills write comment <ID> --body <text>` or `--stdin` |
+| a card move | `catalyst-skills write state <ID> --slot <slot>` |
+| a label on or off | `catalyst-skills write label <ID> --add <name> --remove <name>` |
+| a new ticket | `catalyst-skills write create --team <KEY> --title <text> --stdin` (the description on stdin) |
 
-Either way, run the **same cloud-detection check** before trusting the replica for anything: confirm `replica_fresh` **and** the `.catalyst/config.json` marker (`plugin_dirs_repo_config_path`, from `"${CLAUDE_SKILL_DIR}/scripts/lib/plugin-dirs.sh"`). Either failing is a loud, non-silent fallback to direct `linearis`/API reads — the non-fleet path, never an equal alternative; it protects the shared 2500/hr Linear API quota. Writes always go through `linearis`.
-
-## Configuration
-
-Team key/UUID and thoughts-URL come from `.catalyst/config.json`; prerequisites check, the JSON shape, and URL-mapping rules: [`references/setup-and-examples.md`](references/setup-and-examples.md).
+Every read prints a `source:` line on stderr (the local replica when it is fresh, else the tenant API). Quote it when freshness matters. Every write spends one unit of the tenant's daily write budget; batch what you can and report a refusal instead of retrying it. `--description` and `--stdin` on `write create` need `catalyst-skills` 0.8.0 or newer.
 
 ## Workflow status
 
-State names come from the `linearis` skill's **single-source** `stateMap` transition table — this skill does not restate it. Commands auto-update status on that table: `/research-codebase` → `stateMap.research`, `/create-plan` → `.planning`, `/implement-plan` → `.inProgress`, `/create-pr` → `.inReview`, `/merge-pr` → `.done`. Skip silently if Linearis is unavailable.
+A card moves by slot, never by a stage name: `dispatch`, `intake`, `research`, `plan`, `implement`, `remediate`, `verify`, `review`, `pr`, `done`, `canceled`. The CLI resolves the slot to the team's live state from the tenant contract and refuses a slot the team has not mapped. `--state-type backlog` parks a card. Moving a card to `dispatch` hands it to Catalyst to run, so do that only when the person asks for it.
+
+On a tenant, Catalyst moves a card itself as its phases run. Move one by hand only when the person asks.
 
 ## Action-specific instructions
 
@@ -43,11 +52,10 @@ State names come from the `linearis` skill's **single-source** `stateMap` transi
 | --- | --- |
 | Create a ticket from a thoughts doc | [`references/creating-tickets.md`](references/creating-tickets.md) |
 | Comment, move through workflow, or search | [`references/moving-and-searching.md`](references/moving-and-searching.md) |
-| Full worked example (thought → ticket → plan → implement → PR → merge) | [`references/setup-and-examples.md`](references/setup-and-examples.md) |
+| Configuration and a worked example (thought → ticket → plan → implement → PR) | [`references/setup-and-examples.md`](references/setup-and-examples.md) |
 
 ## Notes
 
-- **Labels overwrite by default**: `linearis issues update --labels` **replaces** every label on the ticket unless you pass `--label-mode add`. Cross-team same-name label trap: the `linearis` skill's label reference (CTL-1802).
-- **CLI required**: Linearis CLI installed and configured with `LINEAR_API_TOKEN`. **Phase-container guard:** skip every `linearis` call when `CATALYST_PHASE` is set (a phase container holds no Linear credential; the runner owns the ticket write-back) or when `command -v linearis` fails (the CLI is not installed); say so in one line and continue.
-
-For Linearis CLI syntax and the Linear read/cloud-detection rule, see the `linearis` skill (`/catalyst-dev:linearis`) — this skill does not restate either.
+- **A decision for a human is not a ticket.** Raise it as an ask (the `ask` skill, or the Cloud pack's `what-needs-me`), so it carries options, a default and what it blocks.
+- **Cite a new ticket's identifier only after `write create` prints it.** A guessed number is usually a real, unrelated ticket.
+- **Labels are resolved through the tenant contract.** A Catalyst label name resolves to its id; any other label needs its id, which `query issue` shows under `labels[]`.

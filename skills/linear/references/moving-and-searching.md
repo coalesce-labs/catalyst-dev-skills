@@ -2,11 +2,19 @@
 
 ## Adding comments
 
-> ⛔ **`linearis issues discuss` posts AS THE HUMAN — do not use it for machine replies.** It authenticates with the personal `lin_api_…` token, so the comment carries the human's identity — and the ask-resolution gate (CTL-1567) reads a human-identity comment as *the human deciding* and clears the escalation hold. Post machine replies through the app actor (`Catalyst Cloud`) instead, via `linear-reply.mjs <TICKET-ID> --as <AGENT>` — the canonical copyable invocation is owned by the `linearis` skill's "Core Operations" section; use it from there. For decision/ask tickets use the `catalyst-dev:ask` skill. Full syntax and rationale: `linearis` skill (CTL-1922).
+Comments go out as the tenant's Catalyst app actor, which the cloud never mistakes for a person deciding something. Never post as the person.
 
-1. Determine which ticket — from conversation context, or read it via the replica (`source "${CLAUDE_SKILL_DIR}/scripts/lib/linear-read-replica.sh"; linear_read_ticket "$TICKET"`) per the `linearis` skill's "Reading Linear" rule.
-2. Keep comments concise (~10 lines); focus on key insight; include file references with backticks and GitHub links, for both `thoughts/` and code files.
-3. Example:
+1. Determine which ticket, from the conversation or with `catalyst-skills query issue <ID>`. That one read returns the comments, so you can see what has already been said.
+2. Keep comments concise (about 10 lines). Lead with the key insight. Reference files with backticks and GitHub links, for both `thoughts/` and code files.
+3. Post it. A one-line body takes `--body`; anything longer goes on stdin:
+
+   ```bash
+   catalyst-skills write comment ENG-123 --stdin < /path/to/comment.md
+   ```
+
+   Reply inside a thread with `--parent <commentId>`. A machine record (a status note, a log line) takes `--bookkeeping`, which prefixes the tenant's bookkeeping marker. A decision for a human is an ask, not a comment.
+
+   Example body:
 
    ```markdown
    Implemented retry logic in webhook handler to address rate limit issues.
@@ -20,13 +28,13 @@
 
 ## Moving tickets through workflow
 
-1. Get current status by reading the ticket (`linearis issues usage`).
-2. Suggest the next status using the `stateMap` transition table — the `linearis` skill's "Workflow: Status Transitions" is the single source; this skill does not restate it.
-3. **Automatic status updates**: `/research-codebase`/`/create-plan`/`/implement-plan`/`/create-pr`/`/merge-pr` each move the ticket per `stateMap` — same source, same pointer.
-4. Manual updates and transition comments — `linearis issues usage` for syntax.
+1. Read the ticket's current state with `catalyst-skills query issue <ID>`.
+2. Move it by slot, only when the person asks: `catalyst-skills write state <ID> --slot <slot>`. The slots are `dispatch`, `intake`, `research`, `plan`, `implement`, `remediate`, `verify`, `review`, `pr`, `done` and `canceled`; `--state-type backlog` parks a card.
+3. The CLI refuses a slot the team has not mapped, and a mapped state that no longer exists in Linear. Report the refusal line as it stands; fixing the map is a tenant settings change, not a retry.
+4. On a tenant, Catalyst moves cards itself as its phases run. The phase commands (`/research-codebase`, `/create-plan`, `/implement-plan`, `/create-pr`, `/merge-pr`) do not move a tenant card through this skill.
 
 ## Searching for tickets
 
-1. Gather criteria: query text, status, assignee.
-2. `issues search` for server-side matching; `issues list` + `jq` for fields search doesn't cover. `--team` requires a UUID on search (czottmann/linearis#56).
-3. Present: ticket ID, title, status, assignee, direct link.
+1. Gather criteria: query text, team, state.
+2. `catalyst-skills query search <terms>` matches identifiers, titles and names across tickets, PRs, projects and initiatives. `catalyst-skills query issues --team <KEY> --state <name>` lists a team's tickets; add `--all` to follow the page cursor to the end, because a read without it can stop at the first page and says `truncated at N of M` when it does.
+3. Present the ticket ID, title, state and a direct link.
