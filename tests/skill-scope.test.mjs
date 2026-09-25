@@ -241,8 +241,41 @@ describe("the documented install is home-scoped", () => {
   // CTC-2767: adding the 35th skill bumped three hardcoded counts in tests and left the count in
   // BOTH prose files at 34 — nothing read them. Derive it from skills/ so the next skill cannot
   // drift them again.
-  test("the documented skill count matches skills/", () => {
-    expect(documentedCountProblems(repoRoot, skillNames(repoRoot).length)).toEqual([]);
+  test("the documented skill count matches what a default install lands", () => {
+    expect(documentedCountProblems(repoRoot, skillNames(repoRoot).filter((s) => !s.internal).length)).toEqual([]);
+  });
+
+  // CTC-3202: the operator-only skills are hidden from `add --all` by `metadata: internal: true`.
+  // Hiding a skill changes what every customer install lands, so the set is pinned here.
+  test("exactly the operator-only skills are internal", () => {
+    expect(skillNames(repoRoot).filter((s) => s.internal).map((s) => s.dir)).toEqual(["concierge", "linearis"]);
+  });
+
+  test("an internal skill may be absent from HOME, but a repository copy of it is still reported", () => {
+    const home = mkdtempSync(join(tmpdir(), "optional-home-"));
+    const repo = mkdtempSync(join(tmpdir(), "optional-repo-"));
+    const declared = [{ dir: "commit", name: "commit", scope: "home" }, { dir: "concierge", name: "concierge", scope: "home" }];
+    installTree(home, [".agents"], ["commit"]);
+    const optional = new Set(["concierge"]);
+    expect(scopeViolations(declared, { home, repository: repo, optional })).toEqual([]);
+    expect(scopeViolations(declared, { home, repository: repo }).join("\n")).toContain('"concierge" is declared home-scope but no copy was installed');
+    installTree(repo, [".claude"], ["concierge"]);
+    expect(scopeViolations(declared, { home, repository: repo, optional }).join("\n")).toContain('"concierge" is declared home-scope but a repository copy');
+    rmSync(home, { recursive: true, force: true });
+    rmSync(repo, { recursive: true, force: true });
+  });
+
+  test("control: the internal flag is read from a nested metadata block, and only there", () => {
+    const dir = mkdtempSync(join(tmpdir(), "internal-flag-"));
+    const plant = (d, front) => {
+      mkdirSync(join(dir, "skills", d), { recursive: true });
+      writeFileSync(join(dir, "skills", d, "SKILL.md"), `---\n${front}\n---\nbody\n`);
+    };
+    plant("hidden", "name: hidden\ndescription: d\nmetadata:\n  version: 1\n  internal: true");
+    plant("shown", "name: shown\ndescription: d\nmetadata:\n  internal: false");
+    plant("loose", "name: loose\ndescription: internal: true");
+    expect(skillNames(dir).map((s) => [s.dir, s.internal])).toEqual([["hidden", true], ["loose", false], ["shown", false]]);
+    rmSync(dir, { recursive: true, force: true });
   });
 
   test("control: a documented count that disagrees with skills/ is reported, naming the file", () => {

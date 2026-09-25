@@ -16,7 +16,7 @@ version: 1.0.0
 
 Every ticket must open with **a use case a stranger can understand**: who gets what outcome, under what condition, and why. Most tickets fail this — they dive straight into implementation ("Wire HRW ownership into dispatchTriage") and the reader has to reverse-engineer the point. This skill fixes that at authoring time.
 
-This skill owns **ticket format** (title voice + body structure). It does **not** own the Linear CLI mechanics — once a draft is ready, hand off to the `linear` skill to actually create or update the issue. CLI syntax lives in the `linearis` skill.
+This skill owns **ticket format** (title voice + body structure). It does **not** own the Linear CLI mechanics — once a draft is ready, hand off to the `linear` skill to actually create or update the issue, which it does through the tenant's Catalyst Cloud CLI. On an operator machine, the operator-only `linearis` skill holds the Linearis syntax.
 
 **Paths.** Commands below name files inside this skill's own directory as `${CLAUDE_SKILL_DIR}/…`. Claude Code fills that in. On any other harness, set CLAUDE_SKILL_DIR to the absolute directory that contains this SKILL.md before running them. If you cannot, stop and report `skill_dir_unresolved`.
 
@@ -209,20 +209,22 @@ Scenario: Dispatch still waits for completion before returning  # invariant
    estimate, priority there (see `feedback_linear_ticket_hygiene`).
 
 ### REWRITE (existing ticket)
-1. Read the **full** existing ticket — never partial. Title + description come from
-   the replica (per the `linearis` skill's "Reading Linear" rule) — read it in ONE
-   command (the helper's function is only defined in the shell that sourced it):
+1. Read the **full** existing ticket — never partial. On a tenant, one command returns the
+   title, description, comments, relations and labels: `catalyst-skills query issue "$TICKET"`
+   (the `linear` skill's tenant route). On an operator machine with the operator-only `linearis`
+   skill, the replica helper is the alternative, read in ONE command (the helper's function is
+   only defined in the shell that sourced it):
    `source "${CLAUDE_SKILL_DIR}/scripts/lib/linear-read-replica.sh" && linear_read_ticket "$TICKET"`
-   (freshness gate → SQL → loud linearis fallback). **Comments are not mirrored** —
-   fetch them via `linearis comments list "$TICKET"`, and for any comment with a
-   discussion thread also fetch its replies (`linearis issues replies <thread>`) so
-   technical detail in replies isn't dropped when you rewrite (see
-   the `linearis` skill); this stays on `linearis` and is structurally outside
-   the `issues read` detector.
+   (freshness gate → SQL → loud linearis fallback); comments are not mirrored there, so fetch
+   them with `linearis comments list "$TICKET"` and each thread's replies with
+   `linearis issues replies <thread>`, so technical detail in replies isn't dropped.
 2. **Preserve all technical content** (file refs, repro steps, root-cause notes, SHAs). You are
    restructuring, not deleting. Move technical detail under a `## Technical notes` section below the Gherkin so it stays but doesn't lead.
 3. Rewrite the title to outcome-first; rewrite the body into the right tier.
 4. Show a **before → after** so the user can eyeball it before you push the update.
+5. Apply it. The tenant route has no title or description write yet (CTC-3202), so on a tenant
+   hand the approved title and body to the person to paste into Linear, and say so. Only an
+   operator machine with `linearis` updates the ticket directly (`linearis issues update`).
 
 ### VALIDATE (audit, don't change)
 Score a ticket against the checklist and report gaps. Used to triage a backlog before a rewrite pass.
@@ -258,8 +260,12 @@ Dependencies:
 
 If you know that other work **must finish before this ticket can start**, record it as a first-class Linear `blocked_by` **link** at authoring time — you know the prerequisites better than any later pass will. **Catalyst does NOT infer dependencies from prose** (CTL-838): writing "depends on CTL-123" or "see CTL-456" in the description does nothing — it is not scraped into a blocker, and it should not be (a mention is not a dependency).
 
+The tenant write route has no relation write yet (CTC-3202). On a tenant, name each genuine
+prerequisite to the person so they add the `blocked by` link in Linear. An operator machine with the
+operator-only `linearis` skill links it directly:
+
 ```bash
-# After the ticket exists, link each genuine prerequisite (see the linearis skill for syntax):
+# Operator only, after the ticket exists (see the linearis skill for syntax):
 linearis issues update <NEW-TICKET> --blocked-by <PREREQ-TICKET>
 ```
 
@@ -293,4 +299,4 @@ If `.catalyst/ticket-style.md` exists, read it and honor its actor list, require
   body it consumes.
 - the `steward` skill — its `references/classify-and-estimate.md` holds the classify/estimate
   rubric triage applies; a ticket authored to this standard makes that step far more reliable.
-- the `linearis` skill — CLI syntax reference. Never hardcode linearis commands here. **Phase-container guard:** skip every `linearis` call when `CATALYST_PHASE` is set (a phase container holds no Linear credential; the runner owns the ticket write-back) or when `command -v linearis` fails (the CLI is not installed); say so in one line and continue.
+- the `linearis` skill — operator-only Linearis syntax reference, hidden from a default install. Never hardcode linearis commands here. **Phase-container guard:** skip every `linearis` call when `CATALYST_PHASE` is set (a phase container holds no Linear credential; the runner owns the ticket write-back) or when `command -v linearis` fails (the CLI is not installed); say so in one line and continue.

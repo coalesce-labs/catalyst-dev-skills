@@ -14,7 +14,9 @@ REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 SOURCE="${1:-$REPO_ROOT}"
 SKILLS_CLI="${SKILLS_CLI:-skills@1.5.26}"
 
-EXPECTED="$(find "$REPO_ROOT/skills" -mindepth 2 -maxdepth 2 -name SKILL.md | wc -l | tr -d ' ')"
+# A default install leaves out the skills marked `metadata: internal: true` (CTC-3202), so the
+# expected count is the default-install roster, read by the same parser the scope guard uses.
+EXPECTED="$(cd "$REPO_ROOT" && node --input-type=module -e 'const { skillNames } = await import("./scripts/check-name-collisions.mjs"); console.log(skillNames(".").filter((s) => !s.internal).length)')"
 SMOKE_HOME="$(mktemp -d)"
 # CTC-2558: cwd is deliberately NOT $SMOKE_HOME — a scope regression (this line losing -g) must
 # be observable, which it cannot be if cwd and $HOME resolve to the same place.
