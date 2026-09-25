@@ -1,0 +1,1 @@
+Move the runtime provenance guide outside vendor-src so the no-orphaned-source packaging gate passes.
