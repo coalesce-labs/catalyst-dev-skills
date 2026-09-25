@@ -16,7 +16,7 @@ version: 1.0.0
 
 Every ticket must open with **a use case a stranger can understand**: who gets what outcome, under what condition, and why. Most tickets fail this — they dive straight into implementation ("Wire HRW ownership into dispatchTriage") and the reader has to reverse-engineer the point. This skill fixes that at authoring time.
 
-This skill owns **ticket format** (title voice + body structure). It does **not** own the Linear CLI mechanics — once a draft is ready, hand off to the `/catalyst-dev:linear` skill to actually create or update the issue. CLI syntax lives in `/catalyst-dev:linearis`.
+This skill owns **ticket format** (title voice + body structure). It does **not** own the Linear CLI mechanics — once a draft is ready, hand off to the `/catalyst-dev:linear` skill to actually create or update the issue, which it does through the tenant's Catalyst Cloud CLI. On an operator machine, the operator-only `/catalyst-dev:linearis` skill holds the Linearis syntax.
 
 **Paths.** Commands below name files inside this skill's own directory as `${CLAUDE_SKILL_DIR}/…`. Claude Code fills that in. On any other harness, set CLAUDE_SKILL_DIR to the absolute directory that contains this SKILL.md before running them. If you cannot, stop and report `skill_dir_unresolved`.
 
@@ -293,4 +293,4 @@ If `.catalyst/ticket-style.md` exists, read it and honor its actor list, require
   body it consumes.
 - `/catalyst-dev:steward` — its `references/classify-and-estimate.md` holds the classify/estimate
   rubric triage applies; a ticket authored to this standard makes that step far more reliable.
-- `/catalyst-dev:linearis` — CLI syntax reference. Never hardcode linearis commands here. **Phase-container guard:** skip every `linearis` call when `CATALYST_PHASE` is set (a phase container holds no Linear credential; the runner owns the ticket write-back) or when `command -v linearis` fails (the CLI is not installed); say so in one line and continue.
+- `/catalyst-dev:linearis` — operator-only Linearis syntax reference, hidden from a default install. Never hardcode linearis commands here. **Phase-container guard:** skip every `linearis` call when `CATALYST_PHASE` is set (a phase container holds no Linear credential; the runner owns the ticket write-back) or when `command -v linearis` fails (the CLI is not installed); say so in one line and continue.

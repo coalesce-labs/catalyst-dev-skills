@@ -195,8 +195,10 @@ export function repositoryResidue(repoDir) {
  *      person fixing it has to delete every copy, not whichever one was enumerated last.
  *  - declared home, absent from `home`    → '"<name>" is declared home-scope but no copy was installed under $HOME'
  *  - a lockfile in the repository         → 'a repository-scoped install left <path>'
+ * `optional` names skills a default install leaves out (`metadata: internal: true`, CTC-3202): their
+ * absence from `home` is expected, and a repository copy of one is still reported.
  */
-export function scopeViolations(declared, { home, repository }) {
+export function scopeViolations(declared, { home, repository, optional = new Set() }) {
   const problems = [];
   const homeNames = new Set(observeInstall(home).map((s) => s.name));
   const repoPathsByName = new Map();
@@ -213,7 +215,7 @@ export function scopeViolations(declared, { home, repository }) {
       for (const repoPath of [...repoPaths].sort()) {
         problems.push(`"${name}" is declared home-scope but a repository copy is at ${repoPath}`);
       }
-    } else if (!homeNames.has(name)) {
+    } else if (!homeNames.has(name) && !optional.has(name)) {
       problems.push(`"${name}" is declared home-scope but no copy was installed under $HOME`);
     }
   }
@@ -283,7 +285,8 @@ export function documentedInstallProblems(repoDir) {
 /** documentedCountProblems(repoDir, expected) — the prose in README.md and .agents/install-block.md
  * claims how many skills an install lands ("It installs all N skills …"). CTC-2767: that number was
  * hand-maintained in two files and read by nothing, so the 35th skill left both saying 34 while
- * three hardcoded counts in tests were dutifully bumped. `expected` comes from skills/ on disk.
+ * three hardcoded counts in tests were dutifully bumped. `expected` comes from skills/ on disk,
+ * less the internal (operator-only) skills a default install leaves out (CTC-3202).
  * A file that makes no such claim is not a problem — only a claim that disagrees is. */
 export function documentedCountProblems(repoDir, expected) {
   const problems = [];
@@ -292,7 +295,7 @@ export function documentedCountProblems(repoDir, expected) {
     if (!existsSync(path)) continue;
     for (const m of readFileSync(path, "utf8").matchAll(/It installs all (\d+) skills/g)) {
       if (Number(m[1]) !== expected) {
-        problems.push(`${rel}: says it installs ${m[1]} skills, but skills/ holds ${expected}`);
+        problems.push(`${rel}: says it installs ${m[1]} skills, but a default install lands ${expected}`);
       }
     }
   }
@@ -321,7 +324,7 @@ function main(args, repoRoot) {
     problems.push(`this checkout carries a repository-scoped install artifact at ${path}`);
   }
   problems.push(...documentedInstallProblems(repoRoot));
-  problems.push(...documentedCountProblems(repoRoot, actual.length));
+  problems.push(...documentedCountProblems(repoRoot, actual.filter((s) => !s.internal).length));
 
   let homeArg = null;
   let repoArg = null;
@@ -338,7 +341,8 @@ function main(args, repoRoot) {
     return 2;
   }
   if (homeArg && repoArg) {
-    problems.push(...scopeViolations(declared, { home: homeArg, repository: repoArg }));
+    const optional = new Set(actual.filter((s) => s.internal).map((s) => s.name));
+    problems.push(...scopeViolations(declared, { home: homeArg, repository: repoArg, optional }));
   }
 
   report(problems, "SCOPE-PROBLEM");

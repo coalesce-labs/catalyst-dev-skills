@@ -2,32 +2,32 @@
 
 ## Prerequisites
 
+This skill runs on the Catalyst Cloud CLI that the Cloud pack installs and connects:
+
 ```bash
-if ! command -v linearis &> /dev/null; then
-    echo "❌ Linearis CLI not found"
-    echo "Install with: npm install -g linearis"
-    echo "Configure with: export LINEAR_API_TOKEN=your_token  # or ~/.linear_api_token"
-    exit 1
-fi
+if command -v catalyst-skills >/dev/null 2>&1; then CS=catalyst-skills; else CS="npx @catalyst-cloud/catalyst-skills"; fi
+$CS status || echo "not connected to a Catalyst Cloud tenant: set it up with the Cloud pack (catalyst-setup)"
 ```
+
+Install the Cloud pack with `npx skills@latest add coalesce-labs/catalyst-cloud-skills --all -g`, then follow its `catalyst-setup` skill to connect this machine. No Linear token is involved: the CLI writes through the tenant's route as the app actor.
 
 ## Configuration
 
-Read team config from `.catalyst/config.json` (fallback `.claude/config.json`):
+Read the team key from `.catalyst/config.json` (fallback `.claude/config.json`):
 
 ```bash
 CONFIG_FILE=".catalyst/config.json"
 [[ ! -f "$CONFIG_FILE" ]] && CONFIG_FILE=".claude/config.json"
 
-TEAM_KEY=$(jq -r '.catalyst.linear.teamKey // "PROJ"' "$CONFIG_FILE")
-# Team UUID — required for issues create/search (keys don't work); discover via `linearis teams usage`.
-TEAM_UUID=$(jq -r '.catalyst.linear.teamUuid // empty' "$CONFIG_FILE")
+TEAM_KEY=$(jq -r '.catalyst.linear.teamKey // empty' "$CONFIG_FILE")
 THOUGHTS_URL=$(jq -r '.catalyst.linear.thoughtsRepoUrl // "https://github.com/org/thoughts/blob/main"' "$CONFIG_FILE")
 ```
 
 ```json
-{ "catalyst": { "linear": { "teamKey": "ENG", "teamUuid": "<team-uuid>" } } }
+{ "catalyst": { "linear": { "teamKey": "ENG" } } }
 ```
+
+The team key is all the CLI needs; it resolves the team id, its states and its labels from the tenant contract. When no key is configured, ask the person which team, or read it from an existing ticket's identifier prefix.
 
 ## URL mapping for thoughts documents
 
@@ -37,8 +37,8 @@ THOUGHTS_URL=$(jq -r '.catalyst.linear.thoughtsRepoUrl // "https://github.com/or
 
 ## Default values
 
-- **Status**: new tickets start in "Backlog".
-- **Priority**: default Medium (3) — Urgent(1)/High(2)/Medium(3)/Low(4).
+- **State**: a new ticket lands in the team's default state.
+- **Priority**: default Medium (3). Urgent (1), High (2), Medium (3), Low (4).
 
 ## Worked example: Thought → Ticket → Plan → Implement
 
@@ -47,19 +47,12 @@ THOUGHTS_URL=$(jq -r '.catalyst.linear.thoughtsRepoUrl // "https://github.com/or
 # Saves to thoughts/shared/research/auth-patterns.md
 
 /catalyst-dev:linear create thoughts/shared/research/auth-patterns.md
-# Creates ticket in Backlog
+# Drafts the ticket, then: catalyst-skills write create --team ENG --title "..." --stdin
 
 /catalyst-dev:create-plan
-# Reads research, creates plan; ticket moves to stateMap.planning
-
 /catalyst-dev:implement-plan thoughts/shared/plans/2025-01-08-auth-feature.md
-# Ticket moves to stateMap.inProgress
-
 /catalyst-dev:create-pr
-# Ticket moves to stateMap.inReview
-
 /catalyst-dev:merge-pr
-# Ticket moves to stateMap.done
 ```
 
-State names throughout come from the `linearis` skill's single-source `stateMap` table — this example does not restate it.
+On a tenant, Catalyst moves the card as its phases run. When the person asks for a move by hand, it is one slot move: `catalyst-skills write state ENG-123 --slot pr`.

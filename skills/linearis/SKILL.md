@@ -2,6 +2,8 @@
 name: linearis-cli
 description:
   Linear access rule + Linearis CLI reference. READS → query the local replica by direct SQL (`~/.config/catalyst-cloud/replica.db`); WRITES and list/search → the `linearis` CLI. Use when working with Linear tickets, cycles, projects, milestones, or ticket IDs like TEAM-123.
+metadata:
+  internal: true
 ---
 
 # Linearis CLI Reference
@@ -23,8 +25,7 @@ description:
    marker="$(plugin_dirs_repo_config_path)"  # "" if no .catalyst/config.json found
    ```
    Either failing → **no cloud mirror**: say so **loudly** (never silent) and fall back to direct `linearis`/API reads — the **non-fleet path** (protects the 2500/hr quota), wrong to recommend on the fleet. Same pattern: `steward`'s `references/cloud-detection.md`.
-2. **Cloud mode confirmed → query the replica and TRUST it.** Don't re-verify against live Linear.
-3. **Row missing / not fresh → an ALARM, not a silent reroute.** Loud fallback, file a ticket.
+2. **Cloud mode confirmed → query the replica and TRUST it.** Don't re-verify against live Linear. **Row missing / not fresh → an ALARM, not a silent reroute:** loud fallback, file a ticket.
 
 **The only reads you should shell directly are through the helper — it is the freshness gate, not a convenience wrapper.** Never run a bare `sqlite3` query against the replica yourself: it skips the `$rf`/`$marker` checks above and can return stale data (or an empty DB) with no fallback.
 
@@ -46,8 +47,7 @@ linearis issues update ENG-123 --status "$(state inProgress)" --labels "bug" --l
 
 > ⛔ **Agent comments → `linear-reply.mjs`, never `issues discuss`/`reply`** — those post AS THE HUMAN (personal token; ask-resolution gate reads that as the human deciding, CTL-1567).
 ```bash
-direnv exec . node "${CLAUDE_SKILL_DIR}/scripts/linear-reply.mjs" ENG-123 --as <AGENT> --body-file <path> --top
-#   --body-file <path>  for anything longer than a one-line body; --body REFUSES a path (CTL-2204)
+direnv exec . node "${CLAUDE_SKILL_DIR}/scripts/linear-reply.mjs" ENG-123 --as <AGENT> --body-file <path> --top  # --body-file for any multi-line body; --body REFUSES a path (CTL-2204)
 ```
 `issues discussions <id>` (read-only) is safe. Full CRUD, comment-thread commands, common mistakes, other domains: [`references/core-operations.md`](references/core-operations.md).
 
