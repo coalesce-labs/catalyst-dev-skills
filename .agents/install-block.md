@@ -16,10 +16,10 @@ One command, for every coding agent on the machine:
 npx skills@latest add coalesce-labs/catalyst-dev-skills --all -g
 ```
 
-It installs all 35 skills for each agent it detects (Claude Code, Codex, OpenCode, Cursor and the rest). These skills are yours, not a repository's: `-g` installs into your home directory, and a project-scoped install is not a supported shape (CTC-2558). If you already have one — a `.claude/skills/`, `.agents/skills/`, `agent/skills/` or `skills-lock.json` inside a project — remove it with `npx skills remove --all` from that directory, then install again with `-g`. Skills installed this way do not auto-update; refresh them with:
+It installs all 35 skills for each agent it detects (Claude Code, Codex, OpenCode, Cursor and the rest). These skills are yours, not a repository's: `-g` installs into your home directory, and a project-scoped install is not a supported shape (CTC-2558). If a project has an older skill install, inspect its lock file and each agent's skill path before removing anything. Remove only copies proven to come from the deprecated `coalesce-labs/catalyst` repository or project-scoped copies of this pack that you intend to replace. Keep unrelated and uncertain copies. Then install this pack globally with the command above. Skills installed this way do not auto-update; refresh the pack, including any newly added skills, with:
 
 ```sh
-npx skills@latest update -g -y
+npx skills@latest add coalesce-labs/catalyst-dev-skills --all -g
 ```
 
 **Alternative for Claude Code: the plugin marketplace.** The plugin installs the set as a managed bundle, under the `catalyst-dev:` prefix. Pick one rail; installing both leaves you with every skill twice.
