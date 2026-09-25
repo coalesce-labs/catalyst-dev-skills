@@ -10,3 +10,8 @@ files:
   - scripts/lib/canonical-event.sh
   - scripts/lib/host-identity.sh
   - scripts/lib/plugin-dirs.sh
+  - scripts/lib/replica-path.mjs
+  - scripts/lib/paths/index.js
+  - scripts/lib/paths/node.js
+  - scripts/lib/paths/legacy-installer.js
+  - scripts/lib/paths/provenance.json

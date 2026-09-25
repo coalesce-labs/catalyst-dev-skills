@@ -32,3 +32,8 @@ files:
   - scripts/execution-core/linear-write-proxy.mjs
   - scripts/execution-core/replica-comment-read.mjs
   - scripts/execution-core/replica-freshness.mjs
+  - scripts/lib/replica-path.mjs
+  - scripts/lib/paths/index.js
+  - scripts/lib/paths/node.js
+  - scripts/lib/paths/legacy-installer.js
+  - scripts/lib/paths/provenance.json

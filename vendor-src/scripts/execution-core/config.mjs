@@ -2831,12 +2831,10 @@ export function readLinearReplica(env = process.env) {
 }
 
 // CTL-1340: path to the local Catalyst-Cloud SQLite replica, the one
-// `catalyst-skills replica start` writes. CATALYST_REPLICA_DB overrides; default
-// ~/.config/catalyst-cloud/replica.db (the daemon-era path under CATALYST_DIR is retired).
+// `catalyst-skills replica start` writes. The canonical environment/manifest selection
+// retains the legacy CLI default before setup (the daemon-era path is retired).
 // Re-resolved per call so tests redirect via the env vars.
-export function getReplicaDbPath() {
-  return process.env.CATALYST_REPLICA_DB || resolve(process.env.HOME || homedir(), ".config/catalyst-cloud/replica.db");
-}
+export { getReplicaDbPath } from "../lib/replica-path.mjs";
 
 // CTL-1508: path to the cloud-sync self-heal breadcrumb — dropped by the writer just
 // before a genuine-stall exit(1), cleared on the next boot's 'live'. Lives beside the

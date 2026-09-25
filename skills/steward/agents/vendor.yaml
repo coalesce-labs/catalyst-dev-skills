@@ -11,3 +11,8 @@ files:
   - scripts/lib/host-identity.sh
   - scripts/lib/plugin-dirs.sh
   - references/cloud-detection.md
+  - scripts/lib/replica-path.mjs
+  - scripts/lib/paths/index.js
+  - scripts/lib/paths/node.js
+  - scripts/lib/paths/legacy-installer.js
+  - scripts/lib/paths/provenance.json

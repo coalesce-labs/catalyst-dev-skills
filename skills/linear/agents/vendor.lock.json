@@ -6,7 +6,12 @@
     "scripts/lib/cloud-facts.mjs",
     "scripts/lib/host-identity.sh",
     "scripts/lib/linear-read-replica.sh",
+    "scripts/lib/paths/index.js",
+    "scripts/lib/paths/legacy-installer.js",
+    "scripts/lib/paths/node.js",
+    "scripts/lib/paths/provenance.json",
     "scripts/lib/plugin-dirs.sh",
+    "scripts/lib/replica-path.mjs",
     "scripts/lib/tenant-identity.mjs"
   ]
 }

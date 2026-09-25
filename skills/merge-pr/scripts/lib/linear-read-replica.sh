@@ -28,12 +28,11 @@
 # This module is idempotent: sourcing it twice is a no-op.
 
 [[ -n "${_CATALYST_LINEAR_READ_REPLICA_SH:-}" ]] && return 0
-_CATALYST_LINEAR_READ_REPLICA_SH=1
 
 # The replica `catalyst-skills replica start` writes: CATALYST_REPLICA_DB overrides;
-# else ~/.config/catalyst-cloud/replica.db.
+# then the machine manifest, then the saved legacy CLI path before manifest adoption.
 # The retired daemon-era $CATALYST_DIR/catalyst-replica.db is no longer consulted.
-: "${CATALYST_REPLICA_DB:=${HOME:-}/.config/catalyst-cloud/replica.db}"
+
 # Freshness threshold in ms (matches the daemon env var); default 5 min.
 : "${CATALYST_LINEAR_REPLICA_STALE_MS:=300000}"
 # Live-read fallback cap in ms (matches catalyst-linear's runLinearis); default 8s.
@@ -45,6 +44,14 @@ _CATALYST_LINEAR_READ_REPLICA_SH=1
 # shellcheck disable=SC2296
 __LRR_SELF="${BASH_SOURCE[0]:-${(%):-%x}}"
 __LRR_LIB_DIR="$(cd "$(dirname "$__LRR_SELF")" && pwd)"
+
+# Resolve before deriving the lock path. A bad manifest must never fall back to another DB.
+if [[ "${CATALYST_REPLICA_DB+x}" == x ]]; then
+  CATALYST_REPLICA_DB="$(CATALYST_REPLICA_DB="$CATALYST_REPLICA_DB" node "$__LRR_LIB_DIR/replica-path.mjs")" || return 2
+else
+  CATALYST_REPLICA_DB="$(node "$__LRR_LIB_DIR/replica-path.mjs")" || return 2
+fi
+_CATALYST_LINEAR_READ_REPLICA_SH=1
 
 # _lrr_emit_fallback_event <ID> <reason> <source> — best-effort: append a WARN
 # `catalyst.replica.read_fallback` event to the unified log so every replica
