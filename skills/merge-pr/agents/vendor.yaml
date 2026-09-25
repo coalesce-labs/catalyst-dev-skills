@@ -12,3 +12,8 @@ files:
   - scripts/lib/host-identity.sh
   - references/merge-blocker-diagnosis.md
   - references/review-thread-resolution.md
+  - scripts/lib/replica-path.mjs
+  - scripts/lib/paths/index.js
+  - scripts/lib/paths/node.js
+  - scripts/lib/paths/legacy-installer.js
+  - scripts/lib/paths/provenance.json
