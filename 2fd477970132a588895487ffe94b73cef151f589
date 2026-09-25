@@ -1,1 +1,6 @@
-Move the runtime provenance guide outside vendor-src so the no-orphaned-source packaging gate passes.
+Revision history for #17:
+
+rev 2 (content) 2026-09-25 02:58 UTC — Move the runtime provenance guide outside vendor-src so the no-orphaned-source packaging gate passes.
+rev 1 (initial) 2026-09-25 02:58 UTC
+
+<!-- mergify-revision-data: {"schema_version":1,"pull_number":17,"entries":[{"number":1,"change_type":"initial","old_sha":null,"new_sha":"71bef5f465d9b45802f85e8317abd74376edcdad","timestamp_iso":"2026-09-25T02:58:10Z","reason":"","replay_sha":null,"compare_url":null},{"number":2,"change_type":"content","old_sha":"71bef5f465d9b45802f85e8317abd74376edcdad","new_sha":"2fd477970132a588895487ffe94b73cef151f589","timestamp_iso":"2026-09-25T02:58:10Z","reason":"Move the runtime provenance guide outside vendor-src so the no-orphaned-source packaging gate passes.","replay_sha":"db9f0340fb1b8e259eac56aaf67cae107b88474c","compare_url":"https://github.com/coalesce-labs/catalyst-dev-skills/compare/71bef5f465d9b45802f85e8317abd74376edcdad...db9f0340fb1b8e259eac56aaf67cae107b88474c"}]} -->
