@@ -65,4 +65,4 @@ Immediately call `/describe-pr` with the PR number to generate the full descript
 
 If a ticket was extracted: update status to `stateMap.inReview` (`linearis issues usage` for exact syntax) and add a PR-link comment through the app actor (`linear-reply.mjs --as <role>` or `linear-comment-post.sh`) — never bare `linearis issues discuss`. Skip silently if the CLI is unavailable.
 
-**Skip the status transition when `CATALYST_PHASE` is set** — under a phase agent or a `relay-ticket` session, the coordinator driving that ticket already owns the Linear status write-back. This transition is for interactive `/catalyst-dev:create-pr` use only; the PR-link comment is still posted in both modes.
+**Skip the status transition when `CATALYST_PHASE` is set** — under a phase agent or a `relay-ticket` session, the coordinator driving that ticket already owns the Linear status write-back. This transition is for interactive `create-pr` use only; the PR-link comment is still posted in both modes.

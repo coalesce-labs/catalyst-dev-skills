@@ -74,4 +74,4 @@ This skill uses ticket references like `PROJ-123`. Replace `PROJ` with your Line
 
 ## CLI tools
 
-To fetch ticket context from Linear (e.g. a ticket referenced in the handoff), use the Linearis CLI — run `linearis issues usage` or see `/catalyst-dev:linearis` for exact syntax. Do not guess commands. **Phase-container guard:** skip every `linearis` call when `CATALYST_PHASE` is set (a phase container holds no Linear credential; the runner owns the ticket write-back) or when `command -v linearis` fails (the CLI is not installed); say so in one line and continue.
+To fetch ticket context from Linear (e.g. a ticket referenced in the handoff), use the Linearis CLI — run `linearis issues usage` or see the `linearis` skill for exact syntax. Do not guess commands. **Phase-container guard:** skip every `linearis` call when `CATALYST_PHASE` is set (a phase container holds no Linear credential; the runner owns the ticket write-back) or when `command -v linearis` fails (the CLI is not installed); say so in one line and continue.

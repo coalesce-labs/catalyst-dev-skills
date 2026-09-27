@@ -70,6 +70,18 @@ describe("plugin subagents", () => {
     expect(unresolved(repoRoot)).toEqual([]);
   });
 
+  // CTC-3733: the catalyst-dev plugin is deleted at install, so `/catalyst-dev:<skill>` is an unknown
+  // command in Claude Code and means nothing in Codex or OpenCode. Name the skill in words instead.
+  test("no skill tells the reader to type a /catalyst-dev:<skill> slash command", () => {
+    const slash = new RegExp(`/${REFERENCE.source}`, "g");
+    const hits = listFiles(skillsRoot).flatMap((file) =>
+      readFileSync(file, "utf8")
+        .split("\n")
+        .flatMap((line, idx) => [...line.matchAll(slash)].map((m) => `${relative(repoRoot, file)}:${idx + 1} ${m[0]}`)),
+    );
+    expect(hits).toEqual([]);
+  });
+
   // Claude Code loads every agents/*.md as a subagent, so a README there becomes `catalyst-dev:README`.
   test("every agents/*.md is a Claude Code agent file with a matching frontmatter name", () => {
     const agentsDir = join(repoRoot, "agents");

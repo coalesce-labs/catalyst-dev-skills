@@ -198,7 +198,7 @@ If you encounter a mismatch:
 - Check off completed items in the plan file itself using Edit
 - **Check context usage** - monitor token consumption
 - **Push + ensure the draft PR (phase-agent mode)** — The `implement-plan-draft-pr-early` block
-  runs automatically after each Green step (see TDD Rhythm above; CTL-1490). Interactive `/catalyst-dev:implement-plan` runs skip it via the CATALYST_PHASE gate.
+  runs automatically after each Green step (see TDD Rhythm above; CTL-1490). Interactive `implement-plan` runs skip it via the CATALYST_PHASE gate.
 
 Don't let verification interrupt your flow - batch full suite runs at natural stopping points. But always run the specific tests you wrote during each Red → Green cycle.
 
@@ -288,7 +288,7 @@ Invoke `/validate-type-safety`. This runs the full 5-step gate (type check, rewa
 
 **Gate 2: Security Review**
 
-Run the owned `review-security` skill (`/catalyst-dev:review-security`, or its `SKILL.md` on a harness without slash commands), not Claude Code's built-in `/security-review`: one reviewer on every harness (Ryan, 2026-09-27). Review findings and fix any vulnerabilities before proceeding.
+Run the owned `review-security` skill, not Claude Code's built-in `/security-review`: one reviewer on every harness (Ryan, 2026-09-27). Review findings and fix any vulnerabilities before proceeding.
 
 **Gate 3: Code Review**
 

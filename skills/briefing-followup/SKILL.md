@@ -6,7 +6,7 @@ description:
   walks the user through each open decision — approve / reject / defer, schedule a calendar
   entry, file a Linear ticket, launch a relay-ticket session, draft an email, resolve ADR drift,
   or apply/edit/defer/reject a compound-engineering ADR proposal — then writes resolutions back
-  to the briefing markdown. Use after /catalyst-dev:morning-briefing has produced today's
+  to the briefing markdown. Use after the morning-briefing skill has produced today's
   briefing, or whenever the user says "walk the briefing" / "follow up on the briefing".
 disable-model-invocation: true
 user-invocable: true
@@ -15,7 +15,7 @@ allowed-tools: Read, Write, Edit, Bash, Task, mcp__*
 
 # Briefing Follow-up — walk today's agenda
 
-Invoke as `/catalyst-dev:briefing-followup` after `/catalyst-dev:morning-briefing` has produced today's briefing. Reads its `decisions:` block, presents each open decision, and records what the user chose.
+Use this skill after the `morning-briefing` skill has produced today's briefing. Reads its `decisions:` block, presents each open decision, and records what the user chose.
 
 **Paths.** Commands below name files inside this skill's own directory as `${CLAUDE_SKILL_DIR}/…`. Claude Code fills that in. On any other harness, set CLAUDE_SKILL_DIR to the absolute directory that contains this SKILL.md before running them. If you cannot, stop and report `skill_dir_unresolved`.
 

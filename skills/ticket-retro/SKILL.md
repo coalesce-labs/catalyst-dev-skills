@@ -30,10 +30,10 @@ Loop C of compound engineering: a human-readable reflection across a SET of tick
 
 ## Invocation
 
-```
-/catalyst-dev:ticket-retro                      # since-last-retro (default scope)
-/catalyst-dev:ticket-retro --since 2026-06-01   # explicit window floor
-/catalyst-dev:ticket-retro --tickets CTL-1,CTL-2  # explicit ticket set (all time)
+```text
+ticket-retro skill, no arguments               # since-last-retro (default scope)
+ticket-retro skill with: --since 2026-06-01    # explicit window floor
+ticket-retro skill with: --tickets CTL-1,CTL-2 # explicit ticket set (all time)
 ```
 
 Default scope is **since-last-retro, no time box** (solo-dev rhythm — design decision, plan

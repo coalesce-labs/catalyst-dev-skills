@@ -52,7 +52,7 @@ while [ $ITER -lt $MAX_ITER ]; do
       # Codex submits inline-thread reviews as state="commented"; handle both.
       AUTHOR_TYPE=$(echo "$EVENT_JSON" | jq -r '.body.payload.author.type // "User"')
       if [ "$AUTHOR_TYPE" = "Bot" ]; then
-        /catalyst-dev:review-comments "$pr_number"
+        # Run the review-comments skill on "$pr_number".
       fi
       ;;
     github.push)

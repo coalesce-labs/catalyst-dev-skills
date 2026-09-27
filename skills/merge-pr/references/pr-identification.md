@@ -76,7 +76,7 @@ On conflict:
 ❌ Rebase conflicts detected — conflicting files:
   $(git diff --name-only --diff-filter=U)
 Resolve: fix files, git add, git rebase --continue, git push --force-with-lease,
-then re-run /catalyst-dev:merge-pr.
+then re-run the merge-pr skill.
 ```
 
 ## Step 5 — Run local tests

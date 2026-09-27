@@ -21,7 +21,7 @@ Create tickets from thoughts documents, update existing tickets, and follow the 
 
 ## REQUIRED: ticket format gate
 
-**Before creating ANY ticket, apply the `/catalyst-dev:gherkin-ticket` standard** — an outcome-first title (`<actor> should <outcome> [so that <benefit>]`, no `[Component]` prefix) and a body leading with a plain-English use case, then tiered Gherkin acceptance criteria. Hard gate: do not draft a title/description without it. Component goes in a label, not the title.
+**Before creating ANY ticket, apply the `gherkin-ticket` skill's standard** — an outcome-first title (`<actor> should <outcome> [so that <benefit>]`, no `[Component]` prefix) and a body leading with a plain-English use case, then tiered Gherkin acceptance criteria. Hard gate: do not draft a title/description without it. Component goes in a label, not the title.
 
 ## Reading Linear, and cloud detection
 
@@ -50,4 +50,4 @@ State names come from the `linearis` skill's **single-source** `stateMap` transi
 - **Labels overwrite by default**: `linearis issues update --labels` **replaces** every label on the ticket unless you pass `--label-mode add`. Cross-team same-name label trap: the `linearis` skill's label reference (CTL-1802).
 - **CLI required**: Linearis CLI installed and configured with `LINEAR_API_TOKEN`. **Phase-container guard:** skip every `linearis` call when `CATALYST_PHASE` is set (a phase container holds no Linear credential; the runner owns the ticket write-back) or when `command -v linearis` fails (the CLI is not installed); say so in one line and continue.
 
-For Linearis CLI syntax and the Linear read/cloud-detection rule, see the `linearis` skill (`/catalyst-dev:linearis`) — this skill does not restate either.
+For Linearis CLI syntax and the Linear read/cloud-detection rule, see the `linearis` skill — this skill does not restate either.

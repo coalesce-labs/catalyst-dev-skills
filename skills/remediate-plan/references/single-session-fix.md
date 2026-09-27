@@ -12,10 +12,10 @@ A validate-plan run reports a failing test suite in `packages/schema` and a miss
 2. Edit the migration file to add the index; fix whatever the failing tests actually assert.
 3. Re-run the targeted gate for the touched workspace only (not the full monorepo suite — that is the re-run validate-plan's job, SKILL.md step 6). Print its `exit 0`.
 4. Commit: `fix(schema): CTL-NNNN remediate validate-plan findings (missing index, failing tests)`.
-5. Re-run `/catalyst-dev:validate-plan` against the same plan (local only; a cloud round leaves re-validation to the pipeline). A clean report — no more failing gates, the bullets gone — is the only evidence the fix worked; this skill's own transcript claiming so is not.
+5. Re-run the `validate-plan` skill against the same plan (local only; a cloud round leaves re-validation to the pipeline). A clean report — no more failing gates, the bullets gone — is the only evidence the fix worked; this skill's own transcript claiming so is not.
 
 The fresh-session (cloud) mode runs the same pass; the only difference is step 0 — the report is read from the materialized prior-artifact file the dispatch prompt names instead of from the conversation.
 
 ## Relation to relay-ticket's phase list
 
-`relay-ticket`'s phase list includes `(→ remediate)` after `validate`. In a laptop `/relay-ticket` session, invoke this skill explicitly — `/catalyst-dev:remediate-plan` — in the same session as the validate-plan run whose report you are fixing: a laptop relay worker has no persisted report to hand to a background job and cannot self-sustain a wait for one, so its read → fix → re-verify cycle completes in this one invocation. A cloud remediate session is the dispatched fresh-session mode instead: it starts with the persisted report already materialized on disk and runs the same cycle from that file.
+`relay-ticket`'s phase list includes `(→ remediate)` after `validate`. In a laptop `/relay-ticket` session, invoke this skill (`remediate-plan`) explicitly in the same session as the validate-plan run whose report you are fixing: a laptop relay worker has no persisted report to hand to a background job and cannot self-sustain a wait for one, so its read → fix → re-verify cycle completes in this one invocation. A cloud remediate session is the dispatched fresh-session mode instead: it starts with the persisted report already materialized on disk and runs the same cycle from that file.
