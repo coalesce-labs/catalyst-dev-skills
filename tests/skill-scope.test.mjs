@@ -41,8 +41,8 @@ describe("ownership manifest", () => {
   test("every skill in this repository is owned, at home scope", () => {
     const declared = readOwnership(repoRoot).skills;
     const actual = skillNames(repoRoot);
-    expect(declared.length).toBe(36);
-    expect(actual.length).toBe(36);
+    expect(declared.length).toBe(37);
+    expect(actual.length).toBe(37);
     expect(declared.every((s) => s.scope === "home")).toBe(true);
     expect(declared.find((s) => s.dir === "linearis")?.name).toBe("linearis-cli");
     expect(ownershipProblems(declared, actual)).toEqual([]);

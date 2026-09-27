@@ -24,6 +24,11 @@
       "scope": "home"
     },
     {
+      "dir": "ask-triage",
+      "name": "ask-triage",
+      "scope": "home"
+    },
+    {
       "dir": "briefing-followup",
       "name": "briefing-followup",
       "scope": "home"
