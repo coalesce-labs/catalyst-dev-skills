@@ -256,34 +256,21 @@ authentication implementations"
 - Prevents bias in documentation
 - Maintains focus on current state
 
-## Plugin Distribution
+## Distribution
 
-Agents are distributed as part of the Catalyst plugin system:
+Agents travel with the skills. A skill that spawns a research subagent carries that agent's instructions inside its own directory (`assets/agents/<name>.md`, a vendored copy of `agents/<name>.md` kept in step by `node scripts/vendor.mjs --write`), so one install command delivers both:
 
-### Installation
-
-**Install Catalyst plugin**:
-
-```bash
-/plugin marketplace add coalesce-labs/catalyst-dev-skills
-/plugin install catalyst-dev@catalyst-dev-skills
+```sh
+npx skills@latest add coalesce-labs/catalyst-dev-skills --all -g
 ```
 
-This installs all agents automatically.
+Refresh with `npx skills@latest update -g -y`. There is no plugin marketplace rail: `coalesce-labs/catalyst-dev-skills` is the only lineage, and installing the set twice left every skill twice (Ryan, 2026-09-26; CTC-3529).
 
-### Updates
+The cloud runner is the one place this repository is still loaded as a Claude Code plugin. The runner image bakes it and starts `claude --plugin-dir` on it, which is why `agents/*.md` and `.claude-plugin/plugin.json` stay and why a skill may say "spawn them as `catalyst-dev:<name>`" (`tests/plugin-agents.test.mjs`).
 
-**Update plugin**:
+### Per-project availability
 
-```bash
-/plugin update catalyst-dev@catalyst-dev-skills
-```
-
-Agents are pure research logic with no project-specific configuration, so updates are always safe.
-
-### Per-Project Availability
-
-Agents are available in any project where the catalyst-dev plugin is installed. No per-project setup needed.
+Agents are available wherever the skills are installed. No per-project setup is needed.
 
 ## Creating New Agents
 
@@ -405,20 +392,20 @@ Agents specify required tools in frontmatter:
 
 **Check:**
 
-1. Plugin installed? Run `/plugin list` to verify
+1. Skills installed? `ls ~/.agents/skills/<skill>/assets/agents/` lists the agent prompts a skill carries; in the cloud runner they are `agents/<name>.md` at the plugin root
 2. Frontmatter `name` field matches filename?
 3. Restarted Claude Code after adding/modifying agent?
 
 **Solution:**
 
 ```bash
-# Update plugin
-/plugin update catalyst-dev
+# Refresh the skills
+npx skills@latest update -g -y
 
 # Restart Claude Code
 ```
 
-### Agent auto-updated by plugin
+### Agents update with the skills
 
 **This is by design** - agents are pure logic with no project-specific config.
 
