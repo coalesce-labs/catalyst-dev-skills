@@ -1,10 +1,10 @@
 ---
 name: scan-reward-hacking
-description: "Scan TypeScript code for reward hacking patterns — shortcuts that make linters pass without actually fixing type safety. This skill has a comprehensive checklist of 8 forbidden patterns with severity tuning (libraries vs apps) that you cannot reliably check on your own. **ALWAYS consult this skill when** the user says 'scan for hacks', 'check for type cheats', 'reward hacking', 'verify no shortcuts', wants to check for `as any`, `as unknown as`, `@ts-ignore`, non-null assertions (`value!`), `forEach(async`, or void tricks after fixing TypeScript errors. Also use after /fix-typescript completes, or when verifying TypeScript changes before marking work done. Accepts optional file/directory arguments to scope the scan."
+description: "Scan TypeScript code for reward hacking patterns — shortcuts that make linters pass without actually fixing type safety. This skill has a comprehensive checklist of 12 forbidden patterns with severity tuning (libraries vs apps) that you cannot reliably check on your own. **ALWAYS consult this skill when** the user says 'scan for hacks', 'check for type cheats', 'reward hacking', 'verify no shortcuts', wants to check for `as any`, `as unknown as`, `@ts-ignore`, non-null assertions (`value!`), `forEach(async`, void tricks, `@ts-nocheck`, `eslint-disable`, `biome-ignore`, `.skip`/`.only` tests, or a loosened or excluding tsconfig after fixing TypeScript errors. Also use after /fix-typescript completes, or when verifying TypeScript changes before marking work done. Accepts optional file/directory arguments to scope the scan."
 disable-model-invocation: false
 allowed-tools: Bash, Read, Grep, Glob
-argument-hint: "[files-or-directories]"
-version: 1.1.0
+argument-hint: "[--base <ref>] [files-or-directories]"
+version: 1.2.0
 ---
 
 # Scan for Reward Hacking Patterns
@@ -19,6 +19,15 @@ You are scanning for "reward hacking" patterns — code that makes linters pass 
 1. Use Glob to find which of these directories exist: `src/`, `apps/`, `packages/`, `lib/`
 2. Scan all that exist
 
+### Diff scope
+
+When the scan checks a change (after a fix, in a remediate round, or with `--base <ref>` in `$ARGUMENTS`), report only what the change added. The base is `<ref>` when given, otherwise `HEAD` (the uncommitted change).
+
+1. The added lines are the `+` lines of `git diff -U0 <base> -- <paths>`. Every line of a file `git ls-files --others --exclude-standard` lists is added.
+2. A match on an added line counts toward the verdict.
+3. A match on a line the change did not add predates it. List it under ACCEPTABLE as pre-existing and do not FAIL on it.
+4. Patterns 11 and 12 read `git diff <base> -- '*tsconfig*.json'` rather than grep matches.
+
 ## Severity Tuning
 
 Severity levels adjust based on project context:
@@ -29,6 +38,9 @@ Severity levels adjust based on project context:
 | `as unknown as` | **HIGH** | HIGH |
 | `@ts-ignore` | **CRITICAL** | HIGH |
 | Non-null assertion (`!`) | **HIGH** | MEDIUM |
+| `@ts-nocheck`, `eslint-disable`, `biome-ignore` | **CRITICAL** | HIGH |
+| `.skip` / `.only` on a test | HIGH | HIGH |
+| Loosened or excluding `tsconfig` | **CRITICAL** | HIGH |
 
 Libraries/packages are stricter because they export types consumed by other code. Determine context from the file path — files under `packages/` use library severity, everything else uses app severity.
 
@@ -105,6 +117,26 @@ Patterns: `^export type [A-Z]` and `^export interface [A-Z]`
 
 These are informational only and do not affect the verdict.
 
+### 9. Whole-file and Lint Suppressions (HIGH / CRITICAL in libraries)
+
+Patterns: `@ts-nocheck`, `eslint-disable` (also matches `eslint-disable-next-line` and `eslint-disable-line`), and `biome-ignore`. Search `*.{ts,tsx,js,jsx,mjs,cjs}`.
+
+`@ts-nocheck` switches type checking off for a whole file. A lint suppression hides the finding the linter exists to report.
+
+### 10. Skipped or Focused Tests (HIGH)
+
+Patterns: `\b(it|test|describe)\.(skip|only)\(` and `\b(xit|xdescribe|fit|fdescribe)\(`
+
+A skipped test stops checking what it checked. A focused test (`.only`) silently skips every other test in the file.
+
+### 11. Loosened tsconfig (HIGH / CRITICAL in libraries)
+
+In the diff of any `tsconfig*.json`: a compiler option removed or set to `false` among `strict`, `noImplicitAny`, `strictNullChecks`, `noUncheckedIndexedAccess`, `exactOptionalPropertyTypes`, `noImplicitReturns` and `noImplicitOverride`, or `"skipLibCheck": true` added.
+
+### 12. tsconfig Exclusion (HIGH / CRITICAL in libraries)
+
+In the diff of any `tsconfig*.json`: a new entry in `exclude`, or an `include` narrowed so a file it covered is no longer type-checked.
+
 ## How to Evaluate Matches
 
 ### `as unknown as` — Check for Documentation
@@ -172,6 +204,10 @@ const result = brokenLib.doThing();
 const data = thing.stuff;
 ```
 
+### Suppressions, Skipped Tests, and tsconfig Changes (Patterns 9 to 12)
+
+**Never acceptable on a line the change added.** Fix the type error, the lint finding, or the failing test instead. A suppression, skip, or tsconfig change that predates the change is listed under ACCEPTABLE as pre-existing.
+
 ### Non-Null Assertions
 
 **ACCEPTABLE** (runtime guard exists):
@@ -194,6 +230,7 @@ Present findings in this format:
 ## Reward Hacking Scan Results
 
 **Scan scope**: {paths scanned}
+**Diff base**: {ref, or "none (whole paths)"}
 **Severity mode**: {library | app | mixed}
 
 ### CRITICAL (Must Fix Immediately)
@@ -205,6 +242,8 @@ Present findings in this format:
 - `file.ts:789` - `as any` in production code
 - `file.ts:55` - `user!.name` - No runtime guard
 - `file.ts:100` - `.forEach(async` - Silently drops promises
+- `file.test.ts:12` - `it.skip(` - Test skipped instead of fixed
+- `tsconfig.json:9` - `"exclude": ["src/legacy"]` added - Hides type errors
 
 ### MEDIUM SEVERITY (Should Fix)
 - `file.ts:101` - `const _user = ...` - Unused local variable

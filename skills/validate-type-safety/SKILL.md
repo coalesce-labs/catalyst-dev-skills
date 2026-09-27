@@ -3,7 +3,7 @@ name: validate-type-safety
 description: "Run the full 5-step TypeScript validation gate: type check, reward hacking scan, test inclusion, tests, and lint. This skill provides a structured multi-step pipeline that you cannot replicate on your own — it detects the project's package manager and linter automatically, checks tsconfig strictness, and invokes /scan-reward-hacking internally. **ALWAYS consult this skill when** the user mentions 'validate types', 'check type safety', 'type validation', 'type safety gate', wants to verify TypeScript changes before a PR, after completing a plan phase, or says anything about running type checks + tests + lint together. Even if you think you can run tsc yourself, use this skill — it catches issues you'd miss (tsconfig strictness, test exclusions, reward hacking patterns)."
 disable-model-invocation: false
 allowed-tools: Bash, Read, Grep, Glob
-version: 1.0.0
+version: 1.1.0
 ---
 
 # Validate Type Safety
@@ -19,6 +19,7 @@ When `CATALYST_PHASE` or `CATALYST_STAGE` is `validate`, this skill is one gate 
    - If the branch has a pull request whose head is `HEAD` (`gh pr view --json number,headRefOid`), read its checks (`gh pr checks --json name,state,bucket,link`). All required checks completed and passing means Step 4 is PASS: cite the run link, and run no suite yourself. A required check that failed means Step 4 is FAIL: cite that job's link.
    - If the checks at `HEAD` are still pending, there is no pull request, or `gh` cannot read it: run the type check, then only the test suites of the packages the diff touches, each under its own `timeout`.
    - If a command times out, record that step as not run with the timeout named. Never describe a tool you did not call as refused or blocked.
+3. **Name the failing sub-step.** On a FAIL, the ladder's `type-safety` entry carries `substep`: the first step below that failed, as `typecheck` (Step 1), `reward-hacking` (Step 2), `test-inclusion` (Step 3), `tests` (Step 4) or `lint` (Step 5). The remediate stage reads it to pick its fix, so a flaky test never reads the same as a type error. Omit it on any other verdict.
 
 Everywhere else (on a workstation, or when `/implement-plan` runs this as its gate) the local rules below apply, including fixing what fails.
 
@@ -86,7 +87,7 @@ If errors exist, they MUST be fixed. Do not proceed to Step 2 until type-check p
 
 ### Step 2: Run Reward Hacking Scan
 
-Execute the `/scan-reward-hacking` skill on the changed files.
+Execute the `/scan-reward-hacking` skill on the changed files, with `--base <ref>` set to the review base when there is one, so only lines the change added count toward the verdict.
 
 **Expected**: PASS verdict with no unfixed CRITICAL or HIGH severity patterns.
 
