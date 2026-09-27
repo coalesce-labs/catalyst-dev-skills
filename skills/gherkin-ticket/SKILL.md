@@ -16,7 +16,7 @@ version: 1.0.0
 
 Every ticket must open with **a use case a stranger can understand**: who gets what outcome, under what condition, and why. Most tickets fail this — they dive straight into implementation ("Wire HRW ownership into dispatchTriage") and the reader has to reverse-engineer the point. This skill fixes that at authoring time.
 
-This skill owns **ticket format** (title voice + body structure). It does **not** own the Linear CLI mechanics — once a draft is ready, hand off to the `/catalyst-dev:linear` skill to actually create or update the issue. CLI syntax lives in `/catalyst-dev:linearis`.
+This skill owns **ticket format** (title voice + body structure). It does **not** own the Linear CLI mechanics — once a draft is ready, hand off to the `linear` skill to actually create or update the issue. CLI syntax lives in the `linearis` skill.
 
 **Paths.** Commands below name files inside this skill's own directory as `${CLAUDE_SKILL_DIR}/…`. Claude Code fills that in. On any other harness, set CLAUDE_SKILL_DIR to the absolute directory that contains this SKILL.md before running them. If you cannot, stop and report `skill_dir_unresolved`.
 
@@ -205,7 +205,7 @@ Scenario: Dispatch still waits for completion before returning  # invariant
 2. Write the outcome **title** (Part 1).
 3. Pick the tier (A/B/C) and write the **body** (Part 2).
 4. Run the **quality checklist** below.
-5. Hand the title + body to `/catalyst-dev:linear` to create the issue. Add component label,
+5. Hand the title + body to the `linear` skill to create the issue. Add component label,
    estimate, priority there (see `feedback_linear_ticket_hygiene`).
 
 ### REWRITE (existing ticket)
@@ -217,7 +217,7 @@ Scenario: Dispatch still waits for completion before returning  # invariant
    fetch them via `linearis comments list "$TICKET"`, and for any comment with a
    discussion thread also fetch its replies (`linearis issues replies <thread>`) so
    technical detail in replies isn't dropped when you rewrite (see
-   `/catalyst-dev:linearis`); this stays on `linearis` and is structurally outside
+   the `linearis` skill); this stays on `linearis` and is structurally outside
    the `issues read` detector.
 2. **Preserve all technical content** (file refs, repro steps, root-cause notes, SHAs). You are
    restructuring, not deleting. Move technical detail under a `## Technical notes` section below the Gherkin so it stays but doesn't lead.
@@ -259,7 +259,7 @@ Dependencies:
 If you know that other work **must finish before this ticket can start**, record it as a first-class Linear `blocked_by` **link** at authoring time — you know the prerequisites better than any later pass will. **Catalyst does NOT infer dependencies from prose** (CTL-838): writing "depends on CTL-123" or "see CTL-456" in the description does nothing — it is not scraped into a blocker, and it should not be (a mention is not a dependency).
 
 ```bash
-# After the ticket exists, link each genuine prerequisite (see /catalyst-dev:linearis for syntax):
+# After the ticket exists, link each genuine prerequisite (see the linearis skill for syntax):
 linearis issues update <NEW-TICKET> --blocked-by <PREREQ-TICKET>
 ```
 
@@ -289,8 +289,8 @@ If `.catalyst/ticket-style.md` exists, read it and honor its actor list, require
 
 ## Relationship to other skills
 
-- `/catalyst-dev:linear` — does the actual Linear create/update. This skill produces the title +
+- the `linear` skill — does the actual Linear create/update. This skill produces the title +
   body it consumes.
-- `/catalyst-dev:steward` — its `references/classify-and-estimate.md` holds the classify/estimate
+- the `steward` skill — its `references/classify-and-estimate.md` holds the classify/estimate
   rubric triage applies; a ticket authored to this standard makes that step far more reliable.
-- `/catalyst-dev:linearis` — CLI syntax reference. Never hardcode linearis commands here. **Phase-container guard:** skip every `linearis` call when `CATALYST_PHASE` is set (a phase container holds no Linear credential; the runner owns the ticket write-back) or when `command -v linearis` fails (the CLI is not installed); say so in one line and continue.
+- the `linearis` skill — CLI syntax reference. Never hardcode linearis commands here. **Phase-container guard:** skip every `linearis` call when `CATALYST_PHASE` is set (a phase container holds no Linear credential; the runner owns the ticket write-back) or when `command -v linearis` fails (the CLI is not installed); say so in one line and continue.

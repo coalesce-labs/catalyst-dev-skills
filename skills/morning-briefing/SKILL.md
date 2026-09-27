@@ -14,7 +14,7 @@ allowed-tools: Bash, Read, Write, Edit, Grep, Glob, mcp__linear__*, mcp__notion_
 
 # Morning Briefing — canonical markdown + fan-out
 
-Invoke as `/catalyst-dev:morning-briefing` to produce today's briefing locally and fan it out to Slack DM, Slack channel, Notion page, and a Loom recording script.
+Use this skill to produce today's briefing locally and fan it out to Slack DM, Slack channel, Notion page, and a Loom recording script.
 
 **Paths.** Commands below name files inside this skill's own directory as `${CLAUDE_SKILL_DIR}/…`. Claude Code fills that in. On any other harness, set CLAUDE_SKILL_DIR to the absolute directory that contains this SKILL.md before running them. If you cannot, stop and report `skill_dir_unresolved`.
 

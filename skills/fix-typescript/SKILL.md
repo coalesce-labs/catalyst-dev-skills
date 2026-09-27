@@ -12,7 +12,7 @@ Fix TypeScript type errors for **runtime type safety**, not just to satisfy the 
 
 ## Forbidden patterns
 
-The canonical, exhaustive forbidden-pattern table — `as any`, `as unknown as`, `@ts-ignore` / `@ts-expect-error`, void tricks, underscore-prefixed unused locals, non-null assertions without a guard, `forEach(async`, and exported unused types, each with severity and acceptable/unacceptable examples — lives in the `/catalyst-dev:scan-reward-hacking` skill. Run it before marking this work complete; don't re-derive the list here.
+The canonical, exhaustive forbidden-pattern table — `as any`, `as unknown as`, `@ts-ignore` / `@ts-expect-error`, void tricks, underscore-prefixed unused locals, non-null assertions without a guard, `forEach(async`, and exported unused types, each with severity and acceptable/unacceptable examples — lives in the `scan-reward-hacking` skill. Run it before marking this work complete; don't re-derive the list here.
 
 The scan also reports the suppressions a fix is most tempted to add: `@ts-nocheck`, `eslint-disable`, `biome-ignore`, `.skip` / `.only` on a test, a loosened `tsconfig` compiler option, and a new `tsconfig` `exclude`. None of them is a fix.
 
@@ -36,7 +36,7 @@ When `CATALYST_PHASE` or `CATALYST_STAGE` is `remediate`, a validate run already
    - `lint`: fix what the rule flags. Never disable the rule.
    - No `substep`: read `detail` and the prose to find which of the five failed.
 4. **Prove it narrowly, then with the repository's gate.** Re-run only the failing check, scoped to the packages you touched. The final gate is the repository's own gate command, as the dispatch prompt names it; never substitute a package manager's default.
-5. **Scan your own change before you end.** Run `/catalyst-dev:scan-reward-hacking` over the files you changed: `git diff --name-only HEAD` plus `git ls-files --others --exclude-standard`. Fix every CRITICAL or HIGH finding on a line you wrote.
+5. **Scan your own change before you end.** Run the `scan-reward-hacking` skill over the files you changed: `git diff --name-only HEAD` plus `git ls-files --others --exclude-standard`. Fix every CRITICAL or HIGH finding on a line you wrote.
 
 ## Fix at the source, not the consumer
 
@@ -73,7 +73,7 @@ const wrapped = thirdPartyResult as unknown as ExpectedInterface;
 1. Read the TypeScript error; find the root cause — why doesn't the type already match?
 2. Fix at the source (the producing function/type), not the consumer.
 3. Run the repository's own type check: the command its `AGENTS.md`, `CLAUDE.md` or CI names. If it names none, detect the package manager (`bun.lock` / `bun.lockb` / `pnpm-lock.yaml` / `yarn.lock` / `package-lock.json`, else `npx tsc --noEmit`) and run its `type-check` script.
-4. Run `/catalyst-dev:scan-reward-hacking` on the files you changed. Work is not complete until it passes.
+4. Run the `scan-reward-hacking` skill on the files you changed. Work is not complete until it passes.
 
 ## The golden rule
 

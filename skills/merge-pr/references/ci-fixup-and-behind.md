@@ -22,7 +22,7 @@ After each push, don't re-poll on your own — re-enter `blocker-loop.md`'s `cat
 
 ## Bot threads vs. human threads are never the same branch
 
-When an automated reviewer (Codex, claude-code-review) leaves unresolved threads, dispatch `/catalyst-dev:review-comments` to address them — that's the existing `blocker-loop.md` path. A **human** reviewer's unresolved thread is different and must not be routed the same way:
+When an automated reviewer (Codex, claude-code-review) leaves unresolved threads, dispatch the `review-comments` skill to address them — that's the existing `blocker-loop.md` path. A **human** reviewer's unresolved thread is different and must not be routed the same way:
 
 - An unresolved human review **thread** left on a `COMMENTED` or `APPROVED` review does not always flip `mergeable_state` to `blocked` and never surfaces as `CHANGES_REQUESTED` — so a check that only branches on `mergeable_state` or looks for `CHANGES_REQUESTED` can miss it and merge past an open human conversation.
 - Never attempt to resolve a human thread programmatically. Stop and report: "human reviewer `<login>` left an unresolved thread — operator action required." Check this **before** the bot-thread auto-remediation path, so a PR carrying both kinds doesn't get half auto-remediated and merged with the human half still open.

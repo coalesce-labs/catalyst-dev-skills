@@ -10,7 +10,7 @@
 ## Worked example: interactive
 
 ```
-User: /catalyst-dev:resume-handoff specification/feature/handoffs/handoff-0.md
+User: Use the resume-handoff skill with specification/feature/handoffs/handoff-0.md
 Assistant: Let me read and analyze that handoff document...
 
 [Reads handoff completely]
@@ -33,7 +33,7 @@ Assistant: [Creates the todo list from Step 3, begins implementation per Step 4]
 An automated context reset starts a fresh session with no one watching. The handoff's Resume contract reads `Next step: run the contract tests, then open the PR`, one open question carries `Default if unanswered: defer the P3 finding to a follow-up ticket`, and `Autonomy:` authorizes opening the PR but not merging it.
 
 ```
-Prompt: /catalyst-dev:resume-handoff --unattended thoughts/shared/handoffs/PROJ-123/2025-01-08_13-55-22_auth-feature.md
+Prompt: Use the resume-handoff skill with --unattended thoughts/shared/handoffs/PROJ-123/2025-01-08_13-55-22_auth-feature.md
 Assistant: [Reads the handoff completely, runs the three verification tasks, reads the identified files]
 
 I've analyzed the handoff from [date]. Here's the current situation...

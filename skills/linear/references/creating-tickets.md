@@ -8,7 +8,7 @@
 
 3. **Check related context** — read any code files or other thoughts docs it references; look for existing Linear tickets mentioned.
 
-4. **Draft the ticket** following the `/catalyst-dev:gherkin-ticket` standard, and present it:
+4. **Draft the ticket** following the `gherkin-ticket` skill's standard, and present it:
 
    ```
    ## Draft Linear Ticket
@@ -33,7 +33,7 @@
 
 5. **Interactive refinement** — confirm accuracy, priority (default Medium/3), extra context, assignment. Ticket is created in "Backlog" status by default.
 
-6. **Create with Linearis** — `linearis issues usage` for syntax, or see `/catalyst-dev:linearis`. `--team` only accepts UUIDs, not keys/names (czottmann/linearis#56) — use `$TEAM_UUID` from config. Linearis creates in the team's default backlog state; to set status/assignee, create then update. Capture the issue ID from the JSON output with jq.
+6. **Create with Linearis** — `linearis issues usage` for syntax, or see the `linearis` skill. `--team` only accepts UUIDs, not keys/names (czottmann/linearis#56) — use `$TEAM_UUID` from config. Linearis creates in the team's default backlog state; to set status/assignee, create then update. Capture the issue ID from the JSON output with jq.
 
 7. **Link genuine prerequisites as formal blockers (CTL-838)** — set a Linear `blocked_by` link now; do NOT rely on mentioning the id in prose (Catalyst does not infer dependencies from text).
 

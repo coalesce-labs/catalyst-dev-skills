@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# gather-retro.sh — deterministic read side of /catalyst-dev:ticket-retro (CTL-814).
+# gather-retro.sh — deterministic read side of the ticket-retro skill (CTL-814).
 #
 # Collects everything the cross-ticket retro VIEW reads into ONE JSON document
 # on stdout. READ-ONLY by contract: this script writes nothing anywhere. Every

@@ -76,8 +76,7 @@ emit_frontmatter_json() {
     cat >&2 <<ERR
 parse-briefing.sh: briefing not found: $file
 
-Generate today's briefing with:
-  /catalyst-dev:morning-briefing
+Generate today's briefing with the morning-briefing skill.
 
 Or pass --date YYYY-MM-DD to target a different day.
 ERR

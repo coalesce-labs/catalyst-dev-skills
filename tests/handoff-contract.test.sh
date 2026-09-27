@@ -170,7 +170,7 @@ assert_grep "$CREATE" 'unattended mode the response below is the whole reply' \
   "create-handoff's closing response asks nothing in unattended mode"
 # Codex P1 on #4152: the flag must be IN each template's resume command, or a
 # session that was unattended only by argument resumes interactive.
-n=$(grep -c 'resume-handoff <`--unattended` when this run is unattended>' "$CREATE")
+n=$(grep -c 'resume-handoff skill with <`--unattended` when this run is unattended>' "$CREATE")
 if [ "$n" -eq 3 ]; then ok "all three response templates carry --unattended on the resume command"
 else fail "all three response templates carry --unattended on the resume command" "found $n of 3"; fi
 

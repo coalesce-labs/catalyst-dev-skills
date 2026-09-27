@@ -102,7 +102,7 @@ Auto-discovery has already run in Prerequisites above. Check its output and foll
 
    If a ticket is detected (from the research document's `source_ticket` frontmatter, from the command argument, or from context), update ticket status to `stateMap.planning` from config using Linearis CLI (run `linearis issues usage` for syntax). If Linearis CLI is not available, skip silently and continue planning. **Phase-container guard:** skip every `linearis` call when `CATALYST_PHASE` is set (a phase container holds no Linear credential; the runner owns the ticket write-back) or when `command -v linearis` fails (the CLI is not installed); say so in one line and continue.
 
-3. **Gather context using research sub-agents** — use the same agent palette and orientation process as `/catalyst-dev:research-codebase` (that skill is the single source of truth for how codebase research works). For planning, focus agents on the specific ticket/task scope rather than broad exploration:
+3. **Gather context using research sub-agents** — use the same agent palette and orientation process as the `research-codebase` skill (that skill is the single source of truth for how codebase research works). For planning, focus agents on the specific ticket/task scope rather than broad exploration:
    - **codebase-locator** — find all files related to the ticket/task
    - **codebase-analyzer** — understand how the current implementation works
    - **thoughts-locator** — find existing thoughts documents about this feature (if relevant)
@@ -349,8 +349,8 @@ humanlayer thoughts sync
    ```
    ## Ready to Implement
 
-   Start a new session and run:
-   /catalyst-dev:implement-plan [--team] thoughts/shared/plans/{PLAN_FILENAME}
+   Start a new session and use the implement-plan skill with:
+   [--team] thoughts/shared/plans/{PLAN_FILENAME}
 
    Tip: Start a fresh session — implementation needs context for source files and progress tracking.
    ```

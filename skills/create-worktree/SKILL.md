@@ -76,7 +76,7 @@ When this command is invoked:
      exec nohup claude \
        --output-format stream-json --verbose \
        --dangerously-skip-permissions \
-       -p "/catalyst-dev:implement-plan <plan_path> and when done: create commit, create PR, update Linear ticket"
+       -p "Use the implement-plan skill with <plan_path>, and when done: create commit, create PR, update Linear ticket"
    ) > "<worktree_path>/worker-stream.jsonl" 2> "<worktree_path>/worker-stderr.log" &
    ```
 

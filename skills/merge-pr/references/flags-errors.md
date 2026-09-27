@@ -6,12 +6,12 @@
 **`--no-update`** — Don't update Linear ticket.
 **`--keep-branch`** — Don't delete local branch.
 
-```bash
-/catalyst-dev:merge-pr 123
-/catalyst-dev:merge-pr 123 --skip-tests
-/catalyst-dev:merge-pr 123 --no-update
-/catalyst-dev:merge-pr 123 --keep-branch
-/catalyst-dev:merge-pr 123 --skip-tests --no-update
+```text
+merge-pr skill with: 123
+merge-pr skill with: 123 --skip-tests
+merge-pr skill with: 123 --no-update
+merge-pr skill with: 123 --keep-branch
+merge-pr skill with: 123 --skip-tests --no-update
 ```
 
 ## Error handling
