@@ -854,7 +854,7 @@ if (isEntryPoint()) {
   console.error(
     `ask.mjs: ⛔ invoked with the verb "${argv[0]}" but this module is not the entry point ` +
       `(argv[1]=${process.argv[1] ?? "<none>"}, module=${fileURLToPath(import.meta.url)}). ` +
-      "NOTHING WAS FILED. Run the real path: ~/catalyst/plugin-source/plugins/dev/scripts/ask.mjs"
+      `NOTHING WAS FILED. Run this file as the entry point: node ${fileURLToPath(import.meta.url)} ${argv[0]} …`
   );
   process.exit(3);
 }

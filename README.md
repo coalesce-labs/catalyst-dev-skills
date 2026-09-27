@@ -23,16 +23,6 @@ The add command replaces existing same-named skill directories and links. Before
 npx skills@latest add coalesce-labs/catalyst-dev-skills --all -g
 ```
 
-<details><summary><strong>Alternative for Claude Code: the plugin marketplace</strong></summary>
-
-The plugin installs the set as a managed bundle, under the `catalyst-dev:` prefix (`/catalyst-dev:create-plan`). It does not load into the session you are already in; run `/reload-plugins` or restart afterwards. Pick one rail; installing both leaves you with every skill twice.
-
-```
-/plugin marketplace add coalesce-labs/catalyst-dev-skills
-/plugin install catalyst-dev@catalyst-dev-skills
-```
-</details>
-
 <details><summary><strong>One agent at a time</strong></summary>
 
 ```sh
@@ -46,7 +36,7 @@ Without `--all` the installer asks which skills to take and which agents to inst
 
 The installed folder takes the skill's frontmatter `name`, which is the directory name for every skill except `skills/linearis`, which installs as `linearis-cli`.
 
-The `npx skills` install reads this repository's `skills/` tree; it does not publish an npm package. The optional Claude plugin reads that same tree. A Git commit identifies the exact skills in either rail. `package.json` records the development pack's release version, and CI checks that `.claude-plugin/plugin.json` has the same number. This version is independent of `catalyst-cloud-skills` and of the deprecated `catalyst` plugin.
+The `npx skills` install reads this repository's `skills/` tree; it does not publish an npm package. The cloud runner's `claude --plugin-dir` load reads that same tree. A Git commit identifies the exact skills in either rail. `package.json` records the development pack's release version, and CI checks that `.claude-plugin/plugin.json` has the same number. This version is independent of `catalyst-cloud-skills` and of the deprecated `catalyst` plugin.
 
 ## What's inside
 
@@ -89,7 +79,7 @@ The `npx skills` install reads this repository's `skills/` tree; it does not pub
 - `skills/<name>/`: one skill. `SKILL.md` is the common path; `references/` holds detail read on demand; `scripts/` and `assets/` hold what the skill runs.
 - `agents/`: the plugin's research subagents (`catalyst-dev:codebase-locator` and the rest), which Claude Code loads from the plugin root; [`docs/agents.md`](docs/agents.md) describes them. Every `agents/*.md` must be an agent file, because Claude Code loads each one as a subagent. It is also the one source of the subagent prompts skills carry under `assets/agents/`.
 - `vendor-src/`: the single source of every other file two or more skills share (`scripts/…`, `references/…`, `templates/…`).
-- `.claude-plugin/`: the Claude Code plugin (`catalyst-dev`) and its marketplace (`catalyst-dev-skills`). The repository root is the plugin root, which the Catalyst Cloud runner image bakes as its catalyst-dev bundle.
+- `.claude-plugin/`: the Claude Code plugin manifest (`catalyst-dev`) that the cloud runner loads, plus a marketplace listing that is no longer an install rail. The repository root is the plugin root, which the Catalyst Cloud runner image bakes as its catalyst-dev bundle.
 - `scripts/estimate/reference-class-corpus.json`: the estimation corpus the runner reads from the plugin root.
 
 **Shared files are vendored, never edited in place.** A skill lists what it needs in `agents/vendor.yaml`. Edit the file under `vendor-src/` (or `agents/` for a subagent prompt), then regenerate the copies:
