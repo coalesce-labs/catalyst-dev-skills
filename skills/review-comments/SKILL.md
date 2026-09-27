@@ -25,7 +25,7 @@ If no PR is found, ask the user for the PR number.
 
 ## Step 0: Read the rules
 
-Read `${CLAUDE_SKILL_DIR}/assets/references/resolving-review-findings.md` before triaging anything, and follow it for every comment. It owns verification, classification (`valid`, `invalid`, `already-fixed`, `pre-existing/out-of-scope`, `needs-decision`), diff scope, reply wording and escalation. This skill keeps only the GitHub mechanics and the per-reviewer round policy below.
+Read `${CLAUDE_SKILL_DIR}/assets/references/resolving-review-findings.md` before triaging anything, and follow it for every comment. It owns verification, classification (`valid`, `invalid`, `already-fixed`, `pre-existing/out-of-scope`, `needs-human`), diff scope, reply wording and escalation. This skill keeps only the GitHub mechanics and the per-reviewer round policy below.
 
 ## Step 1: Fetch Comments and Reviews
 
