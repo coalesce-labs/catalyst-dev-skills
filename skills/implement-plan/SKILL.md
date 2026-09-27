@@ -93,6 +93,7 @@ Once you have a plan path:
 - Read the original ticket and all files mentioned in the plan
 - **Extract ticket from plan frontmatter** (`source_ticket` field) and update Linear state
   to `stateMap.inProgress` from config using Linearis CLI (run `linearis issues usage` for syntax). If Linearis CLI is not available, skip silently and continue implementation. **Skip the status transition when `CATALYST_PHASE` is set** — under a phase agent (e.g. `phase-implement`, or this skill invoked as a sub-task from `phase-pr` / `phase-monitor-merge` during PR resolution / CI fix-up loops) the deterministic coordinator (CTL-558) owns the Linear status write-back. A direct write here would regress the ticket from `PR` back to `Implement`, producing operator-visible state flicker (CTL-601). Mirrors the gate in `create-pr/SKILL.md:227-232`.
+- **Bring an adopted branch up to date before building on it (CTC-3491).** If the branch already carries work from an earlier session or an open pull request, meaning `git fetch origin main && git log --oneline origin/main..HEAD` lists commits before you change anything, merge main into it first: `git merge --no-edit origin/main`, resolving any conflict as part of this phase. A branch that never took the current main makes validate review main's own changes as this ticket's (CTC-2746: 923 files for a 16-file branch). A fresh branch with no commits of its own needs nothing.
 - Think deeply about how the pieces fit together
 - Create a todo list to track your progress
 - Start implementing if you understand what needs to be done
@@ -265,14 +266,16 @@ When recommending a handoff, guide the user:
 
 ## Quality Gates (After All Phases Complete)
 
-After all implementation phases pass, run quality gates before marking work as done. These gates catch issues that per-phase testing might miss.
+**In a cloud phase (`CATALYST_PHASE` or `CATALYST_STAGE` is set), run one gate, not four.** The dispatch prompt's gate block is the contract: run the command it names once, fix and retry once if it fails, then print the verdict block it asks for. Do not run the four gates below: type safety, security review and code review are the validate stage's ladder, and nothing reads a verdict run here. Never stop to ask how to proceed; a gate still red after the retry is reported in that block, and the platform decides what runs next.
+
+Everywhere else, after all implementation phases pass, run the quality gates below before marking work as done. These gates catch issues that per-phase testing might miss.
 
 **Gate execution order:**
 
 ```
 Quality Gates:
 ├── 1. /validate-type-safety  → tsc + reward hacking scan + tsconfig check + tests + lint
-├── 2. /security-review       → scan for security vulnerabilities (built-in Claude Code skill)
+├── 2. review-security skill  → scan for security vulnerabilities (the owned skill, on every harness)
 ├── 3. code-reviewer agent    → style/guideline adherence check
 └── 4. pr-test-analyzer agent → test coverage verification
 ```
@@ -285,7 +288,7 @@ Invoke `/validate-type-safety`. This runs the full 5-step gate (type check, rewa
 
 **Gate 2: Security Review**
 
-Invoke the built-in `/security-review` skill. Review findings and fix any vulnerabilities before proceeding.
+Run the owned `review-security` skill (`/catalyst-dev:review-security`, or its `SKILL.md` on a harness without slash commands), not Claude Code's built-in `/security-review`: one reviewer on every harness (Ryan, 2026-09-27). Review findings and fix any vulnerabilities before proceeding.
 
 **Gate 3: Code Review**
 
@@ -364,7 +367,7 @@ fi
 
 ### Autofix Behavior
 
-For gates 1 and 2, attempt to fix issues automatically and re-run the gate. For gates 3 and 4, address findings and verify. If a gate fails after 2 fix attempts, report the remaining issues to the user and ask how to proceed.
+For gates 1 and 2, attempt to fix issues automatically and re-run the gate. For gates 3 and 4, address findings and verify. If a gate fails after 2 fix attempts, report the remaining issues to the user and ask how to proceed. (In a cloud phase there is no one to ask: see the one-gate rule at the top of this section.)
 
 ### Skipping Quality Gates
 
