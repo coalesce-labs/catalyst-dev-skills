@@ -8,14 +8,15 @@ Discovery walks the worktrees root two levels deep (`<project>/<ticket>`). A lea
 
 Each leaf's pointer names its owner repo. Per owner, the script reads `git worktree list --porcelain` and one full `gh pr list --state all`. A leaf the owner does not list is reported as unregistered and never touched. Then, per tree, in order:
 
-1. **LIVE.** A process has its cwd at or under the tree. The scan is `lsof -a -d cwd -Fpn` on macOS and `/proc/*/cwd` on Linux. It runs once per run and must see the script's own process, or it counts as failed. A failed scan marks every tree LIVE, removes nothing, and exits 3.
-2. **Locked** worktrees are ACTIVE.
-3. **Own PR.** A PR whose head is the tree's branch, or whose head is the Mergify stack rename `stack/<user>/<branch>/…`. Any open PR wins (ACTIVE), then merged (MERGED), then closed (CLOSED_NO_MERGE).
-4. **No evidence yet:** ACTIVE, or STALE past `CATALYST_WORKTREE_STALE_DAYS` (14) by the tree directory's mtime.
-5. **Fresh.** A tree younger than 2 days stops here. A just-created tree sits at main with no PR while its agent starts.
-6. **HEAD_IN_MAIN.** HEAD is an ancestor of `origin/HEAD` (else `origin/main`). Removal loses no commit.
-7. **Ticket PRs.** The ticket comes from the branch name. If any PR names the ticket (title or head) and one merged with none open, the class is TICKET_SHIPPED. An open ticket PR keeps the tree.
-8. **Linear.** Done, Canceled or Duplicate in Linear gives TICKET_DONE. The replica is read once per run. Without one, `linearis issues read <ticket>` runs for each ticket that reaches this step, up to `CATALYST_PRUNE_LINEARIS_MAX` (100). linearis reports only the state's name, so only a stage named Done, Canceled, Cancelled or Duplicate counts. A renamed stage keeps the tree.
+1. **PROTECTED.** Checked before anything else, in classification and again at removal. A tree is protected when its directory name or its branch basename matches `/^(deploy|release)-|-R\d+(-|$)/`, when it contains `.catalyst/keep-worktree`, or when `<worktrees root>/.keep-worktrees` lists it by path relative to the root or by bare name (one entry per line, `#` comments). The reason: on 2026-09-27 the cleanup removed 12 idle, clean `deploy-3072373-R*` trees whose HEAD was in main. infra's `build-R6.sh` reads a prior release tree's gitignored native build output, so the R7 build failed and lost time. An in-use check could not catch it, because the trees were idle. A protected tree is reported as `kept-protected`, counted in `totals.keptProtected`, and never removed, by `apply` or `remove --path` alike; `remove` exits 1. To remove one, delete the keep file or rename the tree.
+2. **LIVE.** A process has its cwd at or under the tree. The scan is `lsof -a -d cwd -Fpn` on macOS and `/proc/*/cwd` on Linux. It runs once per run and must see the script's own process, or it counts as failed. A failed scan marks every tree LIVE, removes nothing, and exits 3.
+3. **Locked** worktrees are ACTIVE.
+4. **Own PR.** A PR whose head is the tree's branch, or whose head is the Mergify stack rename `stack/<user>/<branch>/…`. Any open PR wins (ACTIVE), then merged (MERGED), then closed (CLOSED_NO_MERGE).
+5. **No evidence yet:** ACTIVE, or STALE past `CATALYST_WORKTREE_STALE_DAYS` (14) by the tree directory's mtime.
+6. **Fresh.** A tree younger than 2 days stops here. A just-created tree sits at main with no PR while its agent starts.
+7. **HEAD_IN_MAIN.** HEAD is an ancestor of `origin/HEAD` (else `origin/main`). Removal loses no commit.
+8. **Ticket PRs.** The ticket comes from the branch name. If any PR names the ticket (title or head) and one merged with none open, the class is TICKET_SHIPPED. An open ticket PR keeps the tree.
+9. **Linear.** Done, Canceled or Duplicate in Linear gives TICKET_DONE. The replica is read once per run, and the state is the workflow state joined by `state_id`. `issues.state_type` and `issues.state` are never read, because they go stale: on 2026-09-27, 509 of 7,660 rows disagreed, and a reopened Todo ticket still said `completed` (CTC-3654). An issue with no joined workflow state gives no Linear evidence. Without a replica, `linearis issues read <ticket>` runs for each ticket that reaches this step, up to `CATALYST_PRUNE_LINEARIS_MAX` (100). linearis is read for `state.name` only, never a top-level status or type field, so only a stage named Done, Canceled, Cancelled or Duplicate counts. A renamed stage keeps the tree.
 
 If `gh pr list` fails twice for a repo, its trees get no PR evidence and stay ACTIVE or STALE. Every row carries a `reason`, and `scan`/`apply` print a "kept, by reason" summary.
 
@@ -23,12 +24,17 @@ If `gh pr list` fails twice for a repo, its trees get no PR evidence and stay AC
 
 `apply` walks the prunable set. For each tree:
 
-1. **Inside the root.** A path outside the worktrees root is refused.
-2. **LIVE again.** The process scan reruns. A holder, or a failed scan, gives `kept-live`.
-3. **Recent.** If HEAD, the reflog or any changed file moved in the last 6 h (`CATALYST_PRUNE_RECENT_HOURS`), the tree is `kept-recent`. The index is ignored, because `git status` rewrites it on every scan.
-4. **Real changes.** Any changed or untracked file outside the residue list gives `kept-dirty`, with the first paths in the reason.
-5. **Residue only.** The residue list is `.envrc`, `.catalyst/config.json.bak-*`, `__pycache__/`, `.turbo/`, `coverage/`, `.session-id` and the context file the retired Claude workflow hook left behind (`TRIVIAL_DIRTY` in the script is the exact list). Tracked edits go to `changes.patch` and untracked files to `untracked.tar.gz`, under `<archive>/<date>/<repo>__<tree>/`. Only then does `git worktree remove --force` run. `--force` is used in no other case.
-6. **Branch.** `git branch -d` runs first. If it refuses (a squash merge always does) and the class is MERGED, CLOSED_NO_MERGE, TICKET_SHIPPED or TICKET_DONE, the commits not on origin's default branch go to `unpushed.bundle`. The bundle is verified, then the branch is deleted with `-D`. Any other class keeps the branch. `meta.json` beside the archive records the class and reason.
+1. **Protected.** The keep rules above are checked again. A match gives `kept-protected`.
+2. **Inside the root.** A path outside the worktrees root is refused.
+3. **LIVE again.** The process scan reruns. A holder, or a failed scan, gives `kept-live`.
+4. **Recent.** If HEAD, the reflog or any changed file moved in the last 6 h (`CATALYST_PRUNE_RECENT_HOURS`), the tree is `kept-recent`. The index is ignored, because `git status` rewrites it on every scan.
+5. **Real changes.** Any changed or untracked file outside the residue list gives `kept-dirty`, with the first paths in the reason.
+6. **Residue only.** `TRIVIAL_DIRTY` in the script is the exact list:
+   - anywhere in the tree: `.envrc`, `__pycache__/`, `.turbo/`, `coverage/`, `.session-id`, and the context file the retired Claude workflow hook left behind;
+   - these exact paths from the tree root: `.catalyst/config.json.bak-*`, `.catalyst/hosts.json`, `.catalyst/findings/current.jsonl`, `.claude/rules/skill-references.md`, `.codex/agents/<name>.toml` and `.claude/scheduled_tasks.lock` (CTC-3654, from a survey of mini-2's kept-dirty trees). Any other `.claude/rules/` file is real work.
+
+   A residue file may be an edit, a deletion or untracked. catalyst committed `scheduled_tasks.lock` by mistake, so worktrees show it deleted. Tracked edits and deletions go to `changes.patch` (`git diff HEAD`), and untracked files to `untracked.tar.gz`, under `<archive>/<date>/<repo>__<tree>/`. Only then does `git worktree remove --force` run. `--force` is used in no other case.
+7. **Branch.** `git branch -d` runs first. If it refuses (a squash merge always does) and the class is MERGED, CLOSED_NO_MERGE, TICKET_SHIPPED or TICKET_DONE, the commits not on origin's default branch go to `unpushed.bundle`. The bundle is verified, then the branch is deleted with `-D`. Any other class keeps the branch. `meta.json` beside the archive records the class and reason.
 
 Remote branches are never deleted.
 

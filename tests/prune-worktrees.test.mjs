@@ -115,9 +115,9 @@ function buildFarm() {
   chmodSync(`${T}/bin/gh`, 0o755);
 
   const db = new Database(`${T}/replica.db`);
-  db.run("CREATE TABLE workflow_states (id TEXT, type TEXT)");
+  db.run("CREATE TABLE workflow_states (id TEXT, name TEXT, type TEXT)");
   db.run("CREATE TABLE issues (identifier TEXT, state TEXT, state_id TEXT, state_type TEXT, archived_at TEXT)");
-  db.run("INSERT INTO workflow_states VALUES ('s1', 'completed'), ('s2', 'started')");
+  db.run("INSERT INTO workflow_states VALUES ('s1', 'Done', 'completed'), ('s2', 'In Progress', 'started'), ('s3', 'Todo', 'unstarted')");
   db.run("INSERT INTO issues VALUES ('CTC-9001', 'Done', 's1', '', NULL), ('CTC-9002', 'In Progress', 's2', 'started', NULL)");
   db.close();
 
@@ -125,8 +125,22 @@ function buildFarm() {
   ageTree(`${R}/.git/worktrees`, 5 * DAY);
   const recentHead = `${R}/.git/worktrees/merged-recent/logs/HEAD`;
   utimesSync(recentHead, new Date(Date.now() - 3600_000), new Date(Date.now() - 3600_000));
-  return { T, R, W, env: { ...env, CATALYST_WORKTREES_DIR: `${T}/wt`, CATALYST_REPLICA_DB: `${T}/replica.db` }, g };
+  return { T, R, W, env: { ...env, CATALYST_WORKTREES_DIR: `${T}/wt`, CATALYST_REPLICA_DB: `${T}/replica.db` }, g, mk, prs: `${T}/prs.json` };
 }
+
+// addMergedTree(fx, name, number) → a new tree on a branch with one commit and a merged PR, aged 5 days
+// after the caller has shaped it (call age() when done).
+function addMergedTree(fx, name, number) {
+  fx.mk(name, true);
+  const prs = JSON.parse(readFileSync(fx.prs, "utf8"));
+  prs.push({ number, title: name, headRefName: name, state: "MERGED" });
+  writeFileSync(fx.prs, JSON.stringify(prs));
+  return `${fx.W}/${name}`;
+}
+const age = (fx) => {
+  ageTree(`${fx.T}/wt`, 5 * DAY);
+  ageTree(`${fx.R}/.git/worktrees`, 5 * DAY);
+};
 
 function run(fx, args, envOverride = {}) {
   const env = { ...fx.env, ...envOverride };
@@ -312,5 +326,142 @@ describe("Linear falls back to linearis when there is no replica", () => {
     expect(r.stderr).toContain("no ticket-Done trigger this run");
     expect(rowFor(r.json, "CTC-9001-done").classification).toBe("ACTIVE");
     expect(existsSync(`${fx.T}/linearis.calls`)).toBe(false);
+  });
+});
+
+describe("Linear state comes from the workflow state, never a stale issue field (CTC-3654)", () => {
+  // CTC-3632 was reopened to Todo while issues.state_type still said `completed` (509 of 7,660
+  // replica rows disagreed with their workflow state on 2026-09-27).
+  test("a reopened ticket with a stale state_type of completed is kept", () => {
+    const fx = buildFarm();
+    fx.mk("CTC-9003-reopened", true);
+    fx.mk("CTC-9004-orphan", true);
+    age(fx);
+    const db = new Database(`${fx.T}/replica.db`);
+    db.run("INSERT INTO issues VALUES ('CTC-9003', 'Done', 's3', 'completed', NULL), ('CTC-9004', 'Done', 'gone', 'completed', NULL)");
+    db.close();
+    const scan = run(fx, ["scan", "--json", "--no-sizes", "--include-shipped"]);
+    expect(rowFor(scan.json, "CTC-9003-reopened").classification).toBe("ACTIVE");
+    expect(rowFor(scan.json, "CTC-9003-reopened").reason).toContain("ticket Todo");
+    // No joined workflow state means no Linear evidence at all.
+    expect(rowFor(scan.json, "CTC-9004-orphan").classification).toBe("ACTIVE");
+    expect(rowFor(scan.json, "CTC-9001-done").classification).toBe("TICKET_DONE");
+    const apply = run(fx, ["apply", "--json", "--include-shipped"]);
+    expect(apply.code).toBe(0);
+    expect(existsSync(`${fx.W}/CTC-9003-reopened`)).toBe(true);
+    expect(existsSync(`${fx.W}/CTC-9004-orphan`)).toBe(true);
+  });
+
+  test("the linearis fallback reads the live state name, not a stale type field", () => {
+    const fx = buildFarm();
+    writeFileSync(
+      `${fx.T}/bin/linearis`,
+      `#!/bin/sh\necho '{"identifier":"'"$3"'","stateType":"completed","state_type":"completed","status":"Done","state":{"id":"s3","name":"Todo"}}'\n`
+    );
+    chmodSync(`${fx.T}/bin/linearis`, 0o755);
+    const r = run(fx, ["scan", "--json", "--no-sizes", "--include-shipped"], { CATALYST_REPLICA_DB: undefined });
+    expect(r.json.linearSource).toBe("linearis");
+    expect(rowFor(r.json, "CTC-9001-done").classification).toBe("ACTIVE");
+    expect(rowFor(r.json, "CTC-9001-done").reason).toContain("ticket Todo");
+  });
+});
+
+describe("five more agent files are residue (CTC-3654)", () => {
+  const fx = buildFarm();
+  // catalyst's ea30621b6 committed the scheduled-tasks lock, so worktrees show it deleted (` D`).
+  mkdirSync(`${fx.R}/.claude`, { recursive: true });
+  writeFileSync(`${fx.R}/.claude/scheduled_tasks.lock`, "lock\n");
+  fx.g("-C", fx.R, "add", ".claude/scheduled_tasks.lock");
+  fx.g("-C", fx.R, "commit", "-q", "-m", "commit the lock by mistake");
+  fx.g("-C", fx.R, "update-ref", "refs/remotes/origin/main", "main");
+  const untracked = {
+    "res-hosts": ".catalyst/hosts.json",
+    "res-skill-refs": ".claude/rules/skill-references.md",
+    "res-findings": ".catalyst/findings/current.jsonl",
+    "res-codex": ".codex/agents/reviewer.toml",
+    "res-other-rule": ".claude/rules/other.md",
+  };
+  let n = 100;
+  for (const [name, file] of Object.entries(untracked)) {
+    const dir = addMergedTree(fx, name, ++n);
+    mkdirSync(join(dir, file, ".."), { recursive: true });
+    writeFileSync(join(dir, file), "agent residue\n");
+  }
+  rmSync(`${addMergedTree(fx, "res-lock-deleted", ++n)}/.claude/scheduled_tasks.lock`);
+  age(fx);
+  const apply = run(fx, ["apply", "--json", "--include-shipped"]);
+  const result = (name) => apply.json.repos[0].prunable.find((r) => r.path.endsWith(`/repo/${name}`));
+  const archiveOf = (name) => join(fx.T, "wt-cleanup-archive", new Date().toISOString().slice(0, 10), `owner__${name}`);
+
+  for (const [name, file] of Object.entries(untracked)) {
+    if (name === "res-other-rule") continue;
+    test(`${file} alone lets the tree go, archived`, () => {
+      expect(result(name).action).toBe("removed");
+      expect(existsSync(`${fx.W}/${name}`)).toBe(false);
+      expect(execFileSync("tar", ["-tzf", `${archiveOf(name)}/untracked.tar.gz`], { encoding: "utf8" })).toContain(file);
+      expect(JSON.parse(readFileSync(`${archiveOf(name)}/meta.json`, "utf8")).archived).toEqual([file]);
+    });
+  }
+
+  test("any other .claude/rules file is real work: kept-dirty", () => {
+    expect(result("res-other-rule").action).toBe("kept-dirty");
+    expect(result("res-other-rule").error).toContain(".claude/rules/other.md");
+    expect(existsSync(`${fx.W}/res-other-rule/.claude/rules/other.md`)).toBe(true);
+  });
+
+  test("a deleted tracked scheduled_tasks.lock is recorded in the patch, and the tree goes", () => {
+    expect(result("res-lock-deleted").action).toBe("removed");
+    expect(existsSync(`${fx.W}/res-lock-deleted`)).toBe(false);
+    const patch = readFileSync(`${archiveOf("res-lock-deleted")}/changes.patch`, "utf8");
+    expect(patch).toContain("deleted file mode");
+    expect(patch).toContain("-lock");
+    expect(patch).toContain(".claude/scheduled_tasks.lock");
+  });
+});
+
+describe("release, deploy and opted-out trees are never removed (CTC-3654)", () => {
+  // 2026-09-27: 12 idle, clean deploy-3072373-R* trees with HEAD in main were removed, and infra's
+  // R7 build failed because build-R6.sh reads a prior release tree's gitignored build output.
+  const fx = buildFarm();
+  let n = 200;
+  for (const name of ["deploy-3072373-R7-abc", "release-automation", "keep-file", "keep-listed", "keep-bare"]) addMergedTree(fx, name, ++n);
+  // A protected branch basename on an ordinary directory name.
+  fx.g("-C", fx.R, "worktree", "add", "-q", "-b", "infra/release-9", `${fx.W}/plain-dir`, "main");
+  writeFileSync(`${fx.W}/plain-dir/x.txt`, "x\n");
+  fx.g("-C", `${fx.W}/plain-dir`, "add", ".");
+  fx.g("-C", `${fx.W}/plain-dir`, "commit", "-q", "-m", "x");
+  const prs = JSON.parse(readFileSync(fx.prs, "utf8"));
+  prs.push({ number: 299, title: "x", headRefName: "infra/release-9", state: "MERGED" });
+  writeFileSync(fx.prs, JSON.stringify(prs));
+  mkdirSync(`${fx.W}/keep-file/.catalyst`);
+  writeFileSync(`${fx.W}/keep-file/.catalyst/keep-worktree`, "");
+  writeFileSync(`${fx.T}/wt/.keep-worktrees`, "# trees infra still reads\nrepo/keep-listed\nkeep-bare  # by bare name\n");
+  age(fx);
+  const kept = ["deploy-3072373-R7-abc", "release-automation", "keep-file", "keep-listed", "keep-bare", "plain-dir"];
+  const scan = run(fx, ["scan", "--json", "--no-sizes", "--include-shipped"]);
+  const apply = run(fx, ["apply", "--json", "--include-shipped"]);
+
+  test("scan reports each one as PROTECTED, with the reason", () => {
+    expect(rowFor(scan.json, "deploy-3072373-R7-abc").reason).toBe("protected name deploy-3072373-R7-abc");
+    expect(rowFor(scan.json, "release-automation").reason).toBe("protected name release-automation");
+    expect(rowFor(scan.json, "keep-file").reason).toBe("keep file .catalyst/keep-worktree");
+    expect(rowFor(scan.json, "keep-listed").reason).toContain(".keep-worktrees");
+    expect(rowFor(scan.json, "keep-bare").reason).toContain(".keep-worktrees");
+    expect(rowFor(scan.json, "plain-dir").reason).toBe("protected branch infra/release-9");
+    for (const name of kept) expect(rowFor(scan.json, name).classification).toBe("PROTECTED");
+    expect(scan.json.totals.keptProtected).toBe(kept.length);
+  });
+
+  test("apply removes none of them, and still removes the residue-only control", () => {
+    for (const name of kept) expect(existsSync(`${fx.W}/${name}`)).toBe(true);
+    expect(apply.json.totals.keptProtected).toBe(kept.length);
+    expect(existsSync(`${fx.W}/merged-residue`)).toBe(false);
+  });
+
+  test("remove --path refuses a protected tree and exits non-zero", () => {
+    const r = run(fx, ["remove", "--json", "--path", `${fx.W}/deploy-3072373-R7-abc`, "--why", "test"]);
+    expect(r.code).toBe(1);
+    expect(r.json.results[0].action).toBe("kept-protected");
+    expect(existsSync(`${fx.W}/deploy-3072373-R7-abc`)).toBe(true);
   });
 });

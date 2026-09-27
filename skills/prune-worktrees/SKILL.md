@@ -37,6 +37,7 @@ Every leaf lands in one class. The full rules, the removal steps and restore are
 
 | Class | Meaning | Verdict |
 |---|---|---|
+| `PROTECTED` | a `deploy-`/`release-`/`-R<n>` name or branch, `.catalyst/keep-worktree`, or listed in `<worktrees root>/.keep-worktrees` | never touched, `remove` included |
 | `LIVE` | a process has its cwd inside the tree | never touched |
 | `ACTIVE` | open PR, locked, or young with no evidence | human review only |
 | `MERGED` / `CLOSED_NO_MERGE` | its PR merged, or closed unmerged | auto-prunable |
@@ -49,7 +50,7 @@ Every leaf lands in one class. The full rules, the removal steps and restore are
 - A tree touched in the last 6 h is kept. A tree with any change outside the residue list is kept.
 - A branch is deleted only after `git branch -d`, or after its commits are bundled and the bundle verifies. There is never a remote delete.
 
-**Linear.** `TICKET_DONE` reads the replica in one query when one is declared. Otherwise it runs `linearis issues read` once per ticket that reaches that check, up to 100 per run. It skips linearis when `CATALYST_PHASE` is set (a phase container holds no Linear credential) or when `command -v linearis` fails, and logs a warning. With neither, there is no Linear trigger.
+**Linear.** `TICKET_DONE` reads the replica in one query when one is declared, taking each ticket's state from its joined workflow state, never the stale `issues.state_type`. Otherwise it runs `linearis issues read` once per ticket that reaches that check, up to 100 per run. It skips linearis when `CATALYST_PHASE` is set (a phase container holds no Linear credential) or when `command -v linearis` fails, and logs a warning. With neither, there is no Linear trigger.
 
 ## Workflow
 

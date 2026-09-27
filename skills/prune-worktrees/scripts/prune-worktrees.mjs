@@ -34,6 +34,8 @@
 //     bundled and the bundle verifies. Never a remote delete.
 //   * Full clones (a .git DIRECTORY) and paths outside the worktrees root are
 //     never candidates.
+//   * PROTECTED: a deploy/release name, .catalyst/keep-worktree, or an entry in
+//     <worktrees>/.keep-worktrees. Checked first in classification and removal.
 //
 // Every scan/apply/remove run appends one JSONL line to
 // $CATALYST_LOGS_DIR/worktree-prune/runs.jsonl. Human lines go to stderr;
@@ -74,6 +76,14 @@ const TRIVIAL_DIRTY = [
   /(^|\/)coverage\//,
   /(^|\/)\.session-id$/,
   /(^|\/)\.workflow-context\.json$/,
+  // CTC-3654, from a read-only survey of mini-2's kept-dirty trees. Exact paths: any other
+  // .claude/rules file can be real work. scheduled_tasks.lock is tracked in catalyst by mistake
+  // (ea30621b6), so it shows as a deletion; changes.patch records that deletion.
+  /^\.catalyst\/hosts\.json$/,
+  /^\.claude\/rules\/skill-references\.md$/,
+  /^\.catalyst\/findings\/current\.jsonl$/,
+  /^\.codex\/agents\/[^/]+\.toml$/,
+  /^\.claude\/scheduled_tasks\.lock$/,
 ];
 // A tree whose HEAD, reflog or dirty files changed this recently may still have
 // an agent in it (the LIVE check only sees a process cwd'd there right now).
@@ -284,6 +294,27 @@ function liveHolders(tree, cwds) {
   return cwds.filter((c) => c.cwd === t || c.cwd.startsWith(t + "/")).map((c) => c.pid);
 }
 
+// ─── keep rules (CTC-3654) ───────────────────────────────────────────────────
+// A release or deploy tree can be the input of a later build: infra's build-R6.sh
+// reads a prior release tree's gitignored native build output. On 2026-09-27 the
+// cleanup removed 12 idle, clean deploy-3072373-R* trees whose HEAD was in main,
+// and the R7 build failed. An in-use check cannot see that, because the trees were
+// idle. Such trees, and any tree opted out by a keep file, are reported and never
+// removed, by `apply` or `remove` alike.
+const PROTECTED_NAME = /^(deploy|release)-|-R\d+(-|$)/;
+function keepReason(path, branch) {
+  const name = basename(path);
+  if (PROTECTED_NAME.test(name)) return `protected name ${name}`;
+  if (branch && PROTECTED_NAME.test(basename(branch))) return `protected branch ${branch}`;
+  if (existsSync(join(path, ".catalyst", "keep-worktree"))) return "keep file .catalyst/keep-worktree";
+  const listFile = join(ROOTS.worktrees, ".keep-worktrees");
+  try {
+    const list = readFileSync(listFile, "utf8").split("\n").map((l) => l.replace(/#.*/, "").trim()).filter(Boolean);
+    if (list.some((l) => l === name || resolve(ROOTS.worktrees, l) === resolve(path))) return `listed in ${listFile}`;
+  } catch { /* no farm keep list */ }
+  return null;
+}
+
 // ─── PR evidence ─────────────────────────────────────────────────────────────
 const FRESH_DAYS = 2;
 const TICKET_RE = /\b([A-Z][A-Z0-9]+-\d+)\b/i;
@@ -370,9 +401,10 @@ async function makeLinear(replicaDb) {
       try {
         // stdin closed: linearis consumes stdin otherwise.
         const out = execFileSync("linearis", ["issues", "read", ticket], { encoding: "utf8", timeout: 60_000, stdio: ["ignore", "pipe", "pipe"] });
+        // Only the live workflow state's name: never a top-level status or
+        // type field, which can be stale (CTC-3654). A renamed Done stage
+        // matches nothing here, which keeps the tree: the safe direction.
         const name = JSON.parse(out)?.state?.name;
-        // linearis returns the state's name only. A renamed Done stage matches
-        // nothing here, which keeps the tree: the safe direction.
         if (name) state = { type: DONE_NAMES.has(String(name).toLowerCase()) ? "completed" : "other", name };
       } catch (err) {
         say(`  WARN: linearis issues read ${ticket} failed: ${String(err.stderr || err.message).split("\n").find((l) => l.trim())?.slice(0, 120)}`);
@@ -383,7 +415,10 @@ async function makeLinear(replicaDb) {
   };
 }
 
-// `state_type` is blank on some replica rows, so fall back to the workflow state's type.
+// The workflow state joined by state_id is the source of truth. issues.state_type
+// and issues.state go stale: 509 of 7,660 rows disagreed on 2026-09-27, and
+// CTC-3632 read `completed` after it was reopened to Todo (CTC-3654). An issue
+// with no joined state gives no row, which means no Linear evidence.
 async function readReplica(path) {
   if (!existsSync(path)) throw new Error("file not found");
   const rows = await (async () => {
@@ -411,8 +446,8 @@ async function readReplica(path) {
   return map;
 }
 const REPLICA_SQL =
-  "SELECT i.identifier AS id, COALESCE(NULLIF(i.state_type, ''), s.type) AS type, i.state AS name " +
-  "FROM issues i LEFT JOIN workflow_states s ON s.id = i.state_id WHERE i.archived_at IS NULL OR i.archived_at = ''";
+  "SELECT i.identifier AS id, s.type AS type, s.name AS name " +
+  "FROM issues i JOIN workflow_states s ON s.id = i.state_id WHERE i.archived_at IS NULL OR i.archived_at = ''";
 
 function onPath(bin) {
   return String(process.env.PATH || "").split(delimiter).some((d) => d && existsSync(join(d, bin)));
@@ -420,6 +455,7 @@ function onPath(bin) {
 
 // ─── classification ──────────────────────────────────────────────────────────
 // Classes, in the order they are decided:
+//   PROTECTED         a release/deploy name or a keep file (keepReason; never touched)
 //   LIVE              a process has its cwd inside the tree (never touched)
 //   MERGED / CLOSED_NO_MERGE  a PR whose head is the branch, or its Mergify stack
 //                     rename `stack/<user>/<branch>/…`, merged / closed unmerged
@@ -456,6 +492,8 @@ function classifyRepo(owner, entries, { prs, cwds, linear }) {
     })();
     const r = { path: wt.path, branch: wt.branch, ticket, prNumber: null, prState: "none", ageDays, liveSessions: 0 };
     const set = (classification, reason) => Object.assign(r, { classification, reason });
+    const keep = keepReason(wt.path, wt.branch);
+    if (keep) return set("PROTECTED", keep);
     if (!cwds) return set("LIVE", "process scan failed; every tree is treated as live");
     const holders = liveHolders(wt.path, cwds);
     r.liveSessions = holders.length;
@@ -612,6 +650,12 @@ function archiveResidue(path, dirty, dir) {
 
 function removeTree(owner, path, branch, { classification = null, reason = null } = {}) {
   const rec = { path, branch, action: null };
+  const keep = keepReason(path, branch);
+  if (keep) {
+    rec.action = "kept-protected";
+    rec.error = `${keep}; delete the keep file or rename the tree to remove it`;
+    return rec;
+  }
   if (!underRoot(path)) {
     rec.action = "refused";
     rec.error = "outside the worktrees root";
@@ -763,7 +807,7 @@ async function buildPlan({ wantProtected = false, sizes = true } = {}) {
   };
   const T = (plan.totals = {
     leaves: leaves.length, prunable: 0, prunableKb: 0, removed: 0, keptDirty: 0,
-    protected: 0, unregistered: 0,
+    protected: 0, keptProtected: 0, unregistered: 0,
   });
 
   for (const [owner, paths] of [...byOwner.entries()].sort()) {
@@ -803,6 +847,7 @@ async function buildPlan({ wantProtected = false, sizes = true } = {}) {
       }
       repo.protectedCounts[row.classification] = (repo.protectedCounts[row.classification] || 0) + 1;
       T.protected++;
+      if (row.classification === "PROTECTED") T.keptProtected++;
       // Every protected tree is recorded with its reason, so the run log answers
       // "why was this kept?" without re-running anything.
       repo.protected = repo.protected || [];
@@ -851,7 +896,7 @@ async function cmdScan() {
     protected: plan.repos.flatMap((r) => (r.protected || []).map((x) => ({ ...x, owner: r.owner }))) });
   reasonSummary(plan);
   const gb = (plan.totals.prunableKb / 1024 / 1024).toFixed(1);
-  say(`\nprunable: ${plan.totals.prunable} (nominal ~${gb} GB via du; shared cloned node_modules means PHYSICAL reclaim will be less), protected: ${plan.totals.protected}, unregistered: ${plan.totals.unregistered}`);
+  say(`\nprunable: ${plan.totals.prunable} (nominal ~${gb} GB via du; shared cloned node_modules means PHYSICAL reclaim will be less), protected: ${plan.totals.protected} (kept-protected: ${plan.totals.keptProtected}), unregistered: ${plan.totals.unregistered}`);
   say(`run with 'apply' to remove these (still fail-closed per tree). Full log: ${RUN_LOG}`);
   liveScanExit(plan);
   out(plan);
@@ -869,6 +914,7 @@ async function cmdApply() {
       if (rec.action === "removed") plan.totals.removed++;
       else if (rec.action === "kept-recent") plan.totals.keptRecent = (plan.totals.keptRecent || 0) + 1;
       else if (rec.action === "kept-live") plan.totals.keptLive = (plan.totals.keptLive || 0) + 1;
+      else if (rec.action === "kept-protected") plan.totals.keptProtected++;
       else plan.totals.keptDirty++;
       if (rec.action === "removed") say(`  removed ${c.path}`);
       else say(`  KEPT    ${c.path} (${rec.action}): ${rec.error}`);
@@ -886,7 +932,7 @@ async function cmdApply() {
   plan.totals.physicalFreedKb = Math.max(0, dataAvailKb() - availBefore);
   const pgb = (plan.totals.physicalFreedKb / 1024 / 1024).toFixed(1);
   reasonSummary(plan);
-  say(`\nremoved: ${plan.totals.removed} worktrees, kept-dirty: ${plan.totals.keptDirty}, kept-recent: ${plan.totals.keptRecent || 0}, kept-live: ${plan.totals.keptLive || 0}, protected: ${plan.totals.protected}`);
+  say(`\nremoved: ${plan.totals.removed} worktrees, kept-dirty: ${plan.totals.keptDirty}, kept-recent: ${plan.totals.keptRecent || 0}, kept-live: ${plan.totals.keptLive || 0}, kept-protected: ${plan.totals.keptProtected}, protected: ${plan.totals.protected}`);
   say(`space: nominal ${gb} GB (du, double-counts cloned node_modules); PHYSICAL freed per df: ${pgb} GB`);
   logRun({ ts: new Date().toISOString(), mode: "apply", actor: ACTOR, root: ROOTS.worktrees, totals: plan.totals,
     includeStale: INCLUDE_STALE, includeShipped: INCLUDE_SHIPPED, liveScan: plan.liveScan,
@@ -946,7 +992,7 @@ function cmdRemove() {
   }
   logRun({ ts: new Date().toISOString(), mode: "remove", actor: ACTOR, root: ROOTS.worktrees, why, result: results });
   out({ mode: "remove", why, results });
-  if (results.some((r) => r.action === "refused")) process.exit(1);
+  if (results.some((r) => r.action === "refused" || r.action === "kept-protected")) process.exit(1);
 }
 
 function cmdHistory() {
