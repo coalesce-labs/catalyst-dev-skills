@@ -56,6 +56,7 @@ Every leaf lands in one class. The full rules, the removal steps and restore are
 
 - **Interactive:** read `history` first, then `scan --json` and report the prunable count and GB, the protected breakdown, kept-dirty and unregistered dirs. Run `apply` only when the user says go. If space is still tight, run `candidates` and let the user pick. Act on picks only through `remove --path … --why "…"`, never `rm -rf` or a forced `git worktree remove`.
 - **Scheduled:** the Catalyst installer's housekeeping job runs `bun <skills>/prune-worktrees/scripts/prune-worktrees.mjs apply --include-shipped --actor housekeeping`. Never widen the set further in a headless run.
+- **Event log (CTC-3788, CTC-3790):** a housekeeping apply (`--actor housekeeping`) also runs `events-housekeeping.mjs run` beside this script, so every installed daily job gets it. It is skipped when the installer runs it as its own step (`CATALYST_HK_EVENTS_STEP=1`). It moves month files older than the current one from the legacy `~/catalyst/events` into the resolved events directory, merging without losing a line. Then it deletes month files older than the retention (`--keep-months N`, else `CATALYST_EVENTS_RETENTION_MONTHS`, else 6), and never the current month. `list`, `migrate` and `prune` run the steps one at a time, and `--dry-run` shows the plan: [`references/workflows.md`](references/workflows.md).
 - **Review subagents** for a repo with many protected trees, and how to report space honestly: [`references/workflows.md`](references/workflows.md).
 
 ## Environment

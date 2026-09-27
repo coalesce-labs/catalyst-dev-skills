@@ -54,6 +54,7 @@ import { execFileSync, spawnSync } from "node:child_process";
 import { appendFileSync, existsSync, mkdirSync, readdirSync, readFileSync, readlinkSync, realpathSync, rmSync, statSync, writeFileSync } from "node:fs";
 import { homedir } from "node:os";
 import { basename, delimiter, dirname, join, resolve } from "node:path";
+import { fileURLToPath } from "node:url";
 import { loadMachinePaths, machinePathsFile } from "./lib/paths/node.js";
 
 const HOME = process.env.HOME || homedir();
@@ -902,6 +903,20 @@ async function cmdScan() {
   out(plan);
 }
 
+// CTC-3788 / CTC-3790: the event-log step rides on the housekeeping apply, so every installed
+// daily job migrates and prunes the event log, including one generated before the installer ran the
+// step itself. An installer that runs it as its own step sets CATALYST_HK_EVENTS_STEP=1, and then
+// this skips it. Bounded, logged, and never part of the prune's exit code.
+function runEventsHousekeeping() {
+  const entry = join(dirname(fileURLToPath(import.meta.url)), "events-housekeeping.mjs");
+  if (!existsSync(entry)) return { status: "skipped", reason: `${entry} is not installed` };
+  const r = spawnSync(process.execPath, [entry, "run", "--json"], { encoding: "utf8", timeout: 900_000 });
+  const result = { status: r.status === 0 ? "ok" : "failed", exit: r.status, signal: r.signal ?? null,
+    output: `${r.stdout ?? ""}${r.stderr ?? ""}`.trim().split("\n").slice(-10) };
+  say(`events-housekeeping: ${r.signal ? `stopped (${r.signal})` : `exit ${r.status}`}`);
+  return result;
+}
+
 async function cmdApply() {
   logRun({ ts: new Date().toISOString(), mode: "apply-started", actor: ACTOR, root: ROOTS.worktrees, note: "in progress; an apply-started line without a later apply line means the run died mid-way" });
   const availBefore = dataAvailKb();
@@ -934,7 +949,8 @@ async function cmdApply() {
   reasonSummary(plan);
   say(`\nremoved: ${plan.totals.removed} worktrees, kept-dirty: ${plan.totals.keptDirty}, kept-recent: ${plan.totals.keptRecent || 0}, kept-live: ${plan.totals.keptLive || 0}, kept-protected: ${plan.totals.keptProtected}, protected: ${plan.totals.protected}`);
   say(`space: nominal ${gb} GB (du, double-counts cloned node_modules); PHYSICAL freed per df: ${pgb} GB`);
-  logRun({ ts: new Date().toISOString(), mode: "apply", actor: ACTOR, root: ROOTS.worktrees, totals: plan.totals,
+  if (ACTOR === "housekeeping" && process.env.CATALYST_HK_EVENTS_STEP !== "1") plan.eventsHousekeeping = runEventsHousekeeping();
+  logRun({ ts: new Date().toISOString(), mode: "apply", actor: ACTOR, root: ROOTS.worktrees, totals: plan.totals, eventsHousekeeping: plan.eventsHousekeeping,
     includeStale: INCLUDE_STALE, includeShipped: INCLUDE_SHIPPED, liveScan: plan.liveScan,
     result: plan.repos.flatMap((r) => r.prunable.map((x) => ({ ...x, owner: r.owner }))),
     protected: plan.repos.flatMap((r) => (r.protected || []).map((x) => ({ ...x, owner: r.owner }))) });
