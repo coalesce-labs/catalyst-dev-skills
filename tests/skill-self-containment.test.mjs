@@ -40,6 +40,7 @@ const RUNNER_PHASE_SKILLS = [
   "remediate-plan",
   "validate-type-safety",
   "scan-reward-hacking",
+  "fix-typescript",
 ];
 
 const scratch = mkdtempSync(join(tmpdir(), "ctl-2306-self-containment-"));
