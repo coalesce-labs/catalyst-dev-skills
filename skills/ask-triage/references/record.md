@@ -25,8 +25,9 @@ One JSON object per run, printed last. It is the unit of evaluation: the verdict
   "action_taken": "none",
   "confidence": 0.85,
   "what_would_change_my_mind": "The owning seat reporting it abandoned the PR, or the hold turning out to be a product decision.",
-  "pattern": "no-relay-entry-from-pr-state",
-  "secondary_patterns": ["real-ci-failure-small-fix"],
+  "pattern": "no-relay-entry",
+  "secondary_patterns": ["ci-failure"],
+  "pattern_detail": "unblock generator fired on a human-owned PR-stage ticket; PR #7293 fails a count test",
   "owner_seat": "catalyst-cloud-56",
   "notes": ""
 }
@@ -39,7 +40,7 @@ One JSON object per run, printed last. It is the unit of evaluation: the verdict
 - `options_considered` includes the ask's own recommended or default option whenever the ask has one, each with why it was rejected (or `"chosen"`).
 - `action_taken` is `"none"` in `propose` mode; in `act` mode it lists what was actually done, with links.
 - `confidence` is 0 to 1: how likely a careful human reviewer agrees with the classification and the chosen action.
-- `pattern` is one tag from classify.md or a new kebab-case tag; explain a new tag in `notes`.
+- `pattern` and every `secondary_patterns` entry come from the closed table in classify.md (`other` when nothing fits, explained in `notes`). Specifics go in `pattern_detail`, never in a new tag.
 - Every `findings[].evidence` matches an entry in `evidence_checked`.
 
 ## Telemetry the caller adds
