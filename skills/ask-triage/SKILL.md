@@ -34,7 +34,7 @@ Use [`references/classify.md`](references/classify.md). Exactly one class:
 - `decidable`: a real choice, but reversible and inside standing authority; a recorded default or the evidence picks the option.
 - `human`: spend, public release, deleting data, customer data, messages outside the team, or a product call about what a customer sees.
 
-Also give it a `pattern` tag from the list in classify.md, or coin a new kebab-case one.
+Also give it a `pattern` from the closed tag table in classify.md (`other` if nothing fits), and put the specifics in `pattern_detail`.
 
 ## 4. Act (only in `act` mode, only within the class)
 

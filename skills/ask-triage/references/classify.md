@@ -35,37 +35,41 @@ Any one of these makes it the human's:
 
 For these, write one recommendation with evidence. The recommendation is still useful; it is just not applied.
 
-## Pattern tags
+## Pattern tags (closed vocabulary)
 
-Tag every record so patterns can be counted across asks. Reuse a tag when it fits; coin a new kebab-case tag when none does and describe it in the record.
+`pattern` and every entry of `secondary_patterns` MUST come from this table, so patterns can be counted across runs. Put the specifics (which fence, which dependency, which PR) in `pattern_detail`, which is free text. If nothing fits, use `other` and explain in `notes`. A reviewer promotes a recurring `other` into the table. Never invent a new tag in `pattern`.
 
-| tag | meaning |
-| -- | -- |
-| `no-relay-entry-from-pr-state` | unblock generator fired because a PR-stage ticket owned by a human seat cannot enter the relay |
-| `stale-review-at-head` | an automated review was requested but never answered at the current head |
-| `conflict-behind-main` | the PR needs main merged in |
-| `real-ci-failure-small-fix` | a genuine but small check failure (format, a count, a lint) |
-| `flake-fixed-on-main` | the failing check passes on main's latest run |
-| `deliberate-merge-window-hold` | a `hold` placed by another seat for a merge window |
-| `duplicate-ask` | the same question is open twice |
-| `moot-subject-closed` | the subject merged, closed or was canceled |
-| `answered-not-written-back` | the answer exists in chat or a comment but the ask is still open |
-| `auto-closed-by-pr-title` | a merged PR naming the ask closed it without a decision |
-| `validate-hold-real-small-defect` | validate findings are real, small and in the branch's diff |
-| `validate-hold-stale-head` | the hold judges a head the mirror recorded before a later push |
-| `plan-pinned-behaviour-amendment` | the question reverses something the approved plan pinned |
-| `architecture-boundary-conflict` | the plan's approach breaks a machine-enforced boundary |
-| `default-already-safe` | the ask's own default is reversible and costs nothing |
-| `instrument-lost-its-signal` | a measurement's producer was removed |
-| `product-copy-call` | what a customer-visible surface should say |
-| `public-release-approval` | publish or tag approval |
-| `credential-store-delete` | deleting a secret or a credential row |
-| `spend-increase` | raising a cap, budget or plan |
-| `premise-possibly-stale` | a later event may already have answered the question |
-| `no-deadline-default` | the ask has no `Auto-executes:` line, so its default never fires and it waits forever |
-| `mirror-missed-push` | the ledger's head evidence disagrees with the PR head, so holds and waivers judge stale code |
-| `finding-carried-over-unrepaired` | an earlier "continue" granted no repair round, so old findings resurface looking new |
-| `default-contradicts-recorded-direction` | the ask's default undoes a direction the human already recorded |
-| `ask-options-miss-a-pinned-scenario` | every listed option breaks a pinned acceptance scenario; the answer is off the list |
-| `product-feature-approval` | whether to build a customer-visible feature, and how much of it |
-| `external-console-verification` | the question needs a human to read a setting in a third-party console behind their login |
+The table came from the first two runs (18 asks and 46 stuck tickets, 2026-09-27), where about 40 ad-hoc tags collapsed into these families.
+
+| tag | use when | absorbs earlier ad-hoc tags |
+| -- | -- | -- |
+| `fence-outlived-cause` | a fence, hold, park or label placed with a stated reason, and that reason is gone (the fix merged, the condition was met) | fence-condition-now-met, park-cause-fixed-on-main, file-overlap-hold-cleared, deliberate-merge-window-hold (when over) |
+| `dependency-landed` | work held on an external dependency (a package publish, a sibling merge) that has since landed | hold-dependency-now-published, held-dependency-now-published |
+| `shipped-elsewhere` | the scope already shipped under another ticket's PR, or the subject merged, closed or is moot | moot-subject-closed, delivered-under-sibling-ticket, superseded-by-shipped-sibling-tickets, auto-closed-by-pr-title |
+| `dead-claim` | a seat or local-lane claim with no live worktree, comment or push for more than 24 h | abandoned-local-lane-claim |
+| `repo-paused` | excluded by a repository pause, or routed to a paused repository by mistake | repo-misassigned-to-paused-sibling |
+| `review-threads-open` | an otherwise green PR blocked by unresolved review threads, or an automated review never answered at head | stale-review-at-head, review-findings-unaddressed-at-head |
+| `conflict-behind-main` | the PR conflicts with main or is far behind it | — |
+| `ci-failure` | a real, small failing check, or a flake already fixed on main | real-ci-failure-small-fix, flake-fixed-on-main |
+| `validate-hold` | a validate budget, convergence or round-cap hold, including findings carried over unrepaired | validate-hold-real-small-defect, validate-hold-stale-head, finding-carried-over-unrepaired |
+| `mirror-missed-push` | the ledger's head evidence disagrees with the PR head | — |
+| `waiting-on-open-dependency` | correctly waiting on an open blocker (add the missing relation if there is none) | parked-behind-unlinked-dependency, blocked-by-unmerged-sibling |
+| `no-relay-entry` | work the relay cannot enter from its current stage (human-owned PR stage, never entered the ladder) | no-relay-entry-from-pr-state, zombie-never-entered-ladder |
+| `capacity-starvation` | eligible and queued, but new starts lose to in-flight work | new-start-starvation |
+| `decision-already-recorded` | the answer exists already: in chat, on a sibling ticket, in an ADR or plan | answered-not-written-back, default-contradicts-recorded-direction |
+| `premise-stale` | a later event changed the facts the ask or ticket rests on | premise-possibly-stale |
+| `options-incomplete` | every listed option is wrong or breaks a pinned scenario; the answer is off the list | ask-options-miss-a-pinned-scenario |
+| `design-choice` | a genuine, reversible plan or architecture choice (amend the plan, pick a package boundary) | plan-pinned-behaviour-amendment, architecture-boundary-conflict |
+| `default-already-safe` | the ask's own default is reversible and costs nothing | — |
+| `duplicate` | the same question or ticket exists twice | duplicate-ask |
+| `human-release` | public release, publish or tag approval | public-release-approval |
+| `human-spend` | raising a cap, a budget or a plan | spend-increase |
+| `human-delete` | deleting data or credentials | credential-store-delete |
+| `human-product` | what to build, or what a customer sees | product-feature-approval, product-copy-call |
+| `human-external` | needs a human to read or change a third-party console behind their login | external-console-verification |
+| `no-deadline` | secondary only: the ask has no `Auto-executes:` line, so it waits forever | no-deadline-default |
+| `other` | nothing above fits; explain in `notes` | — |
+
+Two checks every run makes, because both have misled runs before:
+- **Confirm the owner live.** Check the session list, a live worktree, or a push or comment in the last 24 h. Don't infer the owner from a handoff document's author.
+- **Check where a "fixed" fix lives before calling a fence releasable.** Repository scripts reach a ticket when its branch contains the fix. Runner-image code reaches it when the active runner pin contains it (`git merge-base --is-ancestor <fix> <pin>`).
