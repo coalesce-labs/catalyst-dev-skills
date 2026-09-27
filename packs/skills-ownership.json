@@ -119,6 +119,11 @@
       "scope": "home"
     },
     {
+      "dir": "prune-worktrees",
+      "name": "prune-worktrees",
+      "scope": "home"
+    },
+    {
       "dir": "remediate-plan",
       "name": "remediate-plan",
       "scope": "home"
