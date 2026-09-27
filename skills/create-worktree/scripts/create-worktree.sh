@@ -264,7 +264,39 @@ if [ -d "$WORKTREE_PATH" ]; then
 		# created with a broken thoughts/shared — a plain directory, OR a dangling symlink whose target is
 		# gone — is never repaired on later dispatches, and thoughts written there strand and never sync.
 		# A HEALTHY thoughts/shared is a symlink that resolves to a directory (-L AND -d).
-		if [ ! -L "$WORKTREE_PATH/thoughts/shared" ] || [ ! -d "$WORKTREE_PATH/thoughts/shared" ]; then
+		# CTC-3792: with a declared thoughts repo, a healthy link anywhere but this repository's directory
+		# in it is repaired too, or the reused tree keeps writing thoughts where nobody reads them.
+		# shellcheck source=lib/thoughts-location.sh
+		source "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/lib/thoughts-location.sh"
+		_CW_DECLARED="$(catalyst_thoughts_repo "$GITHUB_ORG")" || {
+			echo -e "${RED}❌ create-worktree: cannot resolve the thoughts repo (see above); refusing to report a reuse whose thoughts destination is unknown${NC}" >&2
+			exit 2
+		}
+		_CW_SHARED_ELSEWHERE=false
+		_CW_TARGET=""
+		if [ -n "$_CW_DECLARED" ]; then
+			# The reused tree's own config decides, exactly as catalyst-thoughts.sh reads it there (and
+			# nothing else, or the repair and this check would disagree): its branch may name another
+			# thoughts directory or profile than the main checkout.
+			_CW_TCFG=""
+			for _CW_CFG in "$WORKTREE_PATH/.catalyst/config.json" "$WORKTREE_PATH/.claude/config.json"; do
+				[ -n "$_CW_CFG" ] && [ -f "$_CW_CFG" ] && { _CW_TCFG="$_CW_CFG"; break; }
+			done
+			_CW_TDIR="$GITHUB_REPO" _CW_TPROFILE=""
+			if [ -n "$_CW_TCFG" ]; then
+				_CW_TDIR="$(jq -r '.catalyst.thoughts.directory // empty' "$_CW_TCFG" 2>/dev/null)"
+				_CW_TDIR="${_CW_TDIR:-$GITHUB_REPO}"
+				_CW_TPROFILE="$(jq -r '.catalyst.thoughts.profile // empty' "$_CW_TCFG" 2>/dev/null)"
+			fi
+			_CW_TPROFILE="$(catalyst_thoughts_profile "$_CW_DECLARED" "$GITHUB_ORG" "$_CW_TPROFILE")" || exit 2
+			_CW_TARGET="$(catalyst_thoughts_shared_target "$_CW_DECLARED" "$_CW_TPROFILE" "$_CW_TDIR")"
+			# A healthy link is refreshed every time: the repair is idempotent and also rewrites the
+			# HumanLayer repo mapping, which a right-looking link does not prove.
+			if [ -L "$WORKTREE_PATH/thoughts/shared" ] && [ -d "$WORKTREE_PATH/thoughts/shared" ]; then
+				_CW_SHARED_ELSEWHERE=true
+			fi
+		fi
+		if [ ! -L "$WORKTREE_PATH/thoughts/shared" ] || [ ! -d "$WORKTREE_PATH/thoughts/shared" ] || [ "$_CW_SHARED_ELSEWHERE" = true ]; then
 			# ...but only when this project actually USES shared thoughts. An unconfigured project (no
 			# thoughts profile in config, no HumanLayer) legitimately has no thoughts/shared and must still
 			# reuse — never block phases 2-9 for those. Resolve the profile exactly as the setup block does.
@@ -273,19 +305,26 @@ if [ -d "$WORKTREE_PATH" ]; then
 			if [ -z "$_CW_THOUGHTS_PROFILE" ] && command -v humanlayer >/dev/null 2>&1; then
 				_CW_THOUGHTS_PROFILE=$(humanlayer thoughts status 2>/dev/null | grep -i "Profile:" | head -1 | awk '{print $2}')
 			fi
+			# CTC-3792: a declared thoughts repo means this project uses shared thoughts too.
+			[ -z "$_CW_THOUGHTS_PROFILE" ] && [ -n "$_CW_DECLARED" ] && _CW_THOUGHTS_PROFILE="(declared)"
 			if [ -n "$_CW_THOUGHTS_PROFILE" ]; then
 				_CW_SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-				echo -e "${YELLOW}  ⚠️  thoughts/shared is not a healthy symlink — repairing (CTL-1497)${NC}"
+				echo -e "${YELLOW}  ⚠️  thoughts/shared is not a healthy symlink into the thoughts repo — repairing (CTL-1497, CTC-3792)${NC}"
 				# init-or-repair refuses to clobber an existing plain-dir/dangling thoughts/ (it will not
 				# risk data loss), so move it aside first — stranded content is preserved under .orphaned-*
 				# — then rebuild. If repair does not leave a healthy symlink, FAIL LOUD (exit 65): never
 				# report a successful reuse of a worktree that would still strand thoughts.
-				if [ -e "$WORKTREE_PATH/thoughts" ] || [ -L "$WORKTREE_PATH/thoughts" ]; then
+				# A healthy link that only points at the wrong place (CTC-3792) is re-pointed in place by
+				# init-or-repair, so worktree-local content such as thoughts/searchable stays where it is.
+				if [ "$_CW_SHARED_ELSEWHERE" != true ] && { [ -e "$WORKTREE_PATH/thoughts" ] || [ -L "$WORKTREE_PATH/thoughts" ]; }; then
 					mv "$WORKTREE_PATH/thoughts" "$WORKTREE_PATH/thoughts.orphaned-$(date +%Y%m%d-%H%M%S)" \
 						|| { echo -e "${RED}❌ create-worktree: could not move aside broken thoughts/ in ${WORKTREE_PATH} (CTL-1497)${NC}" >&2; exit 65; }
 				fi
+				# With a declared repo, healthy is not enough: the link must land on this repository's
+				# directory in it, or reuse would report success while thoughts still go elsewhere.
 				if ! ( cd "$WORKTREE_PATH" && bash "${_CW_SCRIPT_DIR}/catalyst-thoughts.sh" init-or-repair ) \
-					|| [ ! -L "$WORKTREE_PATH/thoughts/shared" ] || [ ! -d "$WORKTREE_PATH/thoughts/shared" ]; then
+					|| [ ! -L "$WORKTREE_PATH/thoughts/shared" ] || [ ! -d "$WORKTREE_PATH/thoughts/shared" ] \
+					|| { [ -n "$_CW_TARGET" ] && [ "$(cd "$WORKTREE_PATH/thoughts/shared" && pwd -P)" != "$_CW_TARGET" ]; }; then
 					echo -e "${RED}❌ create-worktree: thoughts repair FAILED on reuse path — ${WORKTREE_PATH} would strand thoughts; refusing to report success (CTL-1497)${NC}" >&2
 					exit 65
 				fi
@@ -614,9 +653,10 @@ cd "$WORKTREE_PATH"
 #   ${PROFILE}         — thoughts profile (auto-detected or from config)
 # ============================================================
 
-# Read thoughts config for variable substitution
+# Read thoughts config for variable substitution. The per-repo directory defaults to the origin's
+# repo name, which is the checkout's own name for a normal clone (CTC-3792).
 THOUGHTS_PROFILE=""
-THOUGHTS_DIRECTORY="$REPO_NAME"
+THOUGHTS_DIRECTORY="$GITHUB_REPO"
 if [ -n "$CONFIG_FILE" ]; then
 	THOUGHTS_PROFILE=$(jq -r '.catalyst.thoughts.profile // empty' "$CONFIG_FILE" 2>/dev/null)
 	THOUGHTS_DIR_CFG=$(jq -r '.catalyst.thoughts.directory // empty' "$CONFIG_FILE" 2>/dev/null)
@@ -625,8 +665,23 @@ if [ -n "$CONFIG_FILE" ]; then
 	fi
 fi
 
-# Auto-detect profile from parent if not in config
-if [ -z "$THOUGHTS_PROFILE" ] && command -v humanlayer >/dev/null 2>&1; then
+# CTC-3792: a thoughts repo declared by the paths contract (CATALYST_THOUGHTS_REPO, paths.json, or
+# <repoRoot>/<owner>/thoughts) wins; the profile passed to thoughts init is the one that points at
+# it. With nothing declared, the profile comes from config, else from the parent's HumanLayer status.
+# shellcheck source=lib/thoughts-location.sh
+source "${SCRIPT_DIR}/lib/thoughts-location.sh"
+# The worktree already exists here, so a failure rolls it back: a retry must not find a half-set-up
+# directory in its way.
+DECLARED_THOUGHTS_REPO="$(catalyst_thoughts_repo "$GITHUB_ORG")" || {
+	echo -e "${RED}❌ create-worktree: cannot resolve the thoughts repo (see above)${NC}" >&2
+	_worktree_install_rollback
+}
+if [ -n "$DECLARED_THOUGHTS_REPO" ]; then
+	THOUGHTS_PROFILE="$(catalyst_thoughts_profile "$DECLARED_THOUGHTS_REPO" "$GITHUB_ORG" "$THOUGHTS_PROFILE")" || {
+		echo -e "${RED}❌ create-worktree: cannot point HumanLayer at $DECLARED_THOUGHTS_REPO${NC}" >&2
+		_worktree_install_rollback
+	}
+elif [ -z "$THOUGHTS_PROFILE" ] && command -v humanlayer >/dev/null 2>&1; then
 	THOUGHTS_PROFILE=$(humanlayer thoughts status 2>/dev/null | grep -i "Profile:" | head -1 | awk '{print $2}')
 fi
 
@@ -1052,8 +1107,9 @@ else
 		fi
 	fi
 
-	# 2. Initialize thoughts (CTL-845: vendored layout creator, not the crashing CLI)
-	if command -v humanlayer >/dev/null 2>&1; then
+	# 2. Initialize thoughts (CTL-845: vendored layout creator, not the crashing CLI). A declared
+	#    thoughts repo needs no HumanLayer CLI for the layout; only the sync below does (CTC-3792).
+	if command -v humanlayer >/dev/null 2>&1 || [ -n "$DECLARED_THOUGHTS_REPO" ]; then
 		THOUGHTS_INIT_EXPECTED=true
 		VENDOR_INIT="${SCRIPT_DIR}/worktree-thoughts-init.sh"
 		INIT_ARGS=(--directory "$THOUGHTS_DIRECTORY")
@@ -1061,7 +1117,9 @@ else
 		echo "  Running: worktree-thoughts-init.sh ${INIT_ARGS[*]}"
 		if [ -x "$VENDOR_INIT" ] && bash "$VENDOR_INIT" "${INIT_ARGS[@]}" >/dev/null 2>&1; then
 			echo -e "${GREEN}  ✅ Thoughts initialized${NC}"
-			humanlayer thoughts sync >/dev/null 2>&1 || echo -e "${YELLOW}  ⚠️  Sync warning: run 'humanlayer thoughts sync' manually${NC}"
+			if command -v humanlayer >/dev/null 2>&1; then
+				humanlayer thoughts sync >/dev/null 2>&1 || echo -e "${YELLOW}  ⚠️  Sync warning: run 'humanlayer thoughts sync' manually${NC}"
+			fi
 			# Verify thoughts/shared/ exists after init+sync
 			if [ ! -L "thoughts/shared" ] || [ ! -d "thoughts/shared" ]; then
 				echo -e "${RED}❌ Error: thoughts/shared/ is not a healthy symlink (missing or dangling) after init+sync${NC}"
