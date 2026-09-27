@@ -8,6 +8,8 @@ files:
   - scripts/lib/cloud-facts.mjs
   - scripts/lib/linear-read-replica.sh
   - scripts/lib/canonical-event.sh
+  - scripts/lib/catalyst-paths.mjs
+  - scripts/lib/catalyst-paths.sh
   - scripts/lib/host-identity.sh
   - scripts/linear-reply.mjs
   - scripts/lib/comment-body-arg.mjs

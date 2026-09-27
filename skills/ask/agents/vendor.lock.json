@@ -19,6 +19,8 @@
     "scripts/identity-report.mjs",
     "scripts/lib/board-vocabulary.mjs",
     "scripts/lib/canonical-event.sh",
+    "scripts/lib/catalyst-paths.mjs",
+    "scripts/lib/catalyst-paths.sh",
     "scripts/lib/cloud-facts.mjs",
     "scripts/lib/comment-body-arg.mjs",
     "scripts/lib/deployment-mode.mjs",

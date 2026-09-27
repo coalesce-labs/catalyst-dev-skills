@@ -15,5 +15,6 @@ files:
   - scripts/briefing-frontmatter-lib.sh
   - scripts/lib/task-type.sh
   - scripts/lib/canonical-event.sh
+  - scripts/lib/catalyst-paths.sh
   - scripts/lib/host-identity.sh
   - templates/briefing-frontmatter.schema.json
