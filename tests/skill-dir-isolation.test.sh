@@ -18,7 +18,7 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO_ROOT="$(cd "${SCRIPT_DIR}/.." && pwd)"
 SKILLS_ROOT="${REPO_ROOT}/skills"
 
-SKILLS="agent-browser ask briefing-followup catalyst-sop commit compound-estimate concierge create-handoff create-plan create-pr create-worktree describe-pr fix-typescript gherkin-ticket implement-plan iterate-plan linear linearis merge-pr morning-briefing project-orchestrator remediate-plan research-codebase resume-handoff review-code review-comments review-security scan-reward-hacking steward ticket-compound ticket-retro triage-aging-prs unslop validate-plan validate-type-safety"
+SKILLS="agent-browser ask briefing-followup catalyst-sop commit compound-estimate concierge create-handoff create-plan create-pr create-worktree describe-pr fix-typescript gherkin-ticket implement-plan iterate-plan linear linearis merge-pr morning-briefing project-orchestrator prune-worktrees remediate-plan research-codebase resume-handoff review-code review-comments review-security scan-reward-hacking steward ticket-compound ticket-retro triage-aging-prs unslop validate-plan validate-type-safety"
 
 PASS=0
 FAIL=0
@@ -260,6 +260,14 @@ run_isolated "create-worktree: a failed thoughts init rolls the new worktree bac
   'rm -f "$HOME/.config/humanlayer/humanlayer.json"; export WT_GUARD_LSOF="'"$SCRATCH"'/cw-bin/lsof-no-holders"; if '"$CW_RUN"' cw-rollback main --worktree-dir "'"$SCRATCH"'/cw-wt" --skip-fetch > "$HOME/cw-rollback.log" 2>&1; then exit 1; fi; grep -qF "Cleaning up worktree" "$HOME/cw-rollback.log" && test ! -d "'"$SCRATCH"'/cw-wt/cw-rollback"'
 run_isolated "create-worktree: catalyst-thoughts --version (the reuse-path repair script)" create-worktree \
   '"$CLAUDE_SKILL_DIR/scripts/catalyst-thoughts.sh" --version >/dev/null'
+
+# CTC-3644 — prune-worktrees loads its vendored paths resolver from a lone copy, and with no
+# declared worktrees root it refuses (exit 2) instead of guessing one.
+PW_ENV='env -u CATALYST_WORKTREES_DIR -u CATALYST_WORK_TREES -u CATALYST_PATHS_FILE -u XDG_CONFIG_HOME'
+run_isolated_expect "prune-worktrees: no declared root refuses and names why" prune-worktrees "refusing to run, nothing was touched" \
+  "$PW_ENV"' bun "$CLAUDE_SKILL_DIR/scripts/prune-worktrees.mjs" apply'
+run_isolated "prune-worktrees: no declared root exits 2" prune-worktrees \
+  "$PW_ENV"' bun "$CLAUDE_SKILL_DIR/scripts/prune-worktrees.mjs" apply 2>/dev/null; test $? -eq 2'
 
 for agent in codebase-locator codebase-analyzer codebase-pattern-finder thoughts-locator thoughts-analyzer external-research; do
   for skill in research-codebase create-plan; do

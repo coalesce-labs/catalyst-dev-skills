@@ -1,0 +1,9 @@
+{
+  "generatedBy": "catalyst-packaging vendor",
+  "files": [
+    "scripts/lib/paths/index.js",
+    "scripts/lib/paths/legacy-installer.js",
+    "scripts/lib/paths/node.js",
+    "scripts/lib/paths/provenance.json"
+  ]
+}
