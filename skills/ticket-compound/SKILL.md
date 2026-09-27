@@ -10,8 +10,8 @@ description:
   (CTL-2232) resolves a terminal sentinel for the ticket's merge — the same relay-native signal
   `compound-estimate` and `ticket-retro` use, see
   the `compound-estimate` skill's `references/trigger.md`. Also use when the user says "compound this ticket",
-  "capture learnings", "what did we learn", or run as /catalyst-dev:ticket-compound <TICKET>
-  [mode:headless].
+  "capture learnings", "what did we learn", or names a ticket to compound
+  (<TICKET> [mode:headless]).
 disable-model-invocation: false
 user-invocable: true
 allowed-tools: Read, Write, Edit, Bash, Grep, Glob, Task, AskUserQuestion
@@ -31,8 +31,8 @@ Capture what a ticket taught us into the **shared** store (`thoughts/` + ADRs), 
 
 ## Invocation
 
-```
-/catalyst-dev:ticket-compound <TICKET> [mode:headless]
+```text
+ticket-compound skill with: <TICKET> [mode:headless]
 ```
 
 - `<TICKET>` — Linear key (e.g. `CTL-619`). If omitted, detect from the branch / `CATALYST_TICKET`.
@@ -108,7 +108,7 @@ Confirm `CLAUDE.md` teaches agents that the learnings store exists, its shape, a
 
 ```
 thoughts/shared/learnings/ — past problem→solution entries (grep by component/tags/problem_type).
-Search before implementing or debugging in a known area. Curated by /catalyst-dev:ticket-compound.
+Search before implementing or debugging in a known area. Curated by the ticket-compound skill.
 ```
 
 ## Step 8 — Report

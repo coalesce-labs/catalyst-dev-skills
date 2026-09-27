@@ -46,7 +46,7 @@ Use TodoWrite: convert the handoff's action items into todos, add anything newly
 
 ## Step 4: Begin implementation
 
-Start the first approved task (unattended: the first todo); reference the handoff's learnings and patterns throughout; update todos as work completes; consider writing a new handoff when the session ends (`/catalyst-dev:create-handoff`, with `--unattended` when this run is unattended).
+Start the first approved task (unattended: the first todo); reference the handoff's learnings and patterns throughout; update todos as work completes; consider writing a new handoff when the session ends (the `create-handoff` skill, with `--unattended` when this run is unattended).
 
 ## Guidelines throughout
 

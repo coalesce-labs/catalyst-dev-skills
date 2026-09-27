@@ -53,4 +53,4 @@ Appends an entry to `thoughts/shared/retros/estimate/YYYY-WW-compound-log.md` (c
 - Spec/plan: `thoughts/shared/research/2026-04-24-CTL-159-compound-closing-ritual.md`,
   `thoughts/shared/plans/2026-04-24-CTL-159-compound-closing-ritual.md`
 - Consumers: `compound-log.sh read`/`aggregate` → `refresh-corpus.sh` feeds `estimate_actual` into
-  `reference-class-corpus.json`; `/catalyst-dev:ticket-retro` reads the weekly files for the estimation-calibration summary.
+  `reference-class-corpus.json`; the `ticket-retro` skill reads the weekly files for the estimation-calibration summary.

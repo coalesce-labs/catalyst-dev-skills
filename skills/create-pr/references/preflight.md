@@ -35,7 +35,7 @@ git fetch origin $base
 git log HEAD..origin/$base --oneline | grep -q . && echo "Branch is behind $base"
 ```
 
-If behind: `git rebase origin/$base`. On conflicts: show conflicting files, error "Rebase conflicts detected. Resolve conflicts and run /catalyst-dev:create-pr again.", exit.
+If behind: `git rebase origin/$base`. On conflicts: show conflicting files, error "Rebase conflicts detected. Resolve conflicts and run the create-pr skill again.", exit.
 
 ## Step 5 — Check for an existing PR
 

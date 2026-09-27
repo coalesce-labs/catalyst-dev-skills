@@ -42,23 +42,23 @@ THOUGHTS_URL=$(jq -r '.catalyst.linear.thoughtsRepoUrl // "https://github.com/or
 
 ## Worked example: Thought → Ticket → Plan → Implement
 
-```bash
-/catalyst-dev:research-codebase "authentication patterns"
+```text
+research-codebase skill with: "authentication patterns"
 # Saves to thoughts/shared/research/auth-patterns.md
 
-/catalyst-dev:linear create thoughts/shared/research/auth-patterns.md
+linear skill with: create thoughts/shared/research/auth-patterns.md
 # Creates ticket in Backlog
 
-/catalyst-dev:create-plan
+create-plan skill
 # Reads research, creates plan; ticket moves to stateMap.planning
 
-/catalyst-dev:implement-plan thoughts/shared/plans/2025-01-08-auth-feature.md
+implement-plan skill with: thoughts/shared/plans/2025-01-08-auth-feature.md
 # Ticket moves to stateMap.inProgress
 
-/catalyst-dev:create-pr
+create-pr skill
 # Ticket moves to stateMap.inReview
 
-/catalyst-dev:merge-pr
+merge-pr skill
 # Ticket moves to stateMap.done
 ```
 

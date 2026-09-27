@@ -47,4 +47,4 @@ This is a **call site**, not the guard's rationale — see [linear-sibling-guard
 
 If a ticket was found and Linearis is available: update status to `stateMap.inReview` (see `linearis issues usage`), then add a comment with the PR link and verification summary — posted through the app actor (`linear-reply.mjs` / `linear-comment-post.sh`), never a bare `linearis issues discuss`. Skip silently if the CLI isn't available.
 
-**Skip the status transition when `CATALYST_PHASE` is set** — under a phase agent or a `relay-ticket` session, the coordinator driving that ticket already owns the Linear status write-back; this transition is for interactive `/catalyst-dev:describe-pr` use only. The PR-link comment is still posted in both modes.
+**Skip the status transition when `CATALYST_PHASE` is set** — under a phase agent or a `relay-ticket` session, the coordinator driving that ticket already owns the Linear status write-back; this transition is for interactive `describe-pr` use only. The PR-link comment is still posted in both modes.

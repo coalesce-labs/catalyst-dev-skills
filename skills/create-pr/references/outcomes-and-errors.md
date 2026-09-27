@@ -17,7 +17,7 @@ Status:
   ✅ Review comments addressed ({N} resolved)
   ✅ No merge blockers
 
-Merge with: /catalyst-dev:merge-pr
+Merge with: the merge-pr skill
 ```
 
 **Blockers remain:**
@@ -39,7 +39,7 @@ Still blocking:
 
 **On main/master:** `❌ Cannot create PR from main branch.` — suggest `git checkout -b TICKET-123-feature-name`.
 
-**Rebase conflicts:** list conflicting files; instruct `git add <resolved-files>`, `git rebase --continue`, then re-run `/catalyst-dev:create-pr`.
+**Rebase conflicts:** list conflicting files; instruct `git add <resolved-files>`, `git rebase --continue`, then re-run the `create-pr` skill.
 
 **GitHub CLI not configured:** `gh auth login`, then `gh repo set-default`.
 
@@ -55,7 +55,7 @@ Still blocking:
 Extracting ticket: ENG-123
 Generated title: "ENG-123: Implement pr lifecycle"
 Creating PR... ✅ PR #2 created
-Calling /catalyst-dev:describe-pr...
+Running the describe-pr skill...
 Updating Linear ticket ENG-123 → In Review
 ✅ Complete!
 ```
