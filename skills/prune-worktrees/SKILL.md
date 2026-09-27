@@ -26,8 +26,9 @@ Add `--json` for the full machine report on stdout; human lines go to stderr. `-
 
 The script refuses, exits 2 and touches nothing unless the worktrees root is declared. It never guesses one.
 
-1. The installer's machine paths file: `$CATALYST_PATHS_FILE`, else `$XDG_CONFIG_HOME/catalyst/paths.json`. It reads the roles `worktrees`, `repoRoot` and `replicaDb`. When the file exists it wins over env, and a broken file refuses.
-2. Otherwise env: `CATALYST_WORKTREES_DIR` (legacy `CATALYST_WORK_TREES`), `CATALYST_REPO_ROOT` and `CATALYST_REPLICA_DB`.
+1. Env: `CATALYST_WORKTREES_DIR`, `CATALYST_REPO_ROOT` and `CATALYST_REPLICA_DB`. Env wins, as the paths contract says, so the scan covers the farm create-worktree writes to (CTC-3791).
+2. For any role env leaves unset, the installer's machine paths file: `$CATALYST_PATHS_FILE`, else `$XDG_CONFIG_HOME/catalyst/paths.json`, with roles `worktrees`, `repoRoot` and `replicaDb`. A broken file refuses whenever it is consulted.
+3. Last, the legacy alias `CATALYST_WORK_TREES`. create-worktree never reads it, so it never outranks the manifest.
 
 Residue archives go to `<dirname(worktrees)>/wt-cleanup-archive/<date>/` unless `CATALYST_WT_ARCHIVE` is set. The run log is `$CATALYST_LOGS_DIR/worktree-prune/runs.jsonl`, default `${XDG_STATE_HOME:-~/.local/state}/catalyst/logs`. If a box refuses, tell the user to run the Catalyst installer or export `CATALYST_WORKTREES_DIR`. Never type a path into the command.
 
