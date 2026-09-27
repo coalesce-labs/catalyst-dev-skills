@@ -51,6 +51,8 @@
 # Deliberately NO `set -e` at file scope: this is sourced into a caller's shell
 # and must never terminate it. Every function returns a status instead.
 
+__HD_LIB_DIR="$(cd "$(dirname "${BASH_SOURCE[0]:-${(%):-%x}}")" && pwd)"
+
 # ── internal: absolute physical path of the thoughts/shared root ─────────────
 # Resolves the `thoughts/shared` symlink to its physical target so the returned
 # citation is unambiguous across projects. Borrows the resolution pattern from
@@ -214,14 +216,55 @@ handoff_sync_and_classify() {
 		return 0
 	fi
 
-	if ! command -v humanlayer >/dev/null 2>&1; then
+	# CTC-3792: a thoughts repo declared by the paths contract (CATALYST_THOUGHTS_REPO, paths.json,
+	# <repoRoot>/<owner>/thoughts) is where the handoff must land. A handoff outside it is not durable
+	# where readers look. With no HumanLayer CLI, the declared repo is synced with git directly.
+	local declared="" ident
+	if [ -r "${__HD_LIB_DIR}/thoughts-location.sh" ]; then
+		# shellcheck source=./thoughts-location.sh
+		. "${__HD_LIB_DIR}/thoughts-location.sh"
+		ident="$(catalyst_repo_identity 2>/dev/null || true)"
+		# A refused paths config (a relative CATALYST_THOUGHTS_REPO, a broken paths.json) is not
+		# "nothing declared": the handoff's destination is unknown, so it is not called durable.
+		if ! declared="$(catalyst_thoughts_repo "${ident%%$'\t'*}")"; then
+			echo "handoff_sync_and_classify: the paths contract refused to name the thoughts repo — cannot prove where this handoff belongs" >&2
+			printf '%s\n' "local-only:sync-unavailable"
+			return 0
+		fi
+	fi
+	if [ -n "$declared" ]; then
+		declared="$(cd "$declared" 2>/dev/null && pwd -P || printf '%s' "$declared")"
+		case "$(cd "$(dirname "$target")" 2>/dev/null && pwd -P)/" in
+			"${declared}/"*) ;;
+			*)
+				echo "handoff_sync_and_classify: ${target} is not in the declared thoughts repo ${declared}" >&2
+				printf '%s\n' "local-only:not-in-pushed-tree"
+				return 0
+				;;
+		esac
+	fi
+
+	if command -v humanlayer >/dev/null 2>&1; then
+		if ! humanlayer thoughts sync >/dev/null 2>&1; then
+			echo "handoff_sync_and_classify: \`humanlayer thoughts sync\` exited non-zero" >&2
+			printf '%s\n' "local-only:sync-failed"
+			return 0
+		fi
+	elif [ -n "$declared" ] && command -v git >/dev/null 2>&1; then
+		local rel
+		rel="$(cd "$(dirname "$target")" && pwd -P)/$(basename "$target")"
+		rel="${rel#"${declared}"/}"
+		if ! { git -C "$declared" add -- "$rel" &&
+			{ git -C "$declared" diff --cached --quiet -- "$rel" || git -C "$declared" commit -q -m "handoff: ${rel}" -- "$rel"; } &&
+			git -C "$declared" pull -q --rebase --autostash &&
+			git -C "$declared" push -q; } >/dev/null 2>&1; then
+			echo "handoff_sync_and_classify: git sync of the declared thoughts repo failed" >&2
+			printf '%s\n' "local-only:sync-failed"
+			return 0
+		fi
+	else
 		echo "handoff_sync_and_classify: no \`humanlayer\` on PATH — cannot sync" >&2
 		printf '%s\n' "local-only:sync-unavailable"
-		return 0
-	fi
-	if ! humanlayer thoughts sync >/dev/null 2>&1; then
-		echo "handoff_sync_and_classify: \`humanlayer thoughts sync\` exited non-zero" >&2
-		printf '%s\n' "local-only:sync-failed"
 		return 0
 	fi
 

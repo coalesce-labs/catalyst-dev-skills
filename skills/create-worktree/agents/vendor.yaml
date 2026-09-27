@@ -18,3 +18,4 @@ files:
   - scripts/lib/catalyst-paths.sh
   - scripts/lib/host-identity.sh
   - scripts/lib/catalyst-version.sh
+  - scripts/lib/thoughts-location.sh
