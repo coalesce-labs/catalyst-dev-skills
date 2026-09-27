@@ -165,18 +165,43 @@ const pathsJson = (T, worktrees, extra = {}) => ({
   provenance: {},
 });
 
-describe("roots resolve from the installer, then env, else the script refuses", () => {
-  test("a paths.json present wins over env", () => {
+describe("roots resolve from env, then the installer's paths.json, else the script refuses", () => {
+  test("paths.json supplies every role env leaves unset", () => {
+    const fx = buildFarm();
+    mkdirSync(`${fx.T}/config/catalyst`, { recursive: true });
+    writeFileSync(`${fx.T}/config/catalyst/paths.json`, JSON.stringify(pathsJson(fx.T, `${fx.T}/wt`, { replicaDb: `${fx.T}/replica.db` })));
+    const r = run(fx, ["scan", "--json", "--no-sizes"], { CATALYST_WORKTREES_DIR: undefined, CATALYST_REPLICA_DB: undefined });
+    expect(r.code).toBe(0);
+    expect(r.json.root).toBe(`${fx.T}/wt`);
+    expect(r.json.roots.source).toContain("paths.json");
+    expect(r.json.roots.archive).toBe(`${fx.T}/wt-cleanup-archive`);
+    expect(r.json.linearSource).toBe(`replica ${fx.T}/replica.db`);
+  });
+
+  test("the legacy CATALYST_WORK_TREES alias ranks after paths.json, which create-worktree follows", () => {
     const fx = buildFarm();
     const other = `${fx.T}/other-farm`;
     mkdirSync(other);
     mkdirSync(`${fx.T}/config/catalyst`, { recursive: true });
     writeFileSync(`${fx.T}/config/catalyst/paths.json`, JSON.stringify(pathsJson(fx.T, `${fx.T}/wt`, { replicaDb: `${fx.T}/replica.db` })));
-    const r = run(fx, ["scan", "--json", "--no-sizes"], { CATALYST_WORKTREES_DIR: other, CATALYST_REPLICA_DB: undefined });
+    const r = run(fx, ["scan", "--json", "--no-sizes"], { CATALYST_WORKTREES_DIR: undefined, CATALYST_WORK_TREES: other, CATALYST_REPLICA_DB: undefined });
     expect(r.code).toBe(0);
     expect(r.json.root).toBe(`${fx.T}/wt`);
     expect(r.json.roots.source).toContain("paths.json");
-    expect(r.json.roots.archive).toBe(`${fx.T}/wt-cleanup-archive`);
+  });
+
+  // CTC-3791: the paths contract puts env first, and create-worktree follows it, so the prune
+  // must scan the farm env names or trees created there are never pruned.
+  test("env wins over paths.json, as it does for create-worktree", () => {
+    const fx = buildFarm();
+    const other = `${fx.T}/other-farm`;
+    mkdirSync(other);
+    mkdirSync(`${fx.T}/config/catalyst`, { recursive: true });
+    writeFileSync(`${fx.T}/config/catalyst/paths.json`, JSON.stringify(pathsJson(fx.T, other, { replicaDb: `${fx.T}/replica.db` })));
+    const r = run(fx, ["scan", "--json", "--no-sizes"], { CATALYST_REPLICA_DB: undefined });
+    expect(r.code).toBe(0);
+    expect(r.json.root).toBe(`${fx.T}/wt`);
+    expect(r.json.roots.source).toBe("env CATALYST_WORKTREES_DIR");
     expect(r.json.linearSource).toBe(`replica ${fx.T}/replica.db`);
   });
 
@@ -283,6 +308,22 @@ describe("a farm run removes only what it can prove is finished", () => {
     const log = readFileSync(`${fx.T}/state/catalyst/logs/worktree-prune/runs.jsonl`, "utf8").trim().split("\n").map((l) => JSON.parse(l));
     expect(log.map((l) => l.mode)).toEqual(["scan", "apply-started", "apply"]);
     expect(log[2].totals.removed).toBe(3);
+  });
+});
+
+// CTC-3791: two owners' clones can share a repo name and a ticket, so an archive name can already
+// be taken that day. The earlier archive is never overwritten.
+describe("an archive name already taken that day is never reused", () => {
+  test("the tree's archive goes to <repo>__<tree>-2 and the earlier one is untouched", () => {
+    const fx = buildFarm();
+    const day = join(fx.T, "wt-cleanup-archive", new Date().toISOString().slice(0, 10));
+    const taken = join(day, "owner__merged-residue");
+    mkdirSync(taken, { recursive: true });
+    writeFileSync(join(taken, "meta.json"), "earlier tree");
+    const r = run(fx, ["apply", "--json"]);
+    expect(r.code).toBe(0);
+    expect(readFileSync(join(taken, "meta.json"), "utf8")).toBe("earlier tree");
+    expect(JSON.parse(readFileSync(join(`${taken}-2`, "meta.json"), "utf8")).path).toContain("merged-residue");
   });
 });
 

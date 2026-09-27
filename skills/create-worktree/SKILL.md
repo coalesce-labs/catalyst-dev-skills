@@ -84,16 +84,18 @@ When this command is invoked:
 
 Worktree base directory is resolved in this order:
 
-1. `catalyst.orchestration.worktreeDir` from config (explicit override)
-2. `~/catalyst/wt/<projectKey>/` (default — reads `catalyst.projectKey` from config)
-3. `~/catalyst/wt/<repo>/` (fallback if no config)
+1. `--worktree-dir <path>` (explicit override)
+2. `catalyst.orchestration.worktreeDir` from config
+3. `<worktrees root>/<owner>.<repo>/`, where the root is `CATALYST_WORKTREES_DIR`, else `paths.worktrees` in `~/.config/catalyst/paths.json`, else `~/catalyst/wt`. The owner comes from the origin URL, so two clones that share a repo name (`coalesce-labs/catalyst`, `ryanrozich/catalyst`) never share a folder. Without a parseable origin, the key is `catalyst.projectKey`, else the repo name.
 
-**Recommended**: Add `~/catalyst` to Claude Code's `additionalDirectories` in `~/.claude/settings.json` so all worktrees across projects are automatically trusted.
+A worktree that already exists under an old key (`<root>/<projectKey>/` or `<root>/<repo>/`) and belongs to this repository is used where it is, so a revive never starts a second tree. A relative or unreadable root refuses (exit 2) before anything is created.
 
-**Example layout** (for project with `projectKey: "acme"`):
+**Recommended**: Add the worktrees root (`~/catalyst` by default) to Claude Code's `additionalDirectories` in `~/.claude/settings.json` so all worktrees across projects are automatically trusted.
+
+**Example layout** (origin `git@github.com:acme/app.git`):
 
 ```
-~/catalyst/wt/acme/
+~/catalyst/wt/acme.app/
 ├── ACME-123-feature/
 ├── ACME-456-bugfix/
 └── ENG-789-oauth/
@@ -102,7 +104,7 @@ Worktree base directory is resolved in this order:
 **With orchestration** (multiple named orchestrators):
 
 ```
-~/catalyst/wt/acme/
+~/catalyst/wt/acme.app/
 ├── auth-orch/                       # orchestrator
 ├── auth-orch-ACME-101/              # worker
 ├── auth-orch-ACME-102/              # worker

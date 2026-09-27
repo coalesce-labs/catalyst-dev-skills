@@ -15,10 +15,13 @@
 // Roots, fail-closed (CTC-3644). A destructive tool must not guess where to
 // work, so scan/apply/candidates/remove refuse, exit 2 and touch nothing unless
 // the worktrees root is declared:
-//   1. the installer's machine paths file ($CATALYST_PATHS_FILE, else
-//      $XDG_CONFIG_HOME/catalyst/paths.json): roles `worktrees`, `repoRoot`,
-//      `replicaDb`. It wins over env when present; a broken file refuses.
-//   2. env: CATALYST_WORKTREES_DIR (legacy CATALYST_WORK_TREES), CATALYST_REPO_ROOT.
+//   1. env: CATALYST_WORKTREES_DIR, CATALYST_REPO_ROOT, CATALYST_REPLICA_DB. Env
+//      wins, as the paths contract says (CTC-3791), so this scans the farm
+//      create-worktree writes to.
+//   2. the installer's machine paths file ($CATALYST_PATHS_FILE, else
+//      $XDG_CONFIG_HOME/catalyst/paths.json), for any role env leaves unset:
+//      `worktrees`, `repoRoot`, `replicaDb`. A broken file refuses when consulted.
+//   3. the legacy alias CATALYST_WORK_TREES, which create-worktree never reads.
 // The resolver's own defaults ($CATALYST_HOME/…) are never used here.
 //
 // Safety model:
@@ -130,38 +133,45 @@ if (flag("help")) {
 class Refusal extends Error {}
 
 // resolveRoots(env) → { worktrees, repoRoot, replicaDb, archive, source } or
-// throws Refusal. paths.json first, then env, else refuse.
+// throws Refusal. Per role: env, then paths.json; no worktrees root refuses.
 async function resolveRoots(env) {
+  // The contract variable outranks the manifest; the legacy alias CATALYST_WORK_TREES comes after
+  // it, because create-worktree does not read the alias and would create trees in the manifest's root.
+  const wtEnv = env.CATALYST_WORKTREES_DIR;
   let machine;
   let file;
-  try {
-    file = machinePathsFile({ env });
-    machine = await loadMachinePaths({ env });
-  } catch (err) {
-    throw new Refusal(`machine paths file unusable: ${err.message}`);
+  // The manifest is read only for a role env leaves unset, as resolveCatalystPath does.
+  if (wtEnv === undefined || env.CATALYST_REPO_ROOT === undefined || env.CATALYST_REPLICA_DB === undefined) {
+    try {
+      file = machinePathsFile({ env });
+      machine = await loadMachinePaths({ env });
+    } catch (err) {
+      throw new Refusal(`machine paths file unusable: ${err.message}`);
+    }
   }
-  let roots;
-  if (machine) {
-    roots = {
-      worktrees: machine.paths.worktrees,
-      repoRoot: machine.paths.repoRoot,
-      replicaDb: machine.paths.replicaDb ?? env.CATALYST_REPLICA_DB ?? null,
-      source: `paths.json (${file})`,
-    };
+  let worktrees;
+  let source;
+  if (wtEnv !== undefined) {
+    worktrees = wtEnv;
+    source = "env CATALYST_WORKTREES_DIR";
+  } else if (machine) {
+    worktrees = machine.paths.worktrees;
+    source = `paths.json (${file})`;
+  } else if (env.CATALYST_WORK_TREES !== undefined) {
+    worktrees = env.CATALYST_WORK_TREES;
+    source = "env CATALYST_WORK_TREES";
   } else {
-    const wt = env.CATALYST_WORKTREES_DIR ?? env.CATALYST_WORK_TREES;
-    if (!wt)
-      throw new Refusal(
-        "no worktrees root declared: no machine paths file and neither CATALYST_WORKTREES_DIR nor CATALYST_WORK_TREES is set"
-      );
-    if (!wt.startsWith("/")) throw new Refusal(`worktrees root must be an absolute path, got ${JSON.stringify(wt)}`);
-    roots = {
-      worktrees: wt,
-      repoRoot: env.CATALYST_REPO_ROOT ? resolve(env.CATALYST_REPO_ROOT) : null,
-      replicaDb: env.CATALYST_REPLICA_DB ?? null,
-      source: env.CATALYST_WORKTREES_DIR ? "env CATALYST_WORKTREES_DIR" : "env CATALYST_WORK_TREES",
-    };
+    throw new Refusal(
+      "no worktrees root declared: neither CATALYST_WORKTREES_DIR nor CATALYST_WORK_TREES is set and there is no machine paths file"
+    );
   }
+  if (!worktrees.startsWith("/")) throw new Refusal(`worktrees root must be an absolute path, got ${JSON.stringify(worktrees)}`);
+  const roots = {
+    worktrees,
+    repoRoot: env.CATALYST_REPO_ROOT !== undefined ? resolve(env.CATALYST_REPO_ROOT) : machine?.paths.repoRoot ?? null,
+    replicaDb: env.CATALYST_REPLICA_DB ?? machine?.paths.replicaDb ?? null,
+    source,
+  };
   roots.worktrees = resolve(roots.worktrees);
   if (roots.worktrees === "/" || roots.worktrees === resolve(HOME))
     throw new Refusal(`worktrees root ${roots.worktrees} is / or $HOME; declare the farm directory itself`);
@@ -635,10 +645,21 @@ function newestTouchMs(path, dirty) {
   return newest;
 }
 
+// The archive for one tree, claimed exclusively. Two owners' clones can share a repo name and a
+// ticket (<owner>.<repo> keys, CTC-3791), and a retry can come back the same day, so an existing
+// <repo>__<tree> is never reused: the next free -2, -3, … is taken instead.
 function archiveDir(owner, path) {
-  const dir = join(ROOTS.archive, new Date().toISOString().slice(0, 10), `${basename(owner)}__${basename(path)}`);
-  mkdirSync(dir, { recursive: true });
-  return dir;
+  const base = join(ROOTS.archive, new Date().toISOString().slice(0, 10), `${basename(owner)}__${basename(path)}`);
+  mkdirSync(dirname(base), { recursive: true });
+  for (let n = 1; ; n++) {
+    const dir = n === 1 ? base : `${base}-${n}`;
+    try {
+      mkdirSync(dir);
+      return dir;
+    } catch (err) {
+      if (err.code !== "EEXIST") throw err;
+    }
+  }
 }
 
 // Archive trivial residue: tracked edits as a patch, untracked files as a tar.
