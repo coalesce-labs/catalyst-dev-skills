@@ -18,6 +18,20 @@ bun <skills>/prune-worktrees/scripts/prune-worktrees.mjs apply --include-shipped
 
 `<skills>` is the installed skills directory (the paths.json `skills` role). The job needs the machine paths file, or `CATALYST_WORKTREES_DIR` in its environment, plus `PATH` with `bun`, `git`, `gh` and, on macOS, `lsof`. Exit codes: 0 done, 2 refused (no declared root; nothing touched), 3 the process scan failed (nothing removed), 1 any other error.
 
+The same apply then runs the event-log step (an installer that runs it as its own step sets `CATALYST_HK_EVENTS_STEP=1`, and the apply skips it). By hand:
+
+```bash
+node <skills>/prune-worktrees/scripts/events-housekeeping.mjs run
+```
+
+The events directory is `CATALYST_EVENTS_DIR`, else `paths.events` in the machine paths file, else `~/.local/state/catalyst/events`.
+
+- **Migrate:** each month older than the current one moves from the legacy `~/catalyst/events` into that directory. The legacy file is claimed first by renaming it to `<name>.migrating`, so an unwritable legacy directory fails before anything is copied. A month found in both is merged, legacy lines first, with a newline added if the legacy file lacks a final one. The staged file is removed only after the merged file's size matches the inputs. A staged file left behind by a failure is never merged again. The current month's legacy file stays until next month, because an older writer may still be appending to it.
+- **Prune:** month files (`YYYY-MM.jsonl`, the writer's rotated `YYYY-MM.jsonl.legacy[.<ts>.<pid>]`, and `YYYY-Www.jsonl`, which counts in the month of its Sunday so a week reaching into a kept month is kept) older than the retention are deleted from both directories. The retention is `--keep-months N`, else `CATALYST_EVENTS_RETENTION_MONTHS`, else 6, and the current month always counts as one of them. Nothing else in the directory is touched.
+- **Exit codes:** 0 done, 1 a file failed (named in the output), 2 a bad or missing retention value or an unresolvable events directory (checked before either step, so nothing is touched).
+
+`list` shows every month file in both directories. Use it until the legacy one is empty. `--dry-run` prints the plan without changing anything.
+
 A headless agent that reads the result afterwards may summarise `history --limit 5` and flag kept-dirty trees and repos whose `gh` failed. It never deletes or forces anything itself, and never widens the set past `--include-shipped`.
 
 ## Per-repo review subagent: the ambiguous middle ground
