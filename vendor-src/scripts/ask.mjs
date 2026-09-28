@@ -32,6 +32,7 @@ import { spawnSync } from "node:child_process";
 import { readFileSync, realpathSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { CONTRACT_ASK_LABEL_NAMES, resolveAskLabelNames } from "./lib/board-vocabulary.mjs";
+import { askCopyFindings } from "./lib/ask-copy.mjs";
 import { resolveCommentBody } from "./lib/comment-body-arg.mjs";
 import { resolveAskHuman, resolveAskTeam } from "./lib/tenant-identity.mjs";
 
@@ -533,6 +534,11 @@ function cmdCreate(argv) {
     return 1;
   }
   const body = buildAskBody({ why, options, defaultIfSilent: dflt, blocks });
+  // CTC-4075 — wording warnings, never a refusal (see lib/ask-copy.mjs).
+  const copyFindings = askCopyFindings(`${title}\n${body}`);
+  for (const f of copyFindings) {
+    console.error(`ask create: ⚠️ wording (${f.rule}): "${f.match}". ${f.fix}`);
+  }
 
   // Fail BEFORE writing if what we are about to write cannot be parsed. Filing an
   // undecidable ask and discovering it later is the whole defect.
@@ -580,6 +586,7 @@ function cmdCreate(argv) {
           body,
           parsedOptions: pre.parsed,
           labelIds,
+          copyFindings,
         },
         null,
         2
@@ -675,6 +682,7 @@ function cmdCreate(argv) {
       parsedOptions: post.parsed,
       blocksVerified,
       missingBlocks,
+      copyFindings,
     })
   );
   // ⛔ CTL-2157 — THIS IS A FAILURE, NOT A WARNING. It used to print a ⚠️ and then
