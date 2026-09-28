@@ -38,17 +38,17 @@ catalyst_repo_identity() {
 # Returns 2 when the paths contract refuses (bad variable or manifest) or when the declared path is
 # not a git checkout.
 catalyst_thoughts_repo() {
-  local org="${1:-}" path rc root
-  path="$(catalyst_path thoughtsRepo)"
+  local org="${1:-}" repo_path rc root
+  repo_path="$(catalyst_path thoughtsRepo)"
   rc=$?
   if [[ $rc -eq 0 ]]; then
     # A declared repo must already be a checkout: a missing path would be created as a plain
     # directory and reported as a thoughts destination that can never sync.
-    if [[ ! -e "$path/.git" ]]; then
-      echo "thoughts-location: the declared thoughts repo $path is not a git checkout; clone it there first" >&2
+    if [[ ! -e "$repo_path/.git" ]]; then
+      echo "thoughts-location: the declared thoughts repo $repo_path is not a git checkout; clone it there first" >&2
       return 2
     fi
-    printf '%s' "$path"
+    printf '%s' "$repo_path"
     return 0
   fi
   [[ $rc -eq 3 ]] || return 2
@@ -65,7 +65,7 @@ _tl_physical() { (cd "$1" 2>/dev/null && pwd -P) || printf '%s' "$1"; }
 # never writes: it prints the matching profile, or nothing when none exists yet.
 catalyst_thoughts_profile() {
   local repo="$1" org="${2:-}" preferred="${3:-}" ro="${4:-}"
-  local hl="${HUMANLAYER_CONFIG:-$HOME/.config/humanlayer/humanlayer.json}" want name path tmp
+  local hl="${HUMANLAYER_CONFIG:-$HOME/.config/humanlayer/humanlayer.json}" want name repo_path tmp
   command -v jq >/dev/null 2>&1 || { echo "thoughts-location: jq is required" >&2; return 1; }
   want="$(_tl_physical "$repo")"
   if [[ ! -f "$hl" ]]; then
@@ -84,15 +84,15 @@ catalyst_thoughts_profile() {
     return 0
   fi
   if [[ -n "$preferred" ]]; then
-    path="$(jq -r --arg p "$preferred" '.thoughts.profiles[$p].thoughtsRepo // empty' "$hl" 2>/dev/null)" || return 1
-    if [[ -n "$path" && "$(_tl_physical "$path")" == "$want" ]]; then printf '%s' "$preferred"; return 0; fi
+    repo_path="$(jq -r --arg p "$preferred" '.thoughts.profiles[$p].thoughtsRepo // empty' "$hl" 2>/dev/null)" || return 1
+    if [[ -n "$repo_path" && "$(_tl_physical "$repo_path")" == "$want" ]]; then printf '%s' "$preferred"; return 0; fi
   fi
   # Always a named profile: the repo mapping worktree-thoughts-init.sh writes names it, and an empty
   # name would fall back to .thoughts.defaultProfile, which may describe another repo.
   jq -e '.thoughts | type == "object"' "$hl" >/dev/null 2>&1 || { echo "thoughts-location: cannot read $hl" >&2; return 1; }
-  while IFS=$'\t' read -r name path; do
-    [[ -n "$name" && -n "$path" ]] || continue
-    if [[ "$(_tl_physical "$path")" == "$want" ]]; then printf '%s' "$name"; return 0; fi
+  while IFS=$'\t' read -r name repo_path; do
+    [[ -n "$name" && -n "$repo_path" ]] || continue
+    if [[ "$(_tl_physical "$repo_path")" == "$want" ]]; then printf '%s' "$name"; return 0; fi
   done < <(jq -r '(.thoughts.profiles // {}) | to_entries[] | [.key, (.value.thoughtsRepo // "")] | @tsv' "$hl")
   [[ -z "$ro" ]] || return 0
   name="catalyst-${org:-default}"

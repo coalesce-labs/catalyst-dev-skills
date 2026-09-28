@@ -34,12 +34,12 @@ while [[ $# -gt 0 ]]; do
 done
 
 emit_status() {
-  local status="$1" reason="${2:-}" details="${3:-{\}}"
+  local run_status="$1" reason="${2:-}" details="${3:-{\}}"
   if [[ -n "$reason" ]]; then
-    jq -nc --arg s "$status" --arg r "$reason" --argjson d "$details" \
+    jq -nc --arg s "$run_status" --arg r "$reason" --argjson d "$details" \
       '{status:$s, destination:"slack_channel", reason:$r, details:$d}'
   else
-    jq -nc --arg s "$status" --argjson d "$details" \
+    jq -nc --arg s "$run_status" --argjson d "$details" \
       '{status:$s, destination:"slack_channel", details:$d}'
   fi
 }
