@@ -116,13 +116,13 @@ fi
 
 # ─── Emit helper ───────────────────────────────────────────────────────────
 emit() {
-  local status="$1" destination="$2" identifier="$3" number="$4" url="$5" err="$6"
+  local run_status="$1" destination="$2" identifier="$3" number="$4" url="$5" err="$6"
   local labels_json
   labels_json=$(printf '%s' "$LABELS_CSV" | jq -Rc 'split(",")' 2>/dev/null || echo "[]")
 
   if [ "$JSON_OUT" -eq 1 ]; then
     jq -nc \
-      --arg status "$status" \
+      --arg status "$run_status" \
       --arg destination "$destination" \
       --arg identifier "$identifier" \
       --arg number "$number" \
@@ -139,7 +139,7 @@ emit() {
         error: (if $err == "" then null else $err end)
       }'
   else
-    printf '%s' "$status"
+    printf '%s' "$run_status"
     [ -n "$destination" ] && printf ' → %s' "$destination"
     [ -n "$identifier" ]  && printf ' (%s)' "$identifier"
     [ -n "$number" ]      && printf ' (#%s)' "$number"

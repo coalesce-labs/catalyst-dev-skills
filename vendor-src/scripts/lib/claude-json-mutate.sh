@@ -169,8 +169,8 @@ _cjm_mutate() {
 #                          create this entry — it may be operator-managed)
 _cmd_trust_project() {
   local raw_path="${1:?usage: trust-project <path>}"
-  local path
-  path="$(cd "$raw_path" 2>/dev/null && pwd)" || {
+  local abs_path
+  abs_path="$(cd "$raw_path" 2>/dev/null && pwd)" || {
     echo "claude-json-mutate: trust-project: path does not exist: ${raw_path}" >&2
     return 1
   }
@@ -194,9 +194,9 @@ _cmd_trust_project() {
         "_catalystManaged": true
       }
     end
-  ' --arg p "$path"
+  ' --arg p "$abs_path"
 
-  echo "Trusted: ${path}"
+  echo "Trusted: ${abs_path}"
 }
 
 # ── Subcommand: converge-owned <topLevelKey> <ownedSpecJson> ─────────────────

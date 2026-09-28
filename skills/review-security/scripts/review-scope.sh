@@ -142,21 +142,21 @@ NON_CODE_N=0
 CHANGED_N=0
 BOUNDED_OUT=0
 NEWLINE_PATH=""
-while IFS= read -r -d '' st && IFS= read -r -d '' path; do
+while IFS= read -r -d '' st && IFS= read -r -d '' file_path; do
   CHANGED_N=$((CHANGED_N+1))
   # The scope below is newline-delimited (the files: block, the --files list, the diff command).
   # A git-valid path carrying a newline cannot ride it faithfully, and a quietly split path would
   # make the mandated diff_command diff the wrong files (Codex P2 on #4144): refuse, by name.
-  case "$path" in *"
-"*) NEWLINE_PATH="$(printf '%s' "$path" | tr '\n' '?')" ;; esac
-  if ! list_has "$path"; then BOUNDED_OUT=$((BOUNDED_OUT+1)); continue; fi
-  if is_non_code "$path"; then
+  case "$file_path" in *"
+"*) NEWLINE_PATH="$(printf '%s' "$file_path" | tr '\n' '?')" ;; esac
+  if ! list_has "$file_path"; then BOUNDED_OUT=$((BOUNDED_OUT+1)); continue; fi
+  if is_non_code "$file_path"; then
     NON_CODE_N=$((NON_CODE_N+1))
-    NON_CODE_FILES="${NON_CODE_FILES}  ${st} ${path}
+    NON_CODE_FILES="${NON_CODE_FILES}  ${st} ${file_path}
 "
   else
     CODE_N=$((CODE_N+1))
-    CODE_FILES="${CODE_FILES}  ${st} ${path}
+    CODE_FILES="${CODE_FILES}  ${st} ${file_path}
 "
   fi
 done < "$DIFF_TMP"
