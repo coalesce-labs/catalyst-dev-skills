@@ -6,3 +6,5 @@ files:
   - scripts/lib/paths/node.js
   - scripts/lib/paths/legacy-installer.js
   - scripts/lib/paths/provenance.json
+  - scripts/lib/catalyst-paths.mjs
+  - scripts/events-housekeeping.mjs

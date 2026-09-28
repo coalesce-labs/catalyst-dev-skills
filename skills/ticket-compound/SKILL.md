@@ -48,7 +48,7 @@ For `<TICKET>`, collect:
 2. **The diff** — `git log --oneline origin/main..HEAD` and `git diff --stat origin/main..HEAD`
    (or the merged SHA from `phase-monitor-merge.json`).
 3. **Ticket** — read via direct SQL against the replica (title, description, final state, estimate); see the `linearis` skill's "Reading Linear" section. **Phase-container guard:** skip every `linearis` call when `CATALYST_PHASE` is set (a phase container holds no Linear credential; the runner owns the ticket write-back) or when `command -v linearis` fails (the CLI is not installed); say so in one line and continue.
-4. **Event trail** (optional) — the ticket's lines in `<events dir>/YYYY-MM.jsonl`, where the events dir is `CATALYST_EVENTS_DIR`, else `paths.events` in `~/.config/catalyst/paths.json`, else `~/.local/state/catalyst/events`.
+4. **Event trail** (optional) — the ticket's lines in `<events dir>/YYYY-MM.jsonl`, where the events dir is `CATALYST_EVENTS_DIR`, else `paths.events` in `~/.config/catalyst/paths.json`, else `~/.local/state/catalyst/events`. Until housekeeping has migrated it, older history may still be in `~/catalyst/events`.
 
 Capture learnings from **failed/abandoned** tickets too — the dead-ends are high-signal ("what didn't work" is a first-class section).
 

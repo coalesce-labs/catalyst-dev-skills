@@ -286,6 +286,37 @@ describe("a farm run removes only what it can prove is finished", () => {
   });
 });
 
+// CTC-3790: a housekeeping apply also migrates and prunes the event log, unless the installer runs
+// that as its own step.
+describe("a housekeeping apply runs the event-log step", () => {
+  const seed = (fx) => {
+    const dir = join(fx.T, "state", "catalyst", "events");
+    mkdirSync(dir, { recursive: true });
+    writeFileSync(join(dir, "2020-01.jsonl"), "old\n");
+    return join(dir, "2020-01.jsonl");
+  };
+  test("--actor housekeeping prunes months past the retention", () => {
+    const fx = buildFarm();
+    const old = seed(fx);
+    const r = run(fx, ["apply", "--json", "--actor", "housekeeping"]);
+    expect(r.json.eventsHousekeeping.status).toBe("ok");
+    expect(existsSync(old)).toBe(false);
+  });
+  test("an installer that runs the step itself (CATALYST_HK_EVENTS_STEP=1) is not doubled", () => {
+    const fx = buildFarm();
+    const old = seed(fx);
+    const r = run(fx, ["apply", "--json", "--actor", "housekeeping"], { CATALYST_HK_EVENTS_STEP: "1" });
+    expect(r.json.eventsHousekeeping).toBeUndefined();
+    expect(existsSync(old)).toBe(true);
+  });
+  test("an interactive apply never touches the event log", () => {
+    const fx = buildFarm();
+    const old = seed(fx);
+    run(fx, ["apply", "--json"]);
+    expect(existsSync(old)).toBe(true);
+  });
+});
+
 describe("the process scan fails closed", () => {
   test("a failed scan marks every tree LIVE, removes nothing and exits 3", () => {
     const fx = buildFarm();
