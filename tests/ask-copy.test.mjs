@@ -39,6 +39,19 @@ describe("askCopyFindings", () => {
     expect(rules(text)).toEqual([]);
   });
 
+  test("flags a missing-credential claim, which is often a policy (CTC-3950)", () => {
+    expect(rules("Every path to green needs a credential this phase container does not hold.")).toEqual([
+      "credential-claim",
+    ]);
+    expect(rules("Publishing needs an npm token, which no agent round holds.")).toEqual([
+      "credential-claim",
+    ]);
+  });
+
+  test("a policy stated as policy passes", () => {
+    expect(rules("Publishing is a public release, and public releases need your go.")).toEqual([]);
+  });
+
   test("text that names neither shape passes", () => {
     expect(rules("We create the flag at shadow when you say yes.")).toEqual([]);
   });
