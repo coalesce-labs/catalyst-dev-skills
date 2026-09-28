@@ -13,6 +13,7 @@
     "scripts/briefing-followup/writeback.sh",
     "scripts/briefing-frontmatter-lib.sh",
     "scripts/lib/canonical-event.sh",
+    "scripts/lib/catalyst-paths.sh",
     "scripts/lib/host-identity.sh",
     "scripts/lib/task-type.sh"
   ]

@@ -31,7 +31,7 @@ esac
 | `--no-commit` | Update the markdown in place but do not run `git commit`. |
 | `--no-push` | Commit but do not push. Default in cloud routine mode is push. |
 | `--no-event` | Skip emitting `briefing.followup.complete.<date>`. |
-| `--events-dir DIR` | Override the event log dir (defaults to `$CATALYST_DIR/events`). |
+| `--events-dir DIR` | Override the event log dir. Default: `CATALYST_EVENTS_DIR`, else `paths.events` in `~/.config/catalyst/paths.json`, else `~/.local/state/catalyst/events`. |
 
 ## Idempotence
 

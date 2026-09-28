@@ -3,8 +3,8 @@
 # (CTL-300). Mirrors `plugins/dev/scripts/orch-monitor/lib/canonical-event.ts`
 # so trace/span IDs match deterministically across TS and bash producers.
 #
-# Source this file from any bash producer that writes to
-# ~/catalyst/events/YYYY-MM.jsonl, then call:
+# Source this file from any bash producer that writes to the monthly event log,
+# <events dir>/YYYY-MM.jsonl (catalyst_events_dir, lib/catalyst-paths.sh), then call:
 #
 #   build_canonical_line  → echoes one canonical JSONL line on stdout
 #   derive_trace_id ORCH SESSION → echoes 32-hex (or empty)
@@ -29,6 +29,9 @@ __CE_LIB_DIR="$(cd "$(dirname "$__CE_SELF")" && pwd)"
 # CTL-852: source host-identity primitives (catalyst_host_name, catalyst_host_id).
 # shellcheck source=lib/host-identity.sh
 source "${__CE_LIB_DIR}/host-identity.sh"
+# CTC-3787: catalyst_events_dir / catalyst_path, the machine paths contract.
+# shellcheck source=lib/catalyst-paths.sh
+source "${__CE_LIB_DIR}/catalyst-paths.sh"
 __CE_PLUGIN_JSON="${__CE_LIB_DIR}/../../.claude-plugin/plugin.json" # self-containment: optional (version falls back to 0.0.0)
 __CE_VERSION_CACHED=""
 
@@ -557,9 +560,10 @@ canonical_note_v1_only() {
 }
 
 # _canonical_is_sentinel_leak BASE_DIR LINE
-# Returns 0 (true) if LINE is a sentinel-stamped event aimed at the default
-# production events dir (BASE_DIR resolves to $HOME/catalyst/events). Parity
-# with JS isSentinelLeak in broker/config.mjs (CTL-1086).
+# Returns 0 (true) if LINE is a sentinel-stamped event aimed at a production
+# events dir: the one this machine resolves with no test override (paths.json,
+# else ~/.local/state/catalyst/events), or the legacy one (catalyst_legacy_events_dir)
+# (CTC-3787). Parity with JS isSentinelLeak in broker/config.mjs (CTL-1086).
 _canonical_is_sentinel_leak() {
   local base_dir="$1" line="$2"
   local orch sentinels default_dir
@@ -569,10 +573,17 @@ _canonical_is_sentinel_leak() {
   [[ -n "$orch" ]] || return 1
   sentinels="orch-test ${CATALYST_SENTINEL_ORCHIDS:-}"
   case " $sentinels " in *" $orch "*) ;; *) return 1 ;; esac
-  default_dir="${HOME}/catalyst/events"
+  local base_real candidate
   # Compare resolved real paths so symlinks/trailing slashes don't fool the check.
-  [[ "$(cd "$base_dir" 2>/dev/null && pwd -P || echo "$base_dir")" == \
-     "$(cd "$default_dir" 2>/dev/null && pwd -P || echo "$default_dir")" ]]
+  base_real="$(cd "$base_dir" 2>/dev/null && pwd -P || echo "$base_dir")"
+  for default_dir in \
+    "$(unset CATALYST_EVENTS_DIR CATALYST_DIR; catalyst_path events 2>/dev/null)" \
+    "$(catalyst_legacy_events_dir)"; do
+    [[ -n "$default_dir" ]] || continue
+    candidate="$(cd "$default_dir" 2>/dev/null && pwd -P || echo "$default_dir")"
+    [[ "$base_real" == "$candidate" ]] && return 0
+  done
+  return 1
 }
 
 # ─── CTL-1809: the one atomic append seam ────────────────────────────────────

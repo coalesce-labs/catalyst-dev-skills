@@ -4,13 +4,19 @@
 
 ## Step 12a — Wait for CI checks and automated reviewers (event-driven)
 
-Automated reviewers (Codex, security scanners, linters) typically post within 3–5 minutes; CI needs time too. Use the canonical "Reactive PR lifecycle" pattern (Pattern 3, CTL-228; the `monitor-events` skill that first documented it was removed with the daemon, CTL-2240) — one multi-event subscription that wakes on PR merged, PR closed, CI completed, review submitted, or a push to the base branch — instead of polling on a sleep loop. That subscription needs the unified event log actually live (`~/catalyst/events/YYYY-MM.jsonl` present, not just the `catalyst-events` CLI installed) — on a relay-default host with no live log, the fallback below takes over instead.
+Automated reviewers (Codex, security scanners, linters) typically post within 3–5 minutes; CI needs time too. Use the canonical "Reactive PR lifecycle" pattern (Pattern 3, CTL-228; the `monitor-events` skill that first documented it was removed with the daemon, CTL-2240) — one multi-event subscription that wakes on PR merged, PR closed, CI completed, review submitted, or a push to the base branch — instead of polling on a sleep loop. That subscription needs the unified event log actually live (`<events dir>/YYYY-MM.jsonl`, where the events dir is `CATALYST_EVENTS_DIR`, else `paths.events` in `~/.config/catalyst/paths.json`, else `~/.local/state/catalyst/events` present, not just the `catalyst-events` CLI installed) — on a relay-default host with no live log, the fallback below takes over instead.
 
 ```bash
 REPO=$(gh repo view --json nameWithOwner --jq '.nameWithOwner')
 BASE_BRANCH=$(gh api "repos/${REPO}/pulls/${pr_number}" --jq '.base.ref' 2>/dev/null || echo "main")
 
-EVENT_LOG="${CATALYST_DIR:-$HOME/catalyst}/events/$(date +%Y-%m).jsonl"
+# The events dir, as the producers resolve it: CATALYST_EVENTS_DIR, else $CATALYST_DIR/events (the
+# test-isolation alias), else paths.events in the machine paths file, else the default.
+EVENTS_DIR="${CATALYST_EVENTS_DIR:-${CATALYST_DIR:+$CATALYST_DIR/events}}"
+EVENTS_DIR="${EVENTS_DIR:-$(jq -r '.paths.events // empty' "${CATALYST_PATHS_FILE:-${XDG_CONFIG_HOME:-$HOME/.config}/catalyst/paths.json}" 2>/dev/null)}"
+EVENT_LOG="${EVENTS_DIR:-${XDG_STATE_HOME:-$HOME/.local/state}/catalyst/events}/$(date -u +%Y-%m).jsonl"
+# Until housekeeping migrates it, an older writer may still be filling the legacy log.
+[ -f "$EVENT_LOG" ] || EVENT_LOG="$HOME/catalyst/events/$(date -u +%Y-%m).jsonl"
 if command -v catalyst-events >/dev/null 2>&1 && [ -f "$EVENT_LOG" ]; then
   EVENT_JSON=$(catalyst-events wait-for \
     --filter '
