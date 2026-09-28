@@ -9,6 +9,7 @@ files:
   - scripts/lib/linear-read-replica.sh
   - scripts/lib/linear-identity.sh
   - scripts/lib/canonical-event.sh
+  - scripts/lib/catalyst-paths.sh
   - scripts/lib/host-identity.sh
   - references/merge-blocker-diagnosis.md
   - references/review-thread-resolution.md

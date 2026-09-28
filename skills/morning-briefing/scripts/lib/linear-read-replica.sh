@@ -66,7 +66,8 @@ _lrr_emit_fallback_event() {
   command -v jq >/dev/null 2>&1 || return 0
   # shellcheck disable=SC1090
   . "$lib" 2>/dev/null || return 0
-  local events_dir="${CATALYST_EVENTS_DIR:-${CATALYST_DIR:-$HOME/catalyst}/events}"
+  local events_dir
+  events_dir="$(catalyst_events_dir)" || return 0
   local ts; ts="$(date -u +%Y-%m-%dT%H:%M:%S.000Z)"
   local line
   line="$(build_canonical_line \
@@ -106,7 +107,8 @@ _lrr_emit_read_event() {
   command -v jq >/dev/null 2>&1 || return 0
   # shellcheck disable=SC1090
   . "$lib" 2>/dev/null || return 0
-  local events_dir="${CATALYST_EVENTS_DIR:-${CATALYST_DIR:-$HOME/catalyst}/events}"
+  local events_dir
+  events_dir="$(catalyst_events_dir)" || return 0
   local ts; ts="$(date -u +%Y-%m-%dT%H:%M:%S.000Z)"
   local severity="INFO"; [[ "$result" == "failed" ]] && severity="WARN"
   local -a age_args=(); [[ "$age_ms" =~ ^[0-9]+$ ]] && age_args=(--linear-read-age-ms "$age_ms")

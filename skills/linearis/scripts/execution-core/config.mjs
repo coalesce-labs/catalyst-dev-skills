@@ -126,10 +126,13 @@ export { ENTITLEMENT_MODES, resolveEntitlementMode, getEntitlementMode };
 // deployment-mode.mjs above is one — doctor.mjs runs under bare Node and cannot load
 // this file (its chain reaches bun:sqlite via linear-query.mjs).
 import { resolveGithubFeedMode } from "../lib/github-feed-mode.mjs";
+// CTC-3787: the event log and runs root follow the machine paths contract.
+import { eventMonth, eventsDir, resolveRole } from "../lib/catalyst-paths.mjs";
 
 // --- Paths ---
 // Re-resolved per call so tests can redirect by setting CATALYST_DIR;
-// production launches pin a stable value.
+// production launches pin a stable value. The retired daemon's own state still lives here; the
+// event log and runs root resolve through lib/catalyst-paths.mjs (CTC-3787).
 function catalystDir() {
   return process.env.CATALYST_DIR ?? `${homedir()}/catalyst`;
 }
@@ -422,8 +425,10 @@ export function getRegistryPath() {
 // workers/<TICKET>/phase-<P>.json signal tree. The audit CLI (CTL-649 Phase 5)
 // walks this to join live `claude agents` sessions onto their worker signals.
 // Re-resolved per call so tests redirect via CATALYST_DIR.
+// CTC-3787: <state>/runs from the paths contract; CATALYST_DIR still redirects tests.
 export function getRunsRoot() {
-  return resolve(catalystDir(), "runs");
+  if (process.env.CATALYST_DIR) return resolve(process.env.CATALYST_DIR, "runs");
+  return resolve(resolveRole("state"), "runs");
 }
 
 // Root for `claude --bg` job state dirs — ~/.claude/jobs/<bg_job_id>/state.json.
@@ -436,10 +441,10 @@ export function getJobsRoot() {
 // The unified monthly event log. UTC month to match the writer —
 // orch-monitor/lib/event-writer.ts uses getUTCFullYear/getUTCMonth, so the
 // tailer must resolve the same path or it would follow the wrong file.
+// CTC-3787: CATALYST_EVENTS_DIR, then CATALYST_DIR/events, then paths.json, then
+// ~/.local/state/catalyst/events.
 export function getEventLogPath() {
-  const now = new Date();
-  const ym = `${now.getUTCFullYear()}-${String(now.getUTCMonth() + 1).padStart(2, "0")}`;
-  return resolve(catalystDir(), "events", `${ym}.jsonl`);
+  return resolve(eventsDir(), `${eventMonth()}.jsonl`);
 }
 
 // --- Host identity + cluster roster (CTL-859) ---
