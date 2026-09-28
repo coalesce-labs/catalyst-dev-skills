@@ -1,6 +1,8 @@
 {
   "generatedBy": "catalyst-packaging vendor",
   "files": [
+    "scripts/events-housekeeping.mjs",
+    "scripts/lib/catalyst-paths.mjs",
     "scripts/lib/paths/index.js",
     "scripts/lib/paths/legacy-installer.js",
     "scripts/lib/paths/node.js",
