@@ -51,6 +51,8 @@ When this command is invoked:
 
    If `catalyst.worktree.setup` is defined in config, those commands run in order. Otherwise, the script auto-detects: dependency install (`bun/npm`) + thoughts init.
 
+   **Where thoughts go (CTC-3792).** The script looks for a declared thoughts repo: `CATALYST_THOUGHTS_REPO`, then `paths.thoughtsRepo` in `~/.config/catalyst/paths.json`, then `<repoRoot>/<owner>/thoughts` when that is a checkout. When it finds one, thoughts init points there even without the HumanLayer CLI, and `${PROFILE}` is the HumanLayer profile whose repo it is. If no profile points there, `catalyst-<owner>` is added. With nothing declared, the HumanLayer config decides, as before. `${DIRECTORY}` is `catalyst.thoughts.directory`, else the origin's repo name.
+
    Example config for full control:
 
    ```json
