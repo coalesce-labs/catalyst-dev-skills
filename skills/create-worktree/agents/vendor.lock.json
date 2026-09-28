@@ -13,6 +13,7 @@
     "scripts/lib/emit-reap-intent.sh",
     "scripts/lib/executor.sh",
     "scripts/lib/host-identity.sh",
+    "scripts/lib/thoughts-location.sh",
     "scripts/lib/worktree-presweep.sh",
     "scripts/lib/worktree-remove-guard.sh",
     "scripts/worktree-thoughts-init.sh"

@@ -38,6 +38,19 @@ done
 }
 
 HL="${HUMANLAYER_CONFIG:-$HOME/.config/humanlayer/humanlayer.json}"
+# CTC-3792: with no --profile, a thoughts repo declared by the paths contract (CATALYST_THOUGHTS_REPO,
+# paths.json, <repoRoot>/<owner>/thoughts) picks the profile that points at it, writing a minimal
+# HumanLayer config when there is none.
+if [[ -z "$PROFILE" ]]; then
+	# shellcheck source=lib/thoughts-location.sh
+	source "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/lib/thoughts-location.sh"
+	_WTI_IDENT="$(catalyst_repo_identity 2>/dev/null || true)"
+	_WTI_ORG="${_WTI_IDENT%%$'\t'*}"
+	_WTI_DECLARED="$(catalyst_thoughts_repo "$_WTI_ORG")" || exit 1
+	if [[ -n "$_WTI_DECLARED" ]]; then
+		PROFILE="$(catalyst_thoughts_profile "$_WTI_DECLARED" "$_WTI_ORG")" || exit 1
+	fi
+fi
 [[ -f "$HL" ]] || {
 	echo "worktree-thoughts-init: humanlayer.json not found at $HL" >&2
 	exit 1
