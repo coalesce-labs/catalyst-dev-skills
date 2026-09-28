@@ -36,6 +36,8 @@ node "${CLAUDE_SKILL_DIR}/scripts/ask.mjs" create \
 #   --dry-run   print the body and the parsed options without writing
 ```
 
+Write the why to the three rules in [`references/creating.md`](references/creating.md) → "Writing the why": only the human's real steps, each named exactly, and what each option does.
+
 ⛔ **`--option` (≥2), `--default` and `--blocks` are REQUIRED** (CTL-2157) — the verb refuses without them. `--blocks` is the load-bearing one: an ask that blocks nothing answers into the void (§3).
 
 Why a verb rather than a documented snippet, field-by-field detail, the raw `linearis` form, and the exact body grammar: **[`references/creating.md`](references/creating.md)**.

@@ -17,6 +17,7 @@
     "scripts/execution-core/replica-freshness.mjs",
     "scripts/human-blocked.sh",
     "scripts/identity-report.mjs",
+    "scripts/lib/ask-copy.mjs",
     "scripts/lib/board-vocabulary.mjs",
     "scripts/lib/canonical-event.sh",
     "scripts/lib/catalyst-paths.mjs",
