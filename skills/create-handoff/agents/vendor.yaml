@@ -4,3 +4,5 @@
 # (render --write does it too) and packaging-gate.yml fails on drift.
 files:
   - scripts/lib/handoff-durability.sh
+  - scripts/lib/thoughts-location.sh
+  - scripts/lib/catalyst-paths.sh
