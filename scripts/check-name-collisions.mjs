@@ -12,7 +12,12 @@ import { existsSync, readdirSync, readFileSync } from "node:fs";
 import { join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 
-/** skillNames(repoDir) → [{ name, dir }] for every skills/<dir>/SKILL.md with a frontmatter name. */
+/**
+ * skillNames(repoDir) → [{ name, dir, internal }] for every skills/<dir>/SKILL.md with a frontmatter
+ * name. `internal` is true when the frontmatter carries `metadata: internal: true`, which the
+ * `skills` CLI reads to leave the skill out of an `add --all` install unless it is named with
+ * `--skill` (CTC-3202: the operator-only skills).
+ */
 export function skillNames(repoDir) {
   const skillsRoot = join(repoDir, "skills");
   if (!existsSync(skillsRoot)) throw new Error(`no skills/ directory in ${repoDir}`);
@@ -23,7 +28,8 @@ export function skillNames(repoDir) {
     const front = readFileSync(file, "utf8").match(/^---\n([\s\S]*?)\n---/);
     const name = front?.[1].match(/^name:\s*["']?([^"'\n]+?)["']?\s*$/m)?.[1];
     if (!name) throw new Error(`${file} has no frontmatter name`);
-    out.push({ name, dir });
+    const internal = /^metadata:[ \t]*\n(?:[ \t]+.*\n)*?[ \t]+internal:[ \t]*true[ \t]*$/m.test(`${front[1]}\n`);
+    out.push({ name, dir, internal });
   }
   return out;
 }

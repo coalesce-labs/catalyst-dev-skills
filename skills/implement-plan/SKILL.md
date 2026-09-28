@@ -434,7 +434,7 @@ Lead (Opus) — Coordinates implementation
 
 ## Linear Integration
 
-State names (`stateMap.*`) come from the `linearis` skill's single-source transition table — not restated here.
+State names (`stateMap.*`) come from `.catalyst/config.json`. The canonical transition table is in the operator-only `linearis` skill, which a default install leaves out; without the Linearis CLI (every tenant machine) the transition is skipped, and on a tenant the card moves with the `linear` skill's `catalyst-skills write state` or with the phase runner.
 
 If a ticket is detected (from plan document's `source_ticket` frontmatter or from context):
 

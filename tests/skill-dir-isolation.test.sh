@@ -140,15 +140,15 @@ else
 fi
 
 # Cluster 3 — Linear skills. identity-report is the setup check these skills run first (CTL-2300).
-for skill in ask linear linearis; do
+for skill in ask linearis; do
   run_isolated_expect "${skill}: identity-report runs and names the tenant slot" "$skill" "tenant" \
     'node "$CLAUDE_SKILL_DIR/scripts/identity-report.mjs"'
 done
-for skill in ask gherkin-ticket linear linearis; do
+for skill in ask gherkin-ticket linearis; do
   run_isolated "${skill}: replica read helper sources" "$skill" \
     'source "$CLAUDE_SKILL_DIR/scripts/lib/linear-read-replica.sh" && declare -F linear_read_ticket >/dev/null'
 done
-for skill in linear linearis; do
+for skill in linearis; do
   run_isolated "${skill}: cloud-detection marker helper sources" "$skill" \
     'source "$CLAUDE_SKILL_DIR/scripts/lib/plugin-dirs.sh" && declare -F plugin_dirs_repo_config_path >/dev/null'
 done
