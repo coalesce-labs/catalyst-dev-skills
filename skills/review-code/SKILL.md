@@ -53,7 +53,9 @@ For every candidate, open the file at the cited line and check the claim against
 
 ## Step 5 — Report (read `references/report.md`)
 
-Write the report in the reference's shape: the scope line, the lenses run, the findings with `path:line` / severity / category / confidence / reason, the dropped candidates in one line each, the verdict, and the one-line `catalyst-review-step` JSON entry the validate ladder records. **FAIL** on any surviving finding; **PASS** when none survives. Write it to the output the caller named, or print it if none was named.
+Write the report in the reference's shape: the scope line, the lenses run, the findings with `path:line` / severity / category / confidence / reason, the dropped candidates in one line each, the verdict, and the one-line `catalyst-review-step` JSON entry the validate ladder records. **FAIL** on any surviving finding; **PASS** when none survives. One exception, the re-validate bar below.
+
+**Re-validate bar.** When the caller says this review is a re-validation (the validate prompt's scope block says so, or names a repair scope), a finding fails the step only if it is HIGH, or it is a MEDIUM `correctness` or `security` finding on a line the repair itself wrote. List every other surviving finding under **Follow-ups** in the report, and leave it out of `findings`: it does not fail the step, and the pipeline files it as a follow-up ticket. A first review keeps the plain rule: every surviving finding fails, guideline MEDIUMs included. Why: on 2026-09-26 to 09-28, rounds after the first found a fresh set of confirmed MEDIUM conditional defects each time (87% of flagged locations were new), and the ticket looped instead of shipping with follow-ups (loop-audit, CTC-3912). Write it to the output the caller named, or print it if none was named.
 
 ## Never
 

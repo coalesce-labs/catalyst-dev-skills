@@ -41,6 +41,8 @@ If no Validation Report is in context and no report file is named in your prompt
 
 **No code change is a valid outcome** when every finding is non-`valid`. Locally, reply with the per-finding evidence. In a cloud round, follow the reference's "Cloud rounds" section: a validate-report finding has no manifest entry, so write `remediation.json` as `[]` and put the per-finding evidence in `adjudication.json`'s `reasoning` with `next_stage: "advance"`. Never leave the tree untouched without that evidence.
 
+**One repair round per validate report, and a cap.** A ticket gets one remediate round for its validate findings; the pipeline then rechecks the repair once and moves the ticket to PR, filing what remains as follow-ups. This is the same rule the local relay follows (cap yourself at two remediation rounds; a third failure is report-and-stop). If the dispatch prompt says this round is past the cap, repair nothing: file each remaining finding as a follow-up, record it in `adjudication.json`, and stop. The platform enforces the count (CTC-3915); this text makes the session agree with it.
+
 **Escalate instead of looping** (reference rule 12): when a finding recurs after a fix aimed at it, needs an architecture, contract or migration change, contradicts the plan or an ADR, or cannot be verified, raise an ask — `$CATALYST_ARTIFACT_DIR/decisions.json` in a cloud round, `catalyst-dev:ask` locally — and do not start another round.
 
 ## Phase-completion evidence
