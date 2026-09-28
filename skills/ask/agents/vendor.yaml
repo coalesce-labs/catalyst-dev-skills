@@ -33,6 +33,7 @@ files:
   - scripts/ask.mjs
   - scripts/linear-ack.mjs
   - scripts/lib/board-vocabulary.mjs
+  - scripts/lib/ask-copy.mjs
   - scripts/ask-triage.sh
   - scripts/human-blocked.sh
   - scripts/lib/tenant-contract.default.json

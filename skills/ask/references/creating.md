@@ -26,6 +26,16 @@ The body shape below is parsed by the decision trigger (`apps/mirror/src/do/ask-
   (`A`, `A.`, `option A`) or the option's exact text, or `DECIDED: <free text>`. `(A)` inside a sentence is NOT recognized until CTC-653 lands. The trigger is deterministic — no LLM reads the reply (CTC-554).
 - Priority 1 if it blocks a live customer path, else 2.
 
+## Writing the why (CTC-4075)
+
+Ryan, 2026-09-28, on an ask that told him to add a GitHub App permission and create a Flagship flag: "I don't think I'm the only one who can create the flagship flag, so I don't know why it's telling me I need to do that. I don't know what permissions I need to add." The permission was already granted, and agents create Flagship flags.
+
+1. **Never say "only you" unless it is true.** Before you list a step for the human, check whether an agent can do it (Flagship flags, Linear writes and most GitHub API calls are agent-doable), and whether it is already done. List only the steps a human really must do, and say who does the rest: "we'll create the flag".
+2. **Name the exact thing and where to do it.** The App by the name GitHub shows ("Catalyst Cloud Connector"), the permission as GitHub labels it ("Commit statuses: Read-only", not `statuses: read`), a direct settings link, and the follow-up step (accept the new permissions on the installation).
+3. **Say why in one line, then what each option does.** One sentence on what the answer unblocks, then one line per option on what happens if the human picks it.
+
+`ask.mjs create` warns (it never refuses) when the text says "only you" or names a GitHub App with no settings link; the warnings are in its JSON as `copyFindings`. The Waiting on me card applies the same rules when it rewrites the ask (`apps/mirror/src/ask-ui/prompt.ts` in catalyst-cloud), but it can only work with what the ask says.
+
 The raw form, for reference (or when you must hand-build). Read the two identities out of the config rather than typing them — a pasted id is how a single-tenant assumption spreads:
 
 ```bash
