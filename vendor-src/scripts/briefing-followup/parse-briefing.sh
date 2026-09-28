@@ -125,11 +125,11 @@ json.dump(data, sys.stdout, default=str)
 
 # Filter a decisions JSON array by status. Pass "all" to skip filtering.
 filter_decisions_json() {
-  local status="$1"
-  if [[ "$status" == "all" ]]; then
+  local run_status="$1"
+  if [[ "$run_status" == "all" ]]; then
     jq '.decisions // []'
   else
-    jq --arg s "$status" '[(.decisions // [])[] | select(.status == $s)]'
+    jq --arg s "$run_status" '[(.decisions // [])[] | select(.status == $s)]'
   fi
 }
 
