@@ -42,6 +42,18 @@ One JSON object per run, printed last. It is the unit of evaluation: the verdict
 - `confidence` is 0 to 1: how likely a careful human reviewer agrees with the classification and the chosen action.
 - `pattern` and every `secondary_patterns` entry come from the closed table in classify.md (`other` when nothing fits, explained in `notes`). Specifics go in `pattern_detail`, never in a new tag.
 - Every `findings[].evidence` matches an entry in `evidence_checked`.
+- `pattern` is `moot` when the premise check ended the run; the record then carries one finding and no `options_considered` beyond the ask's own default.
+- `proposed_answer` is present only on a `decidable` record, and omitted on every other class:
+
+  ```json
+  "proposed_answer": { "option_label": "B — Keep the default and ship the safe half", "confidence": 0.86 }
+  ```
+
+  `option_label` is one of the ask's listed options, copied verbatim (letter, dash and text), so the platform can match it without interpretation. `confidence` is 0 to 1 for this option alone. The platform applies an answer only at 0.8 or above and escalates the rest, so report the confidence you have.
+
+## Where it goes
+
+On a laptop, print it to stdout as the last output. In a triage container, write it to `$CATALYST_ARTIFACT_DIR/ask-triage.json` and print it too ([`container.md`](container.md)). One run writes one record.
 
 ## Telemetry the caller adds
 

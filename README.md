@@ -15,7 +15,7 @@ the inspection rule is below.
 npx skills@latest add coalesce-labs/catalyst-dev-skills --all -g
 ```
 
-It installs all 35 skills for each agent it detects (Claude Code, Codex, OpenCode, Cursor and the rest). These skills are yours, not a repository's: `-g` installs into your home directory, and a project-scoped install is not a supported shape (CTC-2558). If a project has an older skill install, inspect its lock file and each agent's skill path before removing anything. Remove only copies proven to come from the deprecated `coalesce-labs/catalyst` repository or project-scoped copies of this pack that you intend to replace. Keep unrelated and uncertain copies.
+It installs all 36 skills for each agent it detects (Claude Code, Codex, OpenCode, Cursor and the rest). These skills are yours, not a repository's: `-g` installs into your home directory, and a project-scoped install is not a supported shape (CTC-2558). If a project has an older skill install, inspect its lock file and each agent's skill path before removing anything. Remove only copies proven to come from the deprecated `coalesce-labs/catalyst` repository or project-scoped copies of this pack that you intend to replace. Keep unrelated and uncertain copies.
 
 The add command replaces existing same-named skill directories and links. Before either first install or refresh on an existing machine, read `$XDG_STATE_HOME/skills/.skill-lock.json` when `XDG_STATE_HOME` is set, or `~/.agents/.skill-lock.json` otherwise. Check every same-named agent path. Proceed only when each destination is absent or a verified, unmodified copy of this pack or its link. A lock entry alone does not prove every path is safe. Leave independent, changed, or uncertain copies in place and resolve the conflict before running the command. Do not schedule the raw command as an unattended refresh. Once destinations are verified, refresh the pack, including newly added skills, with:
 
@@ -63,7 +63,7 @@ The `npx skills` install reads this repository's `skills/` tree; it does not pub
 **Linear and coordination**
 - `linear`: ticket workflow on a Catalyst Cloud tenant (create from a thoughts doc, comment, move, search), through the Cloud pack's `catalyst-skills` CLI as the tenant's app actor.
 - `ask`: raise a decision for a human as a ticket and close it when answered.
-- `ask-triage`: investigate one open ask, move it when the stall is mechanical, and record the verdict with its reasoning.
+- `unsticker`: investigate one open ask, move it when the stall is mechanical, and record the verdict with its reasoning. In a Catalyst Cloud `triage` container it only reads and writes its record. `ask-triage` is its old name, kept as an alias.
 - `steward`, `project-orchestrator`: long-running owners of a project and of a project's ready backlog.
 - `concierge`, `linearis`: operator-only (see Install): the owner of a human's board, and the Linearis CLI reference with the read-from-replica rule.
 - `create-handoff`, `resume-handoff`: hand work to another session and pick it up.

@@ -33,7 +33,7 @@ Then answer or close the ask with a `[bookkeeping]` comment that names what was 
 This release proposes only. Post one comment:
 
 ```
-[bookkeeping] ask-triage proposal: <option>. Why: <one or two sentences with evidence>. Source: <default | ADR-… | plan | evidence>. Nothing was changed; the human can overrule or accept.
+[bookkeeping] unsticker proposal: <option>. Why: <one or two sentences with evidence>. Source: <default | ADR-… | plan | evidence>. Nothing was changed; the human can overrule or accept.
 ```
 
 When a decidable answer is later applied (after a human accepts it, or once the eval grants the class autonomy): an agent or app-actor comment does not fire the automatic decision path, which listens only to the assignee. Post the answer as the app actor, move the ask to Done so its `blocks` edge goes terminal, and post the decision on the subject too, because the resumed phase learns the answer only from comments.
@@ -43,7 +43,7 @@ When a decidable answer is later applied (after a human accepts it, or once the 
 Post one short recommendation and nothing else:
 
 ```
-[bookkeeping] ask-triage recommendation: <option>, because <evidence>. This needs a human because <the limit it hits>. No action taken.
+[bookkeeping] unsticker recommendation: <option>, because <evidence>. This needs a human because <the limit it hits>. No action taken.
 ```
 
 Post nothing when the newest comment already says the same thing; a second copy is noise.
