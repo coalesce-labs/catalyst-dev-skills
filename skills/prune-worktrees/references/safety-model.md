@@ -4,7 +4,7 @@ The script decides everything below. Read this to explain a verdict, not to act 
 
 ## How a tree is classified
 
-Discovery walks the worktrees root two levels deep (`<project>/<ticket>`). A leaf is a directory whose `.git` is a gitdir pointer file. A `.git` directory is a full clone: it is reported and never touched. A directory with neither is a stray, removed by `apply` only when empty.
+Discovery walks the worktrees root in both layouts: the flat `<project>/<ticket>` and the by-org `<org>/<repo>/<ticket>` create-worktree now writes (CTC-3906). Symlinks are never followed, so a compatibility link left at an old flat path is not counted twice. A leaf is a directory whose `.git` is a gitdir pointer file. A `.git` directory is a full clone: it is reported and never touched. A directory with neither is a stray, removed by `apply` only when empty.
 
 Each leaf's pointer names its owner repo. Per owner, the script reads `git worktree list --porcelain` and one full `gh pr list --state all`. A leaf the owner does not list is reported as unregistered and never touched. Then, per tree, in order:
 
@@ -33,7 +33,7 @@ If `gh pr list` fails twice for a repo, its trees get no PR evidence and stay AC
    - anywhere in the tree: `.envrc`, `__pycache__/`, `.turbo/`, `coverage/`, `.session-id`, and the context file the retired Claude workflow hook left behind;
    - these exact paths from the tree root: `.catalyst/config.json.bak-*`, `.catalyst/hosts.json`, `.catalyst/findings/current.jsonl`, `.claude/rules/skill-references.md`, `.codex/agents/<name>.toml` and `.claude/scheduled_tasks.lock` (CTC-3654, from a survey of mini-2's kept-dirty trees). Any other `.claude/rules/` file is real work.
 
-   A residue file may be an edit, a deletion or untracked. catalyst committed `scheduled_tasks.lock` by mistake, so worktrees show it deleted. Tracked edits and deletions go to `changes.patch` (`git diff HEAD`), and untracked files to `untracked.tar.gz`, under `<archive>/<date>/<repo>__<tree>/`. Only then does `git worktree remove --force` run. `--force` is used in no other case.
+   A residue file may be an edit, a deletion or untracked. catalyst committed `scheduled_tasks.lock` by mistake, so worktrees show it deleted. Tracked edits and deletions go to `changes.patch` (`git diff HEAD`), and untracked files to `untracked.tar.gz`, under `<archive>/<date>/<repo>__<tree>/`, or `<repo>__<tree>-2/` and so on when that name is already taken that day (two owners' clones can share a repo name, CTC-3791), so no archive is ever overwritten. Only then does `git worktree remove --force` run. `--force` is used in no other case.
 7. **Branch.** `git branch -d` runs first. If it refuses (a squash merge always does) and the class is MERGED, CLOSED_NO_MERGE, TICKET_SHIPPED or TICKET_DONE, the commits not on origin's default branch go to `unpushed.bundle`. The bundle is verified, then the branch is deleted with `-D`. Any other class keeps the branch. `meta.json` beside the archive records the class and reason.
 
 Remote branches are never deleted.
