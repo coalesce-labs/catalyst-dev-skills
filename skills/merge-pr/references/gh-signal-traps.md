@@ -56,7 +56,9 @@ Two more ways a naive check over-counts: (1) counting *any* review object, from 
 
 A THIRD trap sits inside that second one: you can't fix it by comparing the reaction's `created_at` against the pushed commit's `.commit.committer.date` — the committer date is client-set at commit-creation time, not server-set at push time, so stacked or rebased commits routinely carry a committer date that PREDATES a reaction that already reviewed an earlier head. A stale reaction then reads as newer than the push it never saw, and the check reports `REVIEWED` on unreviewed code.
 
-**Fix: scope to the specific automated reviewer, exclude an explicit rejection, and use a BASELINE of prior reaction ids — never a timestamp — to prove a reaction is new.** Three mechanical requirements this snippet has to get right: `gh api --jq` takes exactly one query string and has no `--arg`/`--argjson` of its own (those are `jq`'s flags, not `gh api`'s — pipe to a separate `jq` invocation instead); the baseline snapshot must be taken AFTER the push lands, not before, since a review of the still-in-flight OLD head can complete in the gap between an earlier snapshot and the push actually landing; and — because a bounded-poll wait can itself span a LATER push (a remediation or update-branch commit landing mid-wait) — the baseline must be re-captured (and review re-requested) every time `HEAD_SHA` changes, never taken once and reused for the rest of the wait.
+**Fix: scope to the specific automated reviewer, exclude an explicit rejection, and use a BASELINE of prior reaction ids — never a timestamp — to prove a reaction is new.** Three mechanical requirements this snippet has to get right: `gh api --jq` takes exactly one query string and has no `--arg`/`--argjson` of its own (those are `jq`'s flags, not `gh api`'s — pipe to a separate `jq` invocation instead); the baseline snapshot must be taken AFTER the push lands, not before, since a review of the still-in-flight OLD head can complete in the gap between an earlier snapshot and the push actually landing; and, because a bounded-poll wait can itself span a LATER push (a remediation or update-branch commit landing mid-wait), the baseline must be re-captured every time `HEAD_SHA` changes, never taken once and reused for the rest of the wait.
+
+**Capturing a baseline never asks for a review.** Asking is a separate, guarded step, `request_review_once`. On a repository whose review asks are managed by the Catalyst Cloud mirror, you never ask: the mirror asks the reviewer once per head (catalyst-cloud CTC-3845, CTC-3924) and publishes a `Review Evidence` check run on that head, which is how you detect it. Elsewhere you ask at most once per head, and not at all when the reviewer already reviewed that head. Why: when this snippet asked on every head change, seats posted `@codex review` 50 times in 7.5 h on 2026-09-28. Each one could restart the reviewer on a head it had already passed, raise a fresh P2 and dequeue the PR (CTC-3968).
 
 ```bash
 BOT_LOGIN="chatgpt-codex-connector[bot]"   # the automated reviewer configured for this repo — the GitHub App suffix is part of the login, verify with: gh api repos/{owner}/{repo}/pulls/{n}/reviews --jq '[.[].user.login] | unique'
@@ -67,16 +69,30 @@ snapshot_baseline() {
   BASELINE_IDS=$(gh api "repos/${REPO}/issues/${PR_NUMBER}/reactions" \
     -H "Accept: application/vnd.github.squirrel-girl-preview+json" \
     | jq --arg bot "$BOT_LOGIN" '[.[] | select(.content == "+1" and .user.login == $bot) | .id]')
-  gh pr comment "$PR_NUMBER" --body "@codex review" >/dev/null
+}
+
+request_review_once() {
+  # Guarded ask. Never on a mirror-managed repo, never twice for one head, never for a head the reviewer already reviewed.
+  local head="$1"
+  if [ "$(gh api "repos/${REPO}/commits/${head}/check-runs?check_name=Review%20Evidence" --jq '.total_count')" -gt 0 ]; then
+    return 0   # the mirror asks the reviewer once per head on this repo; asking again restarts it
+  fi
+  [ "${ASKED_HEAD:-}" = "$head" ] && return 0
+  if [ "$(gh api "repos/${REPO}/pulls/${PR_NUMBER}/reviews" | jq --arg sha "$head" --arg bot "$BOT_LOGIN" '[.[] | select(.user.login == $bot and .commit_id == $sha)] | length')" -gt 0 ]; then
+    return 0   # already reviewed at this head
+  fi
+  gh pr comment "$PR_NUMBER" --body "@codex review" >/dev/null && ASKED_HEAD="$head"
 }
 
 snapshot_baseline   # first push already landed before entering the wait
+request_review_once "$BASELINE_HEAD_SHA"
 
 # Bounded-poll tick (see bounded-poll.md for the ceiling/interval this sits inside):
 HEAD_SHA=$(gh api "repos/${REPO}/pulls/${PR_NUMBER}" --jq '.head.sha')
 if [ "$HEAD_SHA" != "$BASELINE_HEAD_SHA" ]; then
   # A remediation/update-branch push landed mid-wait — the old baseline no longer proves anything about this head. Re-baseline and re-request before evaluating.
   snapshot_baseline
+  request_review_once "$BASELINE_HEAD_SHA"
 fi
 
 BOT_REVIEW=$(gh api "repos/${REPO}/pulls/${PR_NUMBER}/reviews" \
