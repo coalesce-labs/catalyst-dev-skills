@@ -10,9 +10,9 @@
 import { describe, test, expect, afterAll, setDefaultTimeout } from "bun:test";
 import { Database } from "bun:sqlite";
 import { execFileSync } from "node:child_process";
-import { chmodSync, existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, realpathSync, rmSync, statSync, utimesSync, writeFileSync } from "node:fs";
+import { chmodSync, existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, realpathSync, rmSync, statSync, symlinkSync, utimesSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
-import { join } from "node:path";
+import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 
 const SCRIPT = fileURLToPath(new URL("../skills/prune-worktrees/scripts/prune-worktrees.mjs", import.meta.url));
@@ -165,18 +165,43 @@ const pathsJson = (T, worktrees, extra = {}) => ({
   provenance: {},
 });
 
-describe("roots resolve from the installer, then env, else the script refuses", () => {
-  test("a paths.json present wins over env", () => {
+describe("roots resolve from env, then the installer's paths.json, else the script refuses", () => {
+  test("paths.json supplies every role env leaves unset", () => {
+    const fx = buildFarm();
+    mkdirSync(`${fx.T}/config/catalyst`, { recursive: true });
+    writeFileSync(`${fx.T}/config/catalyst/paths.json`, JSON.stringify(pathsJson(fx.T, `${fx.T}/wt`, { replicaDb: `${fx.T}/replica.db` })));
+    const r = run(fx, ["scan", "--json", "--no-sizes"], { CATALYST_WORKTREES_DIR: undefined, CATALYST_REPLICA_DB: undefined });
+    expect(r.code).toBe(0);
+    expect(r.json.root).toBe(`${fx.T}/wt`);
+    expect(r.json.roots.source).toContain("paths.json");
+    expect(r.json.roots.archive).toBe(`${fx.T}/wt-cleanup-archive`);
+    expect(r.json.linearSource).toBe(`replica ${fx.T}/replica.db`);
+  });
+
+  test("the legacy CATALYST_WORK_TREES alias ranks after paths.json, which create-worktree follows", () => {
     const fx = buildFarm();
     const other = `${fx.T}/other-farm`;
     mkdirSync(other);
     mkdirSync(`${fx.T}/config/catalyst`, { recursive: true });
     writeFileSync(`${fx.T}/config/catalyst/paths.json`, JSON.stringify(pathsJson(fx.T, `${fx.T}/wt`, { replicaDb: `${fx.T}/replica.db` })));
-    const r = run(fx, ["scan", "--json", "--no-sizes"], { CATALYST_WORKTREES_DIR: other, CATALYST_REPLICA_DB: undefined });
+    const r = run(fx, ["scan", "--json", "--no-sizes"], { CATALYST_WORKTREES_DIR: undefined, CATALYST_WORK_TREES: other, CATALYST_REPLICA_DB: undefined });
     expect(r.code).toBe(0);
     expect(r.json.root).toBe(`${fx.T}/wt`);
     expect(r.json.roots.source).toContain("paths.json");
-    expect(r.json.roots.archive).toBe(`${fx.T}/wt-cleanup-archive`);
+  });
+
+  // CTC-3791: the paths contract puts env first, and create-worktree follows it, so the prune
+  // must scan the farm env names or trees created there are never pruned.
+  test("env wins over paths.json, as it does for create-worktree", () => {
+    const fx = buildFarm();
+    const other = `${fx.T}/other-farm`;
+    mkdirSync(other);
+    mkdirSync(`${fx.T}/config/catalyst`, { recursive: true });
+    writeFileSync(`${fx.T}/config/catalyst/paths.json`, JSON.stringify(pathsJson(fx.T, other, { replicaDb: `${fx.T}/replica.db` })));
+    const r = run(fx, ["scan", "--json", "--no-sizes"], { CATALYST_REPLICA_DB: undefined });
+    expect(r.code).toBe(0);
+    expect(r.json.root).toBe(`${fx.T}/wt`);
+    expect(r.json.roots.source).toBe("env CATALYST_WORKTREES_DIR");
     expect(r.json.linearSource).toBe(`replica ${fx.T}/replica.db`);
   });
 
@@ -286,6 +311,22 @@ describe("a farm run removes only what it can prove is finished", () => {
   });
 });
 
+// CTC-3791: two owners' clones can share a repo name and a ticket, so an archive name can already
+// be taken that day. The earlier archive is never overwritten.
+describe("an archive name already taken that day is never reused", () => {
+  test("the tree's archive goes to <repo>__<tree>-2 and the earlier one is untouched", () => {
+    const fx = buildFarm();
+    const day = join(fx.T, "wt-cleanup-archive", new Date().toISOString().slice(0, 10));
+    const taken = join(day, "owner__merged-residue");
+    mkdirSync(taken, { recursive: true });
+    writeFileSync(join(taken, "meta.json"), "earlier tree");
+    const r = run(fx, ["apply", "--json"]);
+    expect(r.code).toBe(0);
+    expect(readFileSync(join(taken, "meta.json"), "utf8")).toBe("earlier tree");
+    expect(JSON.parse(readFileSync(join(`${taken}-2`, "meta.json"), "utf8")).path).toContain("merged-residue");
+  });
+});
+
 // CTC-3790: a housekeeping apply also migrates and prunes the event log, unless the installer runs
 // that as its own step.
 describe("a housekeeping apply runs the event-log step", () => {
@@ -314,6 +355,24 @@ describe("a housekeeping apply runs the event-log step", () => {
     const old = seed(fx);
     run(fx, ["apply", "--json"]);
     expect(existsSync(old)).toBe(true);
+  });
+});
+
+// CTC-3906: create-worktree nests trees by org, <root>/<org>/<repo>/<leaf>; the flat layout still counts.
+describe("the by-org layout is discovered beside the flat one", () => {
+  test("a tree under <org>/<repo> is scanned and pruned, and a compatibility symlink is not counted twice", () => {
+    const fx = buildFarm();
+    const root = dirname(fx.W);
+    const moved = join(root, "acme", "repo", "merged-residue");
+    mkdirSync(dirname(moved), { recursive: true });
+    fx.g("-C", fx.R, "worktree", "move", join(fx.W, "merged-residue"), moved);
+    symlinkSync(join(root, "acme", "repo"), join(root, "compat-link"));
+    const scan = run(fx, ["scan", "--json", "--no-sizes"]);
+    const hits = rows(scan.json).filter((r) => r.path.endsWith("/merged-residue"));
+    expect(hits.map((r) => r.path)).toEqual([moved]);
+    expect(hits[0].classification).toBe("MERGED");
+    run(fx, ["apply", "--json"]);
+    expect(existsSync(moved)).toBe(false);
   });
 });
 
