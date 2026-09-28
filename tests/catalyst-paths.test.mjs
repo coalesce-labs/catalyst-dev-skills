@@ -133,6 +133,7 @@ describe("catalyst-paths resolvers", () => {
 // legacy constant and the vendored paths package are the only places that may name one.
 const HARDCODED = [
   /(\$HOME|\$\{HOME\}|~|homedir\(\)\}?)\/catalyst\/events/,
+  /(\$HOME|\$\{HOME\}|~|homedir\(\)\}?)\/catalyst\/wt\b/,
   /catalystDir\(\),\s*["']events["']/,
 ];
 const EXEMPT = [/^lib\/catalyst-paths\.(sh|mjs)$/, /^lib\/paths\//];
@@ -146,11 +147,11 @@ function scripts(dir, base = dir) {
 
 describe("no hardcoded Catalyst paths in vendor-src/scripts", () => {
   test("control: the pattern catches the old forms", () => {
-    for (const line of ['dir="$HOME/catalyst/events"', 'x="${HOME}/catalyst/events"', "resolve(catalystDir(), \"events\", ym)"])
+    for (const line of ['dir="$HOME/catalyst/events"', 'WORKTREES_BASE="$HOME/catalyst/wt/${KEY}"', 'x="${HOME}/catalyst/events"', "resolve(catalystDir(), \"events\", ym)"])
       expect(HARDCODED.some((re) => re.test(line))).toBe(true);
   });
 
-  test("every event-log path goes through lib/catalyst-paths", () => {
+  test("every event-log and worktree path goes through lib/catalyst-paths", () => {
     const root = join(repoRoot, "vendor-src/scripts");
     const hits = scripts(root)
       .filter((rel) => !EXEMPT.some((re) => re.test(rel)))
@@ -161,4 +162,26 @@ describe("no hardcoded Catalyst paths in vendor-src/scripts", () => {
       );
     expect(hits).toEqual([]);
   });
+});
+
+// CTC-3791: an owner comes only from a hosted origin, never from a local path.
+// handoff-durability.sh can run under zsh, so the parser must not depend on BASH_REMATCH.
+const SHELLS = ["bash", ...(spawnSync("zsh", ["-c", "true"]).status === 0 ? ["zsh"] : [])];
+describe.each(SHELLS)("catalyst_parse_origin (%s)", (shell) => {
+  const parse = (url) => spawnSync(shell, ["-c", `source '${SH}'; catalyst_parse_origin "$1"`, "x", url], { encoding: "utf8" });
+  for (const [url, expected] of [
+    ["git@github.com:coalesce-labs/catalyst.git", "coalesce-labs\tcatalyst"],
+    ["github.com:coalesce-labs/catalyst.git", "coalesce-labs\tcatalyst"],
+    ["https://github.com/coalesce-labs/catalyst", "coalesce-labs\tcatalyst"],
+    ["ssh://git@gitlab.example.com/acme/app.v2.git", "acme\tapp.v2"],
+    ["/srv/git/acme/app.git", null],
+    ["file:///srv/git/acme/app.git", null],
+    ["../acme/app", null],
+  ]) {
+    test(`${url} → ${expected ?? "no owner"}`, () => {
+      const r = parse(url);
+      if (expected === null) expect(r.status).toBe(1);
+      else expect(r.stdout).toBe(expected);
+    });
+  }
 });
