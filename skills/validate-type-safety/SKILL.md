@@ -19,7 +19,8 @@ When `CATALYST_PHASE` or `CATALYST_STAGE` is `validate`, this skill is one gate 
    - If the branch has a pull request whose head is `HEAD` (`gh pr view --json number,headRefOid`), read its checks (`gh pr checks --json name,state,bucket,link`). All required checks completed and passing means Step 4 is PASS: cite the run link, and run no suite yourself. A required check that failed means Step 4 is FAIL: cite that job's link.
    - If the checks at `HEAD` are still pending, there is no pull request, or `gh` cannot read it: run the type check, then only the test suites of the packages the diff touches, each under its own `timeout`.
    - If a command times out, record that step as not run with the timeout named. Never describe a tool you did not call as refused or blocked.
-3. **Name the failing sub-step.** On a FAIL, the ladder's `type-safety` entry carries `substep`: the first step below that failed, as `typecheck` (Step 1), `reward-hacking` (Step 2), `test-inclusion` (Step 3), `tests` (Step 4) or `lint` (Step 5). The remediate stage reads it to pick its fix, so a flaky test never reads the same as a type error. Omit it on any other verdict.
+4. **A failure the branch did not introduce is pre-existing, not a FAIL.** Before recording a failing test, type error or lint error, check whether it also fails at the review base (`refs/catalyst/validate-base`, or the merge-base with the default branch): check out that path at the base in a scratch worktree, or read the PR's base-branch CI for the same check. If it fails there too, record the step PASS with `"preexisting":true` on the `type-safety` entry, and name the failing test or check and the base result in `detail`. FAIL only on failures this branch introduces. Info-level linter output (for example shellcheck `info` codes such as SC2015) never fails the step. Why: on 2026-09-26 to 09-28, CTC-2252, CTC-2570, CTC-3363 and CTC-3013 each failed type-safety only on failures carried in from main or on an info-level lint code (loop-audit, CTC-3912).
+5. **Name the failing sub-step.** On a FAIL, the ladder's `type-safety` entry carries `substep`: the first step below that failed, as `typecheck` (Step 1), `reward-hacking` (Step 2), `test-inclusion` (Step 3), `tests` (Step 4) or `lint` (Step 5). The remediate stage reads it to pick its fix, so a flaky test never reads the same as a type error. Omit it on any other verdict.
 
 Everywhere else (on a workstation, or when `/implement-plan` runs this as its gate) the local rules below apply, including fixing what fails.
 
@@ -190,7 +191,7 @@ Present results in this format:
 - [ ] All tests pass
 - [ ] Lint check passes (or no linter detected)
 
-**FAIL** if ANY check fails.
+**FAIL** if ANY check fails because of this branch. In a validate stage, a failure that also reproduces at the review base is pre-existing (rule 4 above), and info-level linter output never fails.
 
 ## If Validation Fails
 

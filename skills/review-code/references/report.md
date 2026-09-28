@@ -31,6 +31,7 @@ The report is what the caller records, so its shape is fixed. Findings carry `pa
 ## Verdict rules
 
 - **FAIL** — at least one finding survived Step 4 (any category: a confirmed `correctness`, `security` or `guideline` finding at ≥80 is a real defect). The `findings` array lists every one, `path` repo-relative, `line` the touched line.
+- **Re-validation**: the bar in SKILL.md Step 5 applies: only a HIGH, or a MEDIUM `correctness`/`security` finding on a line the repair wrote, goes in `findings` and fails. Every other surviving finding goes under a `### Follow-ups` heading after Dropped candidates, in the same one-line shape, and the step is PASS if nothing else remains.
 - **PASS** — no finding survived. `detail` names what was checked, e.g. `"no findings at ≥80 across 5 lenses; 7 code files reviewed against <sha>"`. Never write PASS for a review you did not perform on a real diff.
 - **SKIPPED** — Step 1 said `skipped`: `detail` is the script's reason (empty diff, or non-code only). No `findings`.
 - **UNAVAILABLE** — Step 1 said `unavailable`, or the caller's scope block says an empty change list means the base is wrong: `detail` is that reason. No `findings`.
