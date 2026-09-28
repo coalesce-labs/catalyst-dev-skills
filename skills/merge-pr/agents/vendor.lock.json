@@ -4,6 +4,7 @@
     "assets/references/merge-blocker-diagnosis.md",
     "assets/references/review-thread-resolution.md",
     "scripts/lib/canonical-event.sh",
+    "scripts/lib/catalyst-paths.sh",
     "scripts/lib/host-identity.sh",
     "scripts/lib/linear-identity.sh",
     "scripts/lib/linear-read-replica.sh",

@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # lib/emit-reap-intent.sh — append a reap-intent event to the canonical event
-# log at ~/catalyst/events/YYYY-MM.jsonl. Sourced by producers; vocabulary is
+# log at <events dir>/YYYY-MM.jsonl. Sourced by producers; vocabulary is
 # closed (unknown event types are rejected) to keep the schema disciplined.
 #
 # The reconciler (execution-core/reaper.mjs) consumes these events and calls
@@ -36,15 +36,19 @@ _REAP_INTENT_TYPES=(
 	orphans.reap-requested
 )
 
-# _reap_events_dir — resolve the canonical event log directory. Honors
-# CATALYST_EVENTS_DIR (tests set this to a scratch path); falls back to
-# ~/catalyst/events. Matches execution-core/config.mjs:getEventLogPath().
+# _reap_events_dir — resolve the canonical event log directory through
+# lib/catalyst-paths.sh (CTC-3787), matching execution-core/config.mjs:getEventLogPath().
+# This file stays a dependency-free leaf: without that helper it honours
+# CATALYST_EVENTS_DIR, then the standard default.
 _reap_events_dir() {
-	if [[ -n ${CATALYST_EVENTS_DIR:-} ]]; then
-		printf '%s' "$CATALYST_EVENTS_DIR"
-	else
-		printf '%s/catalyst/events' "$HOME"
+	local lib_dir
+	lib_dir="$(cd "$(dirname "${BASH_SOURCE[0]:-${(%):-%x}}")" && pwd)"
+	if [[ -r "${lib_dir}/catalyst-paths.sh" ]]; then
+		# shellcheck source=./catalyst-paths.sh
+		. "${lib_dir}/catalyst-paths.sh" && catalyst_events_dir
+		return
 	fi
+	printf '%s' "${CATALYST_EVENTS_DIR:-${XDG_STATE_HOME:-$HOME/.local/state}/catalyst/events}"
 }
 
 # emit_reap_intent EVENT_TYPE [--ticket T] [--phase P] [--bg-job-id ID]
@@ -102,7 +106,7 @@ emit_reap_intent() {
 	payload+="}"
 
 	local dir
-	dir="$(_reap_events_dir)"
+	dir="$(_reap_events_dir)" || return 1
 	mkdir -p "$dir" 2>/dev/null || return 1
 	local month_file
 	month_file="${dir}/$(date -u +%Y-%m).jsonl"

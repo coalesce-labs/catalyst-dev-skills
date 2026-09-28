@@ -4,6 +4,7 @@
     "scripts/catalyst-thoughts.sh",
     "scripts/create-worktree.sh",
     "scripts/lib/canonical-event.sh",
+    "scripts/lib/catalyst-paths.sh",
     "scripts/lib/catalyst-secret-contract.sh",
     "scripts/lib/catalyst-version.sh",
     "scripts/lib/claude-ids.sh",

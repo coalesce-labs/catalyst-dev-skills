@@ -4,6 +4,7 @@
     "assets/references/cloud-detection.md",
     "scripts/identity-report.mjs",
     "scripts/lib/canonical-event.sh",
+    "scripts/lib/catalyst-paths.sh",
     "scripts/lib/cloud-facts.mjs",
     "scripts/lib/host-identity.sh",
     "scripts/lib/linear-read-replica.sh",

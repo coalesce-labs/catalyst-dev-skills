@@ -5,6 +5,7 @@
     "scripts/feedback-consent.sh",
     "scripts/file-feedback.sh",
     "scripts/lib/canonical-event.sh",
+    "scripts/lib/catalyst-paths.sh",
     "scripts/lib/catalyst-secret-contract.sh",
     "scripts/lib/draft-pr.sh",
     "scripts/lib/host-identity.sh",
