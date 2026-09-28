@@ -102,7 +102,7 @@ while [[ $# -gt 0 ]]; do
 		# CTL-615: when --reuse-existing returns an existing worktree dir,
 		# assert its HEAD is on this branch. Mismatch → exit 64 with a
 		# clear diagnostic. The daemon's revive path passes the ticket name
-		# so a project-key collision (~/catalyst/wt/CTL/CTL-T3 checked out
+		# so a project-key collision (<worktrees>/CTL/CTL-T3 checked out
 		# to ADV-1129) is caught before the bg worker spawns into the wrong
 		# tree.
 		--expected-branch) EXPECTED_BRANCH="$2"; shift 2 ;;
@@ -143,11 +143,14 @@ if type _draft_pr_push_remote >/dev/null 2>&1; then
 	PUSH_REMOTE="$(_draft_pr_push_remote)"
 fi
 
-# Try to detect GitHub org from remote URL
+# Detect the owner and repo from a hosted origin URL (catalyst_parse_origin, lib/catalyst-paths.sh).
+# A local-path origin names no owner.
+# shellcheck source=lib/catalyst-paths.sh
+source "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/lib/catalyst-paths.sh"
 GIT_REMOTE=$(git config --get remote.origin.url 2>/dev/null || echo "")
-if [[ $GIT_REMOTE =~ github.com[:/]([^/]+)/([^/.]+) ]]; then
-	GITHUB_ORG="${BASH_REMATCH[1]}"
-	GITHUB_REPO="${BASH_REMATCH[2]}"
+if _CW_ORIGIN="$(catalyst_parse_origin "$GIT_REMOTE")"; then
+	GITHUB_ORG="${_CW_ORIGIN%%$'\t'*}"
+	GITHUB_REPO="${_CW_ORIGIN#*$'\t'}"
 else
 	GITHUB_ORG=""
 	GITHUB_REPO="$REPO_NAME"
@@ -172,19 +175,65 @@ fi
 # Determine worktree base path (priority order):
 # 1. --worktree-dir flag (explicit override, used by orchestrator)
 # 2. catalyst.orchestration.worktreeDir from config
-# 3. ~/catalyst/wt/<projectKey>/ (default — read projectKey from config)
-# 4. ~/catalyst/wt/<repo>/ (fallback if no config)
+# 3. <worktrees root>/<owner>.<repo>/ — the root from lib/catalyst-paths.sh (CATALYST_WORKTREES_DIR,
+#    then paths.json, then the standard default), keyed by owner so two clones that share a repo name
+#    never share a folder (CTC-3791). One folder name, because prune-worktrees discovers
+#    <root>/<key>/<leaf>; GitHub owners contain no dots, so the key is unambiguous.
+#    Without an owner (no parseable origin), the key is the projectKey, else the repo name.
+# A worktree for THIS repository that already exists is used where it is, so a revive never starts
+# a second tree beside it: the new key first, then the old keys (<projectKey>, <repo>), under the
+# resolved root, then under the standard default root, then under the HOME-based default the old
+# script always used, which is where trees lived before a CATALYST_WORKTREES_DIR, paths.json or
+# CATALYST_HOME moved it. Only a tree this clone owns counts.
 if [ -n "$OVERRIDE_WORKTREE_DIR" ]; then
 	WORKTREES_BASE="${OVERRIDE_WORKTREE_DIR/#\~/$HOME}"
 elif [ -n "$WT_DIR_CONFIG" ]; then
 	WORKTREES_BASE="${WT_DIR_CONFIG/#\~/$HOME}"
-elif [ -n "$PROJECT_KEY" ]; then
-	WORKTREES_BASE="$HOME/catalyst/wt/${PROJECT_KEY}"
 else
-	WORKTREES_BASE="$HOME/catalyst/wt/${REPO_NAME}"
+	WT_ROOT="$(catalyst_path worktrees)" || {
+		echo -e "${RED}❌ create-worktree: cannot resolve the worktrees root (see above); set CATALYST_WORKTREES_DIR or fix paths.json${NC}" >&2
+		exit 2
+	}
+	if [ -n "$GITHUB_ORG" ]; then
+		WT_KEY="${GITHUB_ORG}.${GITHUB_REPO}"
+	else
+		WT_KEY="${PROJECT_KEY:-$REPO_NAME}"
+	fi
+	WORKTREES_BASE="${WT_ROOT}/${WT_KEY}"
+	_CW_COMMON="$(cd "$(git rev-parse --path-format=absolute --git-common-dir)" && pwd -P)"
+	_cw_owned() {
+		[ -d "$1" ] && [ "$(cd "$(git -C "$1" rev-parse --path-format=absolute --git-common-dir 2>/dev/null)" 2>/dev/null && pwd -P)" = "$_CW_COMMON" ]
+	}
+	_CW_DEFAULT_ROOT="$(_catalyst_path_default worktrees 2>/dev/null || true)"
+	# The script before CTC-3791 ignored CATALYST_HOME and always used the HOME-based default.
+	_CW_HISTORIC_ROOT="$(unset CATALYST_HOME; _catalyst_path_default worktrees 2>/dev/null || true)"
+	_CW_FOUND=false
+	for _CW_ROOT in "$WT_ROOT" "$_CW_DEFAULT_ROOT" "$_CW_HISTORIC_ROOT"; do
+		[ -n "$_CW_ROOT" ] || continue
+		for _CW_KEY in "$WT_KEY" "$PROJECT_KEY" "$REPO_NAME"; do
+			[ -n "$_CW_KEY" ] || continue
+			if _cw_owned "${_CW_ROOT}/${_CW_KEY}/${WORKTREE_NAME}"; then
+				[ "${_CW_ROOT}/${_CW_KEY}" = "$WORKTREES_BASE" ] || echo "Using this repository's existing worktree: ${_CW_ROOT}/${_CW_KEY}/${WORKTREE_NAME}"
+				WORKTREES_BASE="${_CW_ROOT}/${_CW_KEY}"
+				_CW_FOUND=true
+				break 2
+			fi
+		done
+	done
 fi
 
 WORKTREE_PATH="${WORKTREES_BASE}/${WORKTREE_NAME}"
+
+# CTC-3791: two clones of one upstream share the <owner>.<repo> key. A tree already at this path
+# that belongs to another clone is never reused or overwritten: refuse, as the CTL-615 branch check does.
+if [ -e "$WORKTREE_PATH" ]; then
+	_CW_HERE="$(cd "$(git rev-parse --path-format=absolute --git-common-dir)" && pwd -P)"
+	_CW_THERE="$(cd "$(git -C "$WORKTREE_PATH" rev-parse --path-format=absolute --git-common-dir 2>/dev/null)" 2>/dev/null && pwd -P || true)"
+	if [ -n "$_CW_THERE" ] && [ "$_CW_THERE" != "$_CW_HERE" ]; then
+		echo -e "${RED}❌ create-worktree: ${WORKTREE_PATH} belongs to another clone (${_CW_THERE}); refusing to reuse it. Pass --worktree-dir, or remove that tree.${NC}" >&2
+		exit 64
+	fi
+fi
 
 echo -e "${YELLOW}🌳 Creating worktree: ${WORKTREE_NAME}${NC}"
 echo "📁 Location: ${WORKTREE_PATH}"

@@ -154,6 +154,20 @@ catalyst_path() {
   _catalyst_path_default "$role"
 }
 
+# catalyst_parse_origin URL (CTC-3791) → "<owner>\t<repo>" for a hosted remote: scp-style [user@]host:owner/repo
+# or an http(s)/ssh/git URL with exactly <owner>/<repo> as its path. A local path or file:// origin
+# names no owner and returns 1, so callers keep their no-owner fallback. sed, not [[ =~ ]], so it
+# works when this file is sourced from zsh as well as bash.
+catalyst_parse_origin() {
+  local tab out
+  tab="$(printf '\t')"
+  out="$(printf '%s\n' "$1" | sed -nE \
+    -e "s#^([^/@:]+@)?[^/@:]+:([^/]+)/([^/]+)\$#\\2${tab}\\3#p" \
+    -e "s#^(https?|ssh|git|git\\+ssh)://[^/]+/([^/]+)/([^/]+)\$#\\2${tab}\\3#p" | head -n 1)"
+  [[ -n "$out" ]] || return 1
+  printf '%s' "${out%.git}"
+}
+
 # catalyst_events_dir → where the monthly event log lives. CATALYST_DIR/events is the deprecated
 # alias that test preloads set for isolation (CTL-810); it outranks the manifest so a test that sets
 # only CATALYST_DIR never reaches a real machine's log.
