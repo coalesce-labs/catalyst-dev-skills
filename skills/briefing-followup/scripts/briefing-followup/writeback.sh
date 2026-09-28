@@ -62,9 +62,6 @@ LIB="${SCRIPT_DIR}/../briefing-frontmatter-lib.sh"
 # shellcheck source=../briefing-frontmatter-lib.sh
 if [[ -f "$LIB" ]]; then source "$LIB"; fi
 
-CATALYST_DIR_DEFAULT="${CATALYST_DIR:-$HOME/catalyst}"
-EVENTS_DIR="${EVENTS_DIR:-$CATALYST_DIR_DEFAULT/events}"
-
 # Print a one-line JSON status to stdout. Caller-friendly when chained from
 # the SKILL.md so the result lands in the resolutions log alongside handler
 # outputs.
@@ -251,6 +248,12 @@ if [[ $NO_EVENT -eq 0 ]]; then
   if [[ -f "$CE_LIB" ]]; then
     # shellcheck source=../lib/canonical-event.sh
     source "$CE_LIB"
+    # CTC-3787: --events-dir, else the machine paths contract (lib/catalyst-paths.sh, sourced by
+    # canonical-event.sh). Resolved only here, so --no-event and skipped runs never need it; a
+    # refusal skips the event and the writeback still succeeds.
+    if [[ -z "$EVENTS_DIR" ]]; then
+      EVENTS_DIR="$(catalyst_events_dir)" || EVENTS_DIR=""
+    fi
     TS=$(date -u +%Y-%m-%dT%H:%M:%SZ)
     PAYLOAD=$(jq -nc \
       --arg date "$DATE" \
@@ -273,7 +276,7 @@ if [[ $NO_EVENT -eq 0 ]]; then
       --orch "${CATALYST_ORCHESTRATOR_ID:-}" \
       --worker "${CATALYST_WORKER_TICKET:-}" \
       --payload-json "$PAYLOAD" 2>/dev/null) || LINE=""
-    if [[ -n "$LINE" ]]; then
+    if [[ -n "$LINE" && -n "$EVENTS_DIR" ]]; then
       canonical_jsonl_append "$EVENTS_DIR" "$LINE"
       EVENT_EMITTED="true"
     fi
