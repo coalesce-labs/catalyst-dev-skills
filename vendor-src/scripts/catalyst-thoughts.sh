@@ -60,13 +60,38 @@ esac
 CMD="${1:-}"
 shift || true
 
+# .catalyst/ first, then .claude/, the same order create-worktree.sh reads them (CTC-3792).
 CONFIG_FILE=".catalyst/config.json"
+[[ -f "$CONFIG_FILE" || ! -f ".claude/config.json" ]] || CONFIG_FILE=".claude/config.json"
 SUBDIRS=(research plans handoffs prs reports)
 
+# CTC-3792: thoughts-location.sh resolves a thoughts repo declared by the paths contract.
+# shellcheck source=lib/thoughts-location.sh
+source "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/lib/thoughts-location.sh"
+
+# Sets CAT_PROFILE, CAT_DIR and CAT_DECLARED. A declared thoughts repo wins: CAT_PROFILE becomes the
+# HumanLayer profile that points at it (empty for the top-level config) and CAT_DIR defaults to the
+# origin's repo name. Without one, both come from .catalyst/config.json, as before.
 _read_thoughts_config() {
-	[[ -f "$CONFIG_FILE" ]] || return 1
-	CAT_PROFILE=$(jq -r '.catalyst.thoughts.profile // empty' "$CONFIG_FILE" 2>/dev/null)
-	CAT_DIR=$(jq -r '.catalyst.thoughts.directory // empty' "$CONFIG_FILE" 2>/dev/null)
+	CAT_PROFILE="" CAT_DIR="" CAT_DECLARED=""
+	if [[ -f "$CONFIG_FILE" ]]; then
+		CAT_PROFILE=$(jq -r '.catalyst.thoughts.profile // empty' "$CONFIG_FILE" 2>/dev/null)
+		CAT_DIR=$(jq -r '.catalyst.thoughts.directory // empty' "$CONFIG_FILE" 2>/dev/null)
+	fi
+	local ident org repo
+	ident="$(catalyst_repo_identity 2>/dev/null || true)"
+	org="${ident%%$'\t'*}"
+	repo="${ident#*$'\t'}"
+	# Return 2, not 1, when the paths contract refuses (a relative CATALYST_THOUGHTS_REPO, a broken
+	# paths.json): "cannot tell" must never read as "nothing declared".
+	CAT_DECLARED="$(catalyst_thoughts_repo "$org")" || return 2
+	if [[ -n "$CAT_DECLARED" ]]; then
+		CAT_DIR="${CAT_DIR:-$repo}"
+		# `check` passes _CT_READONLY=1: a diagnostic never writes the HumanLayer config.
+		CAT_PROFILE="$(catalyst_thoughts_profile "$CAT_DECLARED" "$org" "$CAT_PROFILE" "${_CT_READONLY:-}")" || return 2
+		return 0
+	fi
+	[[ -f "$CONFIG_FILE" ]]
 }
 
 # Prints "<profile>\t<repo>" for the CWD, or empty string if no humanlayer or no mapping.
@@ -92,7 +117,32 @@ cmd_init_or_repair() {
 	# `humanlayer thoughts uninit --force` followed by re-`init` with the config's
 	# profile/directory. Safe because thoughts content lives in the canonical
 	# thoughts repo, not in the symlink target. Otherwise, just ensure subdirs.
+	local _ct_cfg=0
+	_read_thoughts_config || _ct_cfg=$?
+	if [[ $_ct_cfg -eq 2 ]]; then
+		echo "ERROR: the paths contract refused to name the thoughts repo (see above); nothing was changed" >&2
+		return 1
+	fi
 	if [[ -L "thoughts/shared" && -d "thoughts/shared" ]]; then
+		# CTC-3792: with a declared thoughts repo, the whole layout (shared, global, the per-user link
+		# and the HumanLayer repo mapping) is rebuilt with the vendored initializer, which is idempotent
+		# (ln -sfn over the links; content lives in the repos). A healthy shared link alone does not
+		# prove the rest points at the same repo. No CLI needed.
+		if [[ $_ct_cfg -eq 0 && -n "${CAT_DECLARED:-}" && -n "${CAT_DIR:-}" ]]; then
+			local _ct_init
+			_ct_init="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/worktree-thoughts-init.sh"
+			local repoint_args=(--directory "$CAT_DIR")
+			[[ -n "${CAT_PROFILE:-}" ]] && repoint_args+=(--profile "$CAT_PROFILE")
+			if [[ "$(cd thoughts/shared && pwd -P)" != "$(catalyst_thoughts_shared_target "$CAT_DECLARED" "${CAT_PROFILE:-}" "$CAT_DIR")" ]]; then
+				echo "  thoughts/shared is not this repository's directory in the declared thoughts repo $CAT_DECLARED — re-pointing."
+			fi
+			if ! bash "$_ct_init" "${repoint_args[@]}" >/dev/null; then
+				echo "ERROR: pointing thoughts at $CAT_DECLARED failed" >&2
+				return 1
+			fi
+			_mkdir_subdirs "thoughts/shared"
+			return 0
+		fi
 		if command -v humanlayer &>/dev/null && _read_thoughts_config && [[ -n "${CAT_DIR:-}" ]]; then
 			local mapping hl_profile hl_repo needs_fix=0
 			mapping="$(_humanlayer_mapping 2>/dev/null || true)"
@@ -147,7 +197,8 @@ cmd_init_or_repair() {
 	# CTL-845: use worktree-thoughts-init.sh to avoid ERR_INVALID_ARG_TYPE crash in
 	# humanlayer v0.17.2-npm. Falls back to humanlayer thoughts init if vendored script
 	# is not found (should not occur in a properly installed catalyst workspace).
-	if command -v humanlayer &>/dev/null && _read_thoughts_config && [[ -n "${CAT_DIR:-}" ]]; then
+	# A declared thoughts repo needs no HumanLayer CLI for the vendored layout (CTC-3792).
+	if _read_thoughts_config && [[ -n "${CAT_DIR:-}" ]] && { command -v humanlayer &>/dev/null || [[ -n "${CAT_DECLARED:-}" ]]; }; then
 		local _ct_dir
 		_ct_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 		local VENDOR_INIT="${_ct_dir}/worktree-thoughts-init.sh"
@@ -202,7 +253,43 @@ cmd_check() {
 	done
 
 	# 2. Profile / directory drift between .catalyst/config.json and humanlayer's mapping.
-	if _read_thoughts_config; then
+	local _ck_cfg=0 _CT_READONLY=1
+	_read_thoughts_config || _ck_cfg=$?
+	if [[ $_ck_cfg -eq 2 ]]; then
+		echo "ERROR: the paths contract refused to name the thoughts repo — cannot check where thoughts belong." >&2
+		rc=3
+	fi
+	# CTC-3792: with a declared thoughts repo, a healthy link anywhere but this repository's directory
+	# in it is drift, HumanLayer or not.
+	if [[ $_ck_cfg -eq 0 && -n "${CAT_DECLARED:-}" && -n "${CAT_DIR:-}" && -L "thoughts/shared" && -d "thoughts/shared" ]]; then
+		local want
+		want="$(catalyst_thoughts_shared_target "$CAT_DECLARED" "${CAT_PROFILE:-}" "$CAT_DIR")"
+		if [[ "$(cd thoughts/shared && pwd -P)" != "$want" ]]; then
+			echo "ERROR: thoughts/shared resolves to $(cd thoughts/shared && pwd -P), not $want in the declared thoughts repo. Run: catalyst-thoughts.sh init-or-repair" >&2
+			rc=3
+		fi
+		# The HumanLayer mapping for this worktree must name a profile whose repo is the declared one,
+		# or sync follows another repo whatever the link says.
+		local hl="${HUMANLAYER_CONFIG:-$HOME/.config/humanlayer/humanlayer.json}" map_profile map_repo map_dir gdir
+		map_profile="$(jq -r --arg k "$(pwd -P)" '.thoughts.repoMappings[$k].profile // empty' "$hl" 2>/dev/null)"
+		map_dir="$(jq -r --arg k "$(pwd -P)" '.thoughts.repoMappings[$k].repo // empty' "$hl" 2>/dev/null)"
+		if [[ -n "$map_dir" && "$map_dir" != "$CAT_DIR" ]]; then
+			echo "ERROR: the HumanLayer mapping for $(pwd -P) names project directory '$map_dir', not '$CAT_DIR'. Run: catalyst-thoughts.sh init-or-repair" >&2
+			rc=3
+		fi
+		# thoughts/global must land in the declared repo's global directory too.
+		gdir="$(jq -r --arg p "${CAT_PROFILE:-}" '(.thoughts.profiles[$p].globalDir // .thoughts.globalDir) // "global"' "$hl" 2>/dev/null)"
+		if [[ -L "thoughts/global" && -d "thoughts/global" && "$(cd thoughts/global && pwd -P)" != "$(cd "$CAT_DECLARED" && pwd -P)/${gdir:-global}" ]]; then
+			echo "ERROR: thoughts/global resolves to $(cd thoughts/global && pwd -P), not the declared thoughts repo's ${gdir:-global}. Run: catalyst-thoughts.sh init-or-repair" >&2
+			rc=3
+		fi
+		map_repo="$(jq -r --arg p "$map_profile" '(.thoughts.profiles[$p].thoughtsRepo // .thoughts.thoughtsRepo) // empty' "$hl" 2>/dev/null)"
+		if [[ -z "$map_profile" || "$(cd "$map_repo" 2>/dev/null && pwd -P)" != "$(cd "$CAT_DECLARED" && pwd -P)" ]]; then
+			echo "ERROR: the HumanLayer mapping for $(pwd -P) (profile '${map_profile:-none}') does not point at the declared thoughts repo $CAT_DECLARED. Run: catalyst-thoughts.sh init-or-repair" >&2
+			rc=3
+		fi
+	fi
+	if [[ $_ck_cfg -eq 0 ]]; then
 		local mapping hl_profile hl_repo
 		mapping="$(_humanlayer_mapping 2>/dev/null || true)"
 		if [[ -n "$mapping" ]]; then
