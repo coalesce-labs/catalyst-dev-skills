@@ -18,7 +18,7 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO_ROOT="$(cd "${SCRIPT_DIR}/.." && pwd)"
 SKILLS_ROOT="${REPO_ROOT}/skills"
 
-SKILLS="agent-browser ask briefing-followup catalyst-sop commit compound-estimate concierge create-handoff create-plan create-pr create-worktree describe-pr fix-typescript gherkin-ticket implement-plan iterate-plan linearis-cli merge-pr morning-briefing project-orchestrator prune-worktrees remediate-plan research-codebase resume-handoff review-code review-comments review-security scan-reward-hacking steward ticket-compound ticket-retro triage-aging-prs unslop unsticker validate-plan validate-type-safety"
+SKILLS="agent-browser commit compound-estimate create-handoff create-plan create-pr create-worktree describe-pr fix-typescript gherkin-ticket implement-plan iterate-plan merge-pr prune-worktrees remediate-plan research-codebase resume-handoff review-code review-comments review-security scan-reward-hacking ticket-compound ticket-retro triage-aging-prs unslop unsticker validate-plan validate-type-safety"
 
 PASS=0
 FAIL=0
@@ -139,63 +139,13 @@ else
   echo "  SKIP: zsh not installed — the zsh self-location case did not run"
 fi
 
-# Cluster 3 — Linear skills. identity-report is the setup check these skills run first (CTL-2300).
-for skill in ask linearis-cli; do
-  run_isolated_expect "${skill}: identity-report runs and names the tenant slot" "$skill" "tenant" \
-    'node "$CLAUDE_SKILL_DIR/scripts/identity-report.mjs"'
-done
-for skill in ask gherkin-ticket linearis-cli; do
-  run_isolated "${skill}: replica read helper sources" "$skill" \
-    'source "$CLAUDE_SKILL_DIR/scripts/lib/linear-read-replica.sh" && declare -F linear_read_ticket >/dev/null'
-done
-for skill in linearis-cli; do
-  run_isolated "${skill}: cloud-detection marker helper sources" "$skill" \
-    'source "$CLAUDE_SKILL_DIR/scripts/lib/plugin-dirs.sh" && declare -F plugin_dirs_repo_config_path >/dev/null'
-done
-run_isolated "linearis-cli: linear-transition --help (sources its replica helper)" linearis-cli \
-  '"$CLAUDE_SKILL_DIR/scripts/linear-transition.sh" --help 2>/dev/null'
-for skill in ask linearis-cli; do
-  run_isolated_expect "${skill}: linear-reply loads its import graph (usage error, no missing module)" "$skill" "usage: linear-reply.mjs" \
-    'node "$CLAUDE_SKILL_DIR/scripts/linear-reply.mjs"'
-done
-run_isolated_expect "ask: ask.mjs loads its import graph (usage, no missing module)" ask "Usage:" \
-  'node "$CLAUDE_SKILL_DIR/scripts/ask.mjs" --help'
-run_isolated_expect "ask: linear-ack loads its import graph" ask "linear-ack" \
-  'node "$CLAUDE_SKILL_DIR/scripts/linear-ack.mjs"'
-run_isolated "ask: board vocabulary resolves the ask label names" ask \
-  'node --input-type=module -e "const m = await import(process.env.CLAUDE_SKILL_DIR + \"/scripts/lib/board-vocabulary.mjs\"); if (!m.resolveAskLabelNames().names.length) process.exit(1)"'
-for script in ask-triage.sh human-blocked.sh; do
-  run_isolated "ask: ${script} parses and sources its replica helper" ask "bash -n \"\$CLAUDE_SKILL_DIR/scripts/${script}\" && test -s \"\$CLAUDE_SKILL_DIR/scripts/lib/linear-read-replica.sh\""
-done
+# Cluster 3 — Linear skills.
+run_isolated "gherkin-ticket: replica read helper sources" gherkin-ticket \
+  'source "$CLAUDE_SKILL_DIR/scripts/lib/linear-read-replica.sh" && declare -F linear_read_ticket >/dev/null'
 
 # Cluster 4a — coordination.
-for skill in concierge steward; do
-  run_isolated_expect "${skill}: identity-report runs and names the tenant slot" "$skill" "tenant" \
-    'node "$CLAUDE_SKILL_DIR/scripts/identity-report.mjs"'
-done
-# Codex review on #4136 (P1): concierge follows the same cloud-detection reference, so it must
-# carry the reference AND the helpers its commands source from concierge's own directory.
-for skill in steward concierge; do
-  run_isolated "${skill}: carries the cloud-detection reference" "$skill" 'test -s "$CLAUDE_SKILL_DIR/assets/references/cloud-detection.md"'
-done
-run_isolated "concierge: cloud-detection helpers source (replica + marker)" concierge \
-  'source "$CLAUDE_SKILL_DIR/scripts/lib/linear-read-replica.sh" && source "$CLAUDE_SKILL_DIR/scripts/lib/plugin-dirs.sh" && declare -F replica_fresh >/dev/null && declare -F plugin_dirs_repo_config_path >/dev/null'
-run_isolated "steward: cloud-detection helpers source (replica + marker)" steward \
-  'source "$CLAUDE_SKILL_DIR/scripts/lib/linear-read-replica.sh" && source "$CLAUDE_SKILL_DIR/scripts/lib/plugin-dirs.sh" && declare -F replica_fresh >/dev/null && declare -F plugin_dirs_repo_config_path >/dev/null'
 run_isolated "create-handoff: handoff-durability helper sources and defines its three steps" create-handoff \
   'source "$CLAUDE_SKILL_DIR/scripts/lib/handoff-durability.sh" && declare -F handoff_resolve_path >/dev/null && declare -F handoff_write_verified >/dev/null && declare -F handoff_sync_and_classify >/dev/null'
-
-# Cluster 4b — briefings.
-run_isolated_expect "morning-briefing: validate-frontmatter finds its schema from a lone copy" morning-briefing "no frontmatter block found" \
-  'printf "no frontmatter here\n" > "$HOME/briefing.md"; bash "$CLAUDE_SKILL_DIR/scripts/morning-briefing/validate-frontmatter.sh" "$HOME/briefing.md"'
-run_isolated "morning-briefing: output-path resolves a dry-run path" morning-briefing \
-  'bash "$CLAUDE_SKILL_DIR/scripts/morning-briefing/output-path.sh" --dry-run --date 2026-01-02 | grep -q 2026-01-02'
-run_isolated "morning-briefing: linear-transition --help (suggest-dispatch state names)" morning-briefing \
-  '"$CLAUDE_SKILL_DIR/scripts/linear-transition.sh" --help 2>/dev/null'
-run_isolated "briefing-followup: writeback's frontmatter lib and event lib are carried" briefing-followup \
-  'test -s "$CLAUDE_SKILL_DIR/scripts/briefing-frontmatter-lib.sh" && test -s "$CLAUDE_SKILL_DIR/scripts/lib/canonical-event.sh" && test -s "$CLAUDE_SKILL_DIR/scripts/lib/task-type.sh"'
-run_isolated_expect "briefing-followup: parse-briefing prints its usage" briefing-followup "sage" \
-  'bash "$CLAUDE_SKILL_DIR/scripts/briefing-followup/parse-briefing.sh"'
 
 # CTL-2309 — the platform review skills. review-scope.sh decides review / skipped / unavailable
 # itself; from a lone copy, outside any repository, it must say `unavailable` (exit 4), not crash.

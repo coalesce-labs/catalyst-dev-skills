@@ -63,4 +63,4 @@ Immediately run the `describe-pr` skill with the PR number to generate the full 
 
 ## Step 11 — Leave the ticket where it is
 
-Opening a PR moves nothing: the ticket stays where it is until the PR merges. On Catalyst Cloud the cloud moves it when the phase outcome is recorded and again when the PR merges. Linear's GitHub integration (and the cloud, when connected) links the PR to the ticket by branch name or title, so post no comment about it. A person who asks for a move uses `catalyst write state <ID> --slot <slot>` (the Cloud pack's `catalyst-linear` skill), or, off the cloud, the operator-only `linearis-cli` skill.
+Opening a PR moves nothing: the ticket stays where it is until the PR merges. On Catalyst Cloud the cloud moves it when the phase outcome is recorded and again when the PR merges. Linear's GitHub integration (and the cloud, when connected) links the PR to the ticket by branch name or title, so post no comment about it. A person who asks for a move uses `catalyst write state <ID> --slot <slot>` (the Cloud pack's `catalyst-linear` skill), or, off the cloud, an operator moves it with the Linearis CLI directly.

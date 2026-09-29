@@ -41,10 +41,10 @@ describe("ownership manifest", () => {
   test("every skill in this repository is owned, at home scope", () => {
     const declared = readOwnership(repoRoot).skills;
     const actual = skillNames(repoRoot);
-    expect(declared.length).toBe(36);
-    expect(actual.length).toBe(36);
+    expect(declared.length).toBe(28);
+    expect(actual.length).toBe(28);
     expect(declared.every((s) => s.scope === "home")).toBe(true);
-    expect(declared.find((s) => s.dir === "linearis-cli")?.name).toBe("linearis-cli");
+    expect(declared.find((s) => s.dir === "unsticker")?.name).toBe("unsticker");
     expect(ownershipProblems(declared, actual)).toEqual([]);
     expect(declared.map((s) => s.dir)).toEqual([...declared.map((s) => s.dir)].sort());
   });
@@ -245,10 +245,11 @@ describe("the documented install is home-scoped", () => {
     expect(documentedCountProblems(repoRoot, skillNames(repoRoot).filter((s) => !s.internal).length)).toEqual([]);
   });
 
-  // CTC-3202: the operator-only skills are hidden from `add --all` by `metadata: internal: true`.
-  // Hiding a skill changes what every customer install lands, so the set is pinned here.
-  test("exactly the operator-only skills are internal", () => {
-    expect(skillNames(repoRoot).filter((s) => s.internal).map((s) => s.dir)).toEqual(["concierge", "linearis-cli"]);
+  // The operator-only skills moved to a separate private pack, so every skill here is public:
+  // `add --all` lands all of them. Hiding a skill changes what every customer install lands, so
+  // the (empty) internal set is pinned here.
+  test("no skill in this pack is internal", () => {
+    expect(skillNames(repoRoot).filter((s) => s.internal).map((s) => s.dir)).toEqual([]);
   });
 
   test("an internal skill may be absent from HOME, but a repository copy of it is still reported", () => {

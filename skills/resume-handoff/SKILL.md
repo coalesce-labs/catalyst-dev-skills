@@ -68,4 +68,4 @@ Ticket ids look like `PROJ-123`: take the prefix from `.catalyst/config.json`, e
 
 ## Ticket context
 
-On a cloud account, run `catalyst query issue <ID>` (the Cloud pack's `catalyst-linear` skill); off the cloud, use the Linearis CLI (syntax in the `linearis-cli` skill). Skip every `linearis` call when `CATALYST_PHASE` is set (a phase container holds no Linear credential; the runner owns the ticket write-back) or when `command -v linearis` fails, and say so in one line.
+On a cloud account, run `catalyst query issue <ID>` (the Cloud pack's `catalyst-linear` skill); off the cloud, an operator reads Linear with the Linearis CLI directly. Skip every `linearis` call when `CATALYST_PHASE` is set (a phase container holds no Linear credential; the runner owns the ticket write-back) or when `command -v linearis` fails, and say so in one line.

@@ -8,7 +8,7 @@ description:
   'what did we learn lately', or 'how are the estimates calibrating'. Synthesizes what the compound
   loops captured since the last retro (friction logs, learnings, compound-log calibration,
   catalyst.db and merged-PR actuals) into thoughts/shared/retros/ticket/<date>.md with a persisted
-  watch-items block, and surfaces top patterns in the morning briefing's Plan today."
+  watch-items block, and surfaces the top patterns for a daily briefing to plan from."
 allowed-tools: Bash, Read, Write, Grep, Glob
 ---
 
@@ -57,7 +57,7 @@ Keys: `window`, `prior_retro.watch_items` (the last retro's watch items), `frict
 
 ## Step 3: Write the retro document
 
-Write it from the template in `references/retro-document.md`, which also holds the watch-items contract the next retro and the morning briefing parse. If today's file exists, overwrite it: the gather floor skips today's retro, so a same-day re-run covers the whole window plus whatever just merged.
+Write it from the template in `references/retro-document.md`, which also holds the watch-items contract the next retro and any daily briefing parse. If today's file exists, overwrite it: the gather floor skips today's retro, so a same-day re-run covers the whole window plus whatever just merged.
 
 ## Step 4: Sync and report
 
@@ -66,4 +66,4 @@ humanlayer thoughts sync 2>/dev/null || true
 echo "ticket-retro: wrote thoughts/shared/retros/ticket/$(date -u +%Y-%m-%d).md"
 ```
 
-Report the retro path, the top 3 recurring patterns, the calibration one-liner, and any recurred watch items. The next morning briefing surfaces the watch items under `Plan today → Retro signals`.
+Report the retro path, the top 3 recurring patterns, the calibration one-liner, and any recurred watch items. A daily briefing, where one runs, surfaces the watch items.

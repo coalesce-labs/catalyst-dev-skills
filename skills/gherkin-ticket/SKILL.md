@@ -14,7 +14,7 @@ version: 1.0.0
 
 # Gherkin Ticket
 
-Every ticket opens with a use case a stranger can understand: who gets what outcome, under what condition, and why. This skill owns the ticket's format. Reading and filing go through the `catalyst` CLI on a cloud account (the Cloud pack's `catalyst-linear` skill) and the operator-only `linearis-cli` skill elsewhere. When another skill is mid-creation, apply these rules to its title and body before the issue is written.
+Every ticket opens with a use case a stranger can understand: who gets what outcome, under what condition, and why. This skill owns the ticket's format. Reading and filing go through the `catalyst` CLI on a cloud account (the Cloud pack's `catalyst-linear` skill) and, off the cloud, an operator uses the Linearis CLI directly. When another skill is mid-creation, apply these rules to its title and body before the issue is written.
 
 **Paths.** Commands below name files inside this skill's own directory as `${CLAUDE_SKILL_DIR}/…`. Claude Code fills that in. On any other harness, set CLAUDE_SKILL_DIR to the absolute directory that contains this SKILL.md before running them. If you cannot, stop and report `skill_dir_unresolved`.
 
@@ -75,4 +75,4 @@ Record each true prerequisite (work that must reach Done or Canceled first) as a
 
 ## Related skills
 
-- the `steward` skill — its `references/classify-and-estimate.md` holds the classify/estimate rubric triage applies; a ticket written to this standard makes that step far more reliable.
+- triage — it classifies and estimates each new ticket; a ticket written to this standard makes that step far more reliable.

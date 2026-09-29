@@ -2,7 +2,7 @@
 
 ## ADR proposals (Step 6)
 
-Append each proposal to `thoughts/shared/compound/pending/<TICKET>.md`: the target ADR (new, amend `ADR-NNN` or supersede `ADR-NNN`), the exact proposed text, and a one-line rationale with evidence (ticket and learning path). A human approves it through `briefing-followup`'s `action-compound` handler, the only writer of `docs/adrs.md`.
+Append each proposal to `thoughts/shared/compound/pending/<TICKET>.md`: the target ADR (new, amend `ADR-NNN` or supersede `ADR-NNN`), the exact proposed text, and a one-line rationale with evidence (ticket and learning path). A human reviews and approves each proposal; this skill never writes `docs/adrs.md` itself.
 
 ## The discoverability pointer (Step 7)
 

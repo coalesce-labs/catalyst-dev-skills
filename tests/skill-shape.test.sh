@@ -2,7 +2,7 @@
 # skill-shape.test.sh — CTL-1993: the progressive-disclosure shape gate.
 #
 # WHY: before this, every catalyst-dev skill was a single monolithic SKILL.md —
-# 52 of them, up to 2,610 lines. The role skills (steward, concierge) and the
+# 52 of them, up to 2,610 lines. The larger skills (create-pr, unsticker) and the
 # slimmed phase skills carry their detail in `references/*.md` read on demand
 # instead. That shape only survives if something enforces it: a budget nobody
 # checks is a budget that drifts back (the same way the agent house-rules block
@@ -51,7 +51,7 @@ echo "skill-shape: ${#SKILLS[@]} skill(s) with a references/ dir"
 # A zero-length input set would let every loop below pass vacuously and print a
 # green summary on the strength of no iterations. Fail loudly instead.
 if [[ ${#SKILLS[@]} -eq 0 ]]; then
-  fail "no skill with a references/ dir was found — the gate would pass vacuously (expected at least steward)"
+  fail "no skill with a references/ dir was found — the gate would pass vacuously (expected at least create-pr)"
   echo "skill-shape.test.sh: ${PASSES} passed, ${FAILURES} failed"
   exit 1
 fi

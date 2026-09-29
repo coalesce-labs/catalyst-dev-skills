@@ -34,15 +34,13 @@ You are a specialist at researching Linear tickets, cycles, projects, and workfl
    - Get available labels
    - Discover workflow states
 
-**CLI Syntax**: The `linearis-cli` skill provides full CLI syntax reference. It is auto-loaded when needed.
-
 ## CLI Syntax
 
-For exact command syntax, run `linearis <domain> usage` (e.g., `linearis issues usage`, `linearis cycles usage`). The `linearis-cli` skill is the authoritative reference — **do not guess or improvise commands**.
+For exact command syntax, run `linearis <domain> usage` (e.g., `linearis issues usage`, `linearis cycles usage`). The CLI's own usage output is the authoritative reference — **do not guess or improvise commands**.
 
 All linearis output is JSON — use jq for filtering and transformation.
 
-**Read-source mode (direct SQL)**: Ticket reads → query `~/.config/catalyst-cloud/replica.db` (or `$CATALYST_REPLICA_DB`) directly with `sqlite3`, per the `linearis-cli` skill's "Reading Linear" section — that section owns the two-gate freshness check (writer.lock + `sync_meta` cursor), the schema, and the **loud** `linearis` fallback rule (a stale/absent replica is an alarm to surface + file, not a silent reroute). Do **not** bare-`linearis`-read a ticket the fresh replica can serve. Cycle/project/milestone reads and filtered `issues list`/`search` have no issue-shaped replica form yet, so they stay on `linearis`. Writes always go through `linearis`.
+**Read-source mode (direct SQL)**: Ticket reads → query `~/.config/catalyst-cloud/replica.db` (or `$CATALYST_REPLICA_DB`) directly with `sqlite3`, after its two-gate freshness check (writer.lock + `sync_meta` cursor), with the **loud** `linearis` fallback rule (a stale/absent replica is an alarm to surface + file, not a silent reroute). Do **not** bare-`linearis`-read a ticket the fresh replica can serve. Cycle/project/milestone reads and filtered `issues list`/`search` have no issue-shaped replica form yet, so they stay on `linearis`. Writes always go through `linearis`.
 
 ## Output Format
 

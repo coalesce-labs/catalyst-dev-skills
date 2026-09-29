@@ -55,7 +55,7 @@ fi
 
 ## Step 10 — Leave the ticket to the merge
 
-Write nothing to the ticket. On Catalyst Cloud the merged-PR trigger moves it to done, and Linear's GitHub integration links the PR by branch name or title. A person who asks for a move uses `catalyst write state <ID> --slot done` (the Cloud pack's `catalyst-linear` skill), or, off the cloud, the operator-only `linearis-cli` skill.
+Write nothing to the ticket. On Catalyst Cloud the merged-PR trigger moves it to done, and Linear's GitHub integration links the PR by branch name or title. A person who asks for a move uses `catalyst write state <ID> --slot done` (the Cloud pack's `catalyst-linear` skill), or, off the cloud, an operator moves it with the Linearis CLI directly.
 
 ## Step 11 — Delete local branch and update base
 

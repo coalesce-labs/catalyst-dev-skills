@@ -262,7 +262,7 @@ describe("the checker sees each violation it exists to catch (positive controls)
 
 describe("every catalyst-dev skill is self-contained (CTL-2306)", () => {
   test("the skill set is read from the tree, not an empty directory listing", () => {
-    expect(SELF_CONTAINED.length).toBeGreaterThanOrEqual(31);
+    expect(SELF_CONTAINED.length).toBeGreaterThanOrEqual(28);
     expect(SELF_CONTAINED).toContain("create-worktree");
   });
 
@@ -276,13 +276,15 @@ describe("every catalyst-dev skill is self-contained (CTL-2306)", () => {
   // The runner bakes this repository's root as its catalyst-dev plugin and checks these names
   // (catalyst-cloud scripts/lib/plugin-skill-manifest.ts, CATALYST_DEV_SKILL_NAMES).
   test("every skill directory catalyst-cloud requires is present", () => {
+    // The operator skills (ask, steward, concierge, linearis-cli, the briefings) moved to a
+    // separate pack, so this pack no longer answers for them.
     const required = [
-      "agent-browser", "ask", "briefing-followup", "commit", "compound-estimate", "concierge",
+      "agent-browser", "commit", "compound-estimate",
       "create-handoff", "create-plan", "create-pr", "create-worktree", "describe-pr", "fix-typescript",
-      "gherkin-ticket", "implement-plan", "iterate-plan", "linearis-cli", "merge-pr",
-      "morning-briefing", "project-orchestrator", "remediate-plan", "research-codebase", "resume-handoff",
-      "review-comments", "scan-reward-hacking", "steward", "ticket-compound", "ticket-retro",
-      "triage-aging-prs", "validate-plan", "validate-type-safety",
+      "gherkin-ticket", "implement-plan", "iterate-plan", "merge-pr",
+      "remediate-plan", "research-codebase", "resume-handoff",
+      "review-comments", "scan-reward-hacking", "ticket-compound", "ticket-retro",
+      "triage-aging-prs", "unsticker", "validate-plan", "validate-type-safety",
     ];
     expect(required.filter((s) => !SELF_CONTAINED.includes(s))).toEqual([]);
     expect(existsSync(join(repoRoot, "scripts/estimate/reference-class-corpus.json"))).toBe(true);

@@ -63,7 +63,7 @@ entries: N · exact: N · mean signed delta: +X.X · median |delta|: X
 
 ## The watch-items block
 
-The watch-items block is the only stateful contract. The next retro and the morning briefing both
+The watch-items block is the only stateful contract. The next retro and any daily briefing both
 machine-parse it: keep the exact fence info string `yaml watch-items`, the exact four keys, and
 `pattern` values double-quoted. `component` uses the learnings-store enum
 (`ticket-compound/reference.md`).

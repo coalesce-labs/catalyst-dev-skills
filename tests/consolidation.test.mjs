@@ -4,11 +4,12 @@
 //
 // ask-triage (an alias nothing called) is retired; the unsticker skill keeps its `ask-triage/v1`
 // record. iterate-plan's procedure lives in create-plan as its revise mode, and iterate-plan stays
-// only as a thin alias so its trigger phrases still route.
+// only as a thin alias so its trigger phrases still route. The operator skills moved to a separate
+// private pack; unsticker stays, because Catalyst Cloud's triage job names it.
 
 import { describe, test, expect } from "bun:test";
-import { readFileSync, existsSync } from "node:fs";
-import { join } from "node:path";
+import { readFileSync, readdirSync, statSync, existsSync } from "node:fs";
+import { join, relative } from "node:path";
 import { fileURLToPath } from "node:url";
 
 const repoRoot = fileURLToPath(new URL("..", import.meta.url));
@@ -70,5 +71,47 @@ describe("unsticker is invoked by name only", () => {
     expect(f["disable-model-invocation"]).toBe(true);
     expect(String(f.description)).toMatch(/by name/);
     expect(String(f.description)).toMatch(/Cloud pack's `?unstick`?/);
+  });
+});
+
+describe("the operator skills live in their own pack", () => {
+  const MOVED = [
+    "ask", "steward", "concierge", "catalyst-sop", "linearis-cli", "project-orchestrator",
+    "morning-briefing", "briefing-followup",
+  ];
+  const listMarkdown = (dir) =>
+    readdirSync(dir).flatMap((e) => {
+      const full = join(dir, e);
+      return statSync(full).isDirectory() ? listMarkdown(full) : full.endsWith(".md") ? [full] : [];
+    });
+
+  test("none of them is in skills/ or the ownership manifest", () => {
+    for (const name of MOVED) {
+      expect(existsSync(join(repoRoot, "skills", name))).toBe(false);
+      expect(dirs()).not.toContain(name);
+    }
+  });
+
+  test("unsticker is still here", () => {
+    expect(existsSync(join(repoRoot, "skills", "unsticker", "SKILL.md"))).toBe(true);
+    expect(dirs()).toContain("unsticker");
+  });
+
+  // A public skill may not send its reader to a skill a public install does not have.
+  test("no public skill's prose names one of them as a skill", () => {
+    const alt = MOVED.join("|");
+    const asSkill = [
+      new RegExp(`\`[/$]?(${alt})\``),                                   // `ask`, `/steward`, `$concierge`
+      new RegExp(`\\b(${alt})\\b skill`, "i"),                           // the linearis-cli skill
+      new RegExp(`\\b(${MOVED.filter((n) => n !== "ask").join("|")})\\b`), // any bare multi-word name
+    ];
+    const hits = listMarkdown(join(repoRoot, "skills")).flatMap((file) =>
+      readFileSync(file, "utf8")
+        .split("\n")
+        .map((line, i) => ({ line, i }))
+        .filter(({ line }) => asSkill.some((re) => re.test(line)))
+        .map(({ line, i }) => `${relative(repoRoot, file)}:${i + 1} ${line.trim().slice(0, 120)}`),
+    );
+    expect(hits).toEqual([]);
   });
 });

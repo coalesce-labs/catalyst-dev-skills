@@ -17,7 +17,7 @@ Neutralization is mechanical, not something either skill hand-rolls: both source
 - `linear_sibling_skip_block_from_branch <own> <branch>` — walks the branch slug with the awk segmenter that recovers legitimate same-prefix sibling numbers from orchestrator-built names.
 - `linear_sibling_skip_block_from_body <own> <body>` — canonical-token-only regex extraction, so prose, dates, and SHAs in a hand-written description can't fabricate a fake `skip` line.
 
-Both modes are additionally filtered through an optional team-key allowlist cache (defense in depth, fail-open when the cache is absent) — the operator-only `linearis-cli` skill's "Team-key allowlist cache" section shows how to populate or refresh it.
+Both modes are additionally filtered through an optional team-key allowlist cache (defense in depth, fail-open when the cache is absent).
 
 Read `scripts/lib/linear-pr-skip.sh`'s header comment for the full two-mode design rationale — it is the canonical source for *how* the guard works. This file only covers *when* and *why* each caller invokes it.
 
