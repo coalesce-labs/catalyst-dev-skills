@@ -33,8 +33,15 @@ Ryan, 2026-09-28, on an ask that told him to add a GitHub App permission and cre
 1. **Never say "only you" unless it is true.** Before you list a step for the human, check whether an agent can do it (Flagship flags, Linear writes and most GitHub API calls are agent-doable), and whether it is already done. List only the steps a human really must do, and say who does the rest: "we'll create the flag".
 2. **Name the exact thing and where to do it.** The App by the name GitHub shows ("Catalyst Cloud Connector"), the permission as GitHub labels it ("Commit statuses: Read-only", not `statuses: read`), a direct settings link, and the follow-up step (accept the new permissions on the installation).
 3. **Say why in one line, then what each option does.** One sentence on what the answer unblocks, then one line per option on what happens if the human picks it.
+4. **Tell the story first, in plain words.** What is blocked and by what; why, explained so someone who does not know the system follows it (say what the check checks and what actually happened); what fixing it takes. Ryan's own example: "This pull request is blocked by one failing required check. All the other checks pass and all the tests pass. The failing check checks whether the schema changed, and if it did, it expects the version number to change too. The schema changed but the version number didn't."
+5. **Say precisely why it needs the human, and which kind of reason it is** (Ryan, 2026-09-28, on CTC-3950):
+   - **policy**: a rule needs their go. Ryan's release rule is one: a public release (an npm publish, an SDK release) needs his go *even though agents hold the publish access*. Write "public releases need your go", never "no agent has the token".
+   - **credential**: a named credential no agent holds. Name it, and check first that no agent holds it: most publish and write tokens are agent-held.
+   - **judgment**: a product or priority call only they can make.
+   Never state a policy as "missing access". The Waiting on me card shows this line as "Why this needs you", and rejects a policy described as missing access.
+6. **If you cannot say why it needs the human, do not raise it to the human.** Escalate inward (steward, concierge, the unsticker) instead. The card flags an ask whose reason is unclear as an unsticker candidate.
 
-`ask.mjs create` warns (it never refuses) when the text says "only you" or names a GitHub App with no settings link; the warnings are in its JSON as `copyFindings`. The Waiting on me card applies the same rules when it rewrites the ask (`apps/mirror/src/ask-ui/prompt.ts` in catalyst-cloud), but it can only work with what the ask says.
+`ask.mjs create` warns (it never refuses) when the text says "only you", names a GitHub App with no settings link, or claims a missing credential or access (check it is not a policy); the warnings are in its JSON as `copyFindings`. The Waiting on me card applies the same rules when it rewrites the ask (`apps/mirror/src/ask-ui/prompt.ts` in catalyst-cloud), but it can only work with what the ask says.
 
 The raw form, for reference (or when you must hand-build). Read the two identities out of the config rather than typing them — a pasted id is how a single-tenant assumption spreads:
 
