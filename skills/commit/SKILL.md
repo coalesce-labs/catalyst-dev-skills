@@ -1,57 +1,28 @@
 ---
 name: commit
 description:
-  "Automatically analyzes code changes and creates git commits with conventional commit messages
-  when the user indicates they want to save their work, commit changes, or says 'commit this', 'save
-  my changes', 'let's commit'. Auto-detects commit type, scope, and ticket reference from branch
-  name."
+  "Create git commits with conventional commit messages for this session's changes, detecting the
+  type, scope and ticket reference from the diff and branch name. Use when the user wants to save or
+  commit their work, e.g. 'commit this', 'save my changes', 'let's commit'."
 disable-model-invocation: false
 allowed-tools: Bash, Read
 version: 2.0.0
 ---
 
-# Commit Changes
+# Commit changes
 
-You are tasked with creating git commits using conventional commit format for the changes made during this session.
+Commit this session's changes in conventional commit format. Group related changes, and keep each commit focused.
 
-## Process:
+## Process
 
-1. **Analyze what changed:**
-   - Review the conversation history and understand what was accomplished
-   - Run `git status` to see current changes
-   - Run `git diff --cached` to see staged changes (if any)
-   - Run `git diff` to see unstaged changes
-   - Get changed file list: `git diff --name-only` and `git diff --cached --name-only`
+1. **See what changed.** Recall what the session accomplished, then run `git status`, `git diff --cached`, `git diff`, `git diff --name-only` and `git diff --cached --name-only`.
 
-2. **Auto-detect conventional commit components:**
+2. **Detect the parts.** If `.catalyst/config.json` sets `catalyst.commit` or `catalyst.project.ticketPrefix`, read [`references/config.md`](references/config.md) first.
+   - **Type.** Only `*.md` in `docs/` gives `docs`; only test files (`*test*`, `*spec*`) give `test`; `package.json` or `*.lock` gives `build`; `.github/workflows/` gives `ci`; a mix gives `feat` or `fix` from context. Otherwise ask the user to pick one of `feat`, `fix`, `refactor`, `chore`, `docs`, `style`, `perf`, `test`, `build`, `ci`.
+   - **Scope.** `agents/*.md` gives `agents`, `commands/*.md` `commands`, `scripts/*` `scripts`, `docs/*.md` `docs`, `.claude/` `claude`. Several directories or root files give an empty scope.
+   - **Ticket.** Match `{PREFIX}-{NUMBER}` (e.g. `ENG-123`) in `git branch --show-current`.
 
-   **Type detection (suggest to user):**
-   - If only `*.md` files in `docs/`: suggest `docs`
-   - If only test files (`*test*`, `*spec*`): suggest `test`
-   - If `package.json`, `*.lock` files: suggest `build`
-   - If `.github/workflows/`: suggest `ci`
-   - If mix of changes: suggest `feat` or `fix` based on context
-   - Otherwise: ask user to choose from: `feat`, `fix`, `refactor`, `chore`, `docs`, `style`,
-     `perf`, `test`, `build`, `ci`
-
-   **Scope detection (suggest to user):**
-   - Parse changed file paths
-   - Map to scopes:
-     - `agents/*.md` → `agents`
-     - `commands/*.md` → `commands`
-     - `scripts/*` → `scripts`
-     - `docs/*.md` → `docs`
-     - `.claude/` → `claude`
-     - Multiple dirs or root files → empty scope (cross-cutting)
-
-   **Extract ticket reference:**
-   - Get current branch: `git branch --show-current`
-   - Extract ticket pattern: `{PREFIX}-{NUMBER}` (e.g., ENG-123, PROJ-456)
-   - Will be added to commit footer
-
-3. **Generate conventional commit message:**
-
-   **Format:**
+3. **Write the message.**
 
    ```
    <type>(<scope>): <short summary>
@@ -61,14 +32,9 @@ You are tasked with creating git commits using conventional commit format for th
    <footer - ticket reference>
    ```
 
-   **Rules:**
-   - Header max 100 characters
-   - Type: lowercase
-   - Subject: imperative mood, no period, no capital first letter
-   - Body: explain WHY, not what (optional for simple changes)
-   - Footer: `Refs: TICKET-123` if ticket in branch name
-
-   **Example:**
+   - The header stays under 100 characters, with a lowercase type and an imperative, lowercase summary with no period ("add feature", not "added feature").
+   - The body explains why, not what; a simple change may skip it.
+   - The footer is `Refs: TICKET-123` when the branch names a ticket.
 
    ```
    feat(commands): add conventional commit support to /commit
@@ -80,122 +46,14 @@ You are tasked with creating git commits using conventional commit format for th
    Refs: ENG-123
    ```
 
-4. **Present plan to user:**
-   - Show detected type and scope with confidence
-   - Show generated commit message
-   - Explain: "Detected changes suggest: `<type>(<scope>): <summary>`"
-   - List files to be committed
-   - Ask: "Proceed with this commit? [Y/n/e(dit)]"
-     - Y: execute as-is
-     - n: abort
-     - e: allow user to edit message
+4. **Present the plan.** Show the detected type and scope with your confidence, the message, and the files to commit: "Detected changes suggest: `<type>(<scope>): <summary>`". Ask "Proceed with this commit? [Y/n/e(dit)]": Y commits as-is, n aborts, e lets the user edit the message. The user may override any suggestion.
 
-5. **Execute commit:**
-   - Stage files: `git add <specific-files>` (NEVER use `-A` or `.`)
-   - Create commit with message
-   - Show result: `git log --oneline -n 1`
-   - Show summary: `git show --stat HEAD`
+5. **Commit.** Stage named files with `git add <specific-files>` (NEVER `-A` or `.`), commit, then show `git log --oneline -n 1` and `git show --stat HEAD`.
 
-## Configuration
+## Types
 
-Reads from `.catalyst/config.json`:
+`feat` (new feature), `fix` (bug fix), `perf` (performance) and `revert` appear in the changelog. `docs` (documentation only), `style` (formatting), `refactor` (no behaviour change), `test`, `build` (build system or dependencies), `ci` and `chore` (maintenance) are internal.
 
-```json
-{
-  "catalyst": {
-    "commit": {
-      "useConventional": true,
-      "scopes": ["agents", "commands", "scripts", "docs", "config"],
-      "autoDetectType": true,
-      "autoDetectScope": true,
-      "requireBody": false
-    },
-    "project": {
-      "ticketPrefix": "PROJ"
-    }
-  }
-}
-```
+## Authorship
 
-## Type Reference
-
-**Types that appear in CHANGELOG:**
-
-- `feat` - New feature
-- `fix` - Bug fix
-- `perf` - Performance improvement
-- `revert` - Revert previous commit
-
-**Internal types:**
-
-- `docs` - Documentation only
-- `style` - Formatting, no code change
-- `refactor` - Code restructuring, no behavior change
-- `test` - Adding/updating tests
-- `build` - Build system or dependencies
-- `ci` - CI/CD configuration
-- `chore` - Maintenance tasks
-
-## Examples
-
-**Feature:**
-
-```
-feat(agents): add codebase-pattern-finder agent
-
-Implements new agent for finding similar code patterns across
-the codebase with concrete examples and file references.
-
-Refs: ENG-456
-```
-
-**Fix:**
-
-```
-fix(commands): handle missing PR template gracefully
-
-Previously crashed when thoughts/shared/pr_description.md was
-missing. Now provides clear error with setup instructions.
-
-Refs: ENG-789
-```
-
-**Documentation:**
-
-```
-docs(scripts): add README for setup scripts
-
-Documents all scripts in scripts/ directory with usage examples
-and explains when to use each setup method.
-
-Refs: ENG-012
-```
-
-**Chore (no ticket):**
-
-```
-chore(config): update conventional commit scopes
-
-Adds new scopes for agents and commands directories.
-```
-
-## Important:
-
-- **NEVER add co-author information or Claude attribution**
-- Commits should be authored solely by the user
-- Do not include any "Generated with Claude" messages
-- Do not add "Co-Authored-By" lines
-- Write commit messages as if the user wrote them
-- Use conventional format for consistency and changelog generation
-- Keep header under 100 characters
-- Use imperative mood: "add feature" not "added feature"
-
-## Remember:
-
-- You have the full context of what was done in this session
-- Group related changes together logically
-- Keep commits focused and atomic when possible
-- The user trusts your judgment - they asked you to commit
-- Suggest type and scope based on file analysis
-- Extract ticket from branch name automatically
-- Allow user to override suggestions
+Write the message as if the user wrote it, and author the commit as the user alone: add no co-author line, no Claude attribution and no "Generated with Claude" text.

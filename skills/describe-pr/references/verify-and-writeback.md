@@ -43,8 +43,6 @@ gh pr edit $pr_number --body-file "thoughts/shared/prs/${pr_number}_description.
 
 This is a **call site**, not the guard's rationale — see [linear-sibling-guard.md](linear-sibling-guard.md) for why both modes run here and what the dedup does.
 
-## Step 13 — Update the Linear ticket
+## Step 13 — Leave the ticket where it is
 
-If a ticket was found and Linearis is available: update status to `stateMap.inReview` (see `linearis issues usage`), then add a comment with the PR link and verification summary — posted through the app actor (the `linearis` skill's `linear-reply.mjs`), never a bare `linearis issues discuss`. Skip silently if the CLI isn't available.
-
-**Skip the status transition when `CATALYST_PHASE` is set** — inside a phase container, the runner driving that ticket already owns the Linear status write-back; this transition is for interactive `describe-pr` use only. The PR-link comment is still posted in both modes.
+Write nothing to the ticket: it stays where it is until the PR merges. On Catalyst Cloud the cloud moves it when the phase outcome is recorded and again when the PR merges. Linear's GitHub integration (and the cloud, when connected) links the PR to the ticket by branch name or title, and the description's `Fixes` line names it.

@@ -14,8 +14,8 @@ Run every gate; do not stop at the first failure — the pass is exhaustive, not
 | Reward-hacking scan | grep-based pattern check | the `scan-reward-hacking` skill |
 | Unit tests | project test command | the `validate-type-safety` skill |
 | Lint | project lint command | the `validate-type-safety` skill |
-| Security review | dependency + secret scan | the `review-security` skill |
-| Code review | style/guideline adherence | the `review-code` skill |
+| Security review | exploitable vulnerabilities the diff introduces (injection, auth bypass, secrets, unsafe deserialization) | the `review-security` skill |
+| Code review | real defects in the diff (bugs, quoted CLAUDE.md/AGENTS.md violations) | the `review-code` skill |
 | Test coverage | per-file coverage on diff | a test-coverage review subagent |
 | Silent failures | unchecked try/catch + fallback hunting | a silent-failure review subagent |
 
@@ -29,7 +29,7 @@ A rough aggregate signal for how much this diff needs a human's eyes before it m
 |---|---|
 | Any required CLI gate failed (tsc/test/lint/security) | +3 each |
 | Reward-hacking scan flagged a HIGH-severity pattern | +3 |
-| Code reviewer flagged a structural issue | +2 |
+| Code review reported a defect | +2 |
 | Test-analyzer reports < 50% diff coverage | +2 |
 | Silent-failure hunter flagged an unchecked catch / fallback | +2 |
 | Any agent surfaced a must-fix finding | +3 |

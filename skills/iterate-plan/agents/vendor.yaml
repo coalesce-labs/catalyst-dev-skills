@@ -1,8 +1,0 @@
----
-# Files this skill carries as generated copies of one source.
-# Edit the source, never a copy; `node scripts/vendor.mjs --write` refreshes them
-# and CI (`node scripts/vendor.mjs --check`) fails on drift.
-files:
-  - agents/codebase-locator.md
-  - agents/codebase-analyzer.md
-  - agents/codebase-pattern-finder.md

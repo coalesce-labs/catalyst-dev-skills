@@ -1,31 +1,28 @@
 ---
 name: create-plan
 description:
-  "Create detailed implementation plans through an interactive process. **ALWAYS use when** the user
-  says 'plan this', 'create a plan', 'let's plan the implementation', 'design the approach', or
-  wants a structured TDD implementation plan before writing code. Works best after
-  the research-codebase skill."
+  "Create an implementation plan with the person, step by step, or revise an existing one. **ALWAYS use
+  when** the user says 'plan this', 'create a plan', 'let's plan the implementation', 'design the approach',
+  or wants a structured TDD implementation plan before writing code; and when they say 'update the plan', 'change
+  the plan', 'the requirements changed' or 'revise the approach' for a plan in thoughts/shared/plans/. Works best after the research-codebase skill."
 disable-model-invocation: false
-allowed-tools: Read, Write, Grep, Glob, Task, TodoWrite, Bash, mcp__serena__activate_project,
-  mcp__serena__list_memories, mcp__serena__read_memory, mcp__serena__get_symbols_overview,
-  mcp__serena__find_symbol, mcp__serena__find_referencing_symbols, mcp__serena__search_for_pattern,
-  mcp__serena__find_file, mcp__serena__list_dir
+allowed-tools: Read, Write, Grep, Glob, Task, TodoWrite, Bash, mcp__serena__activate_project, mcp__serena__list_memories, mcp__serena__read_memory, mcp__serena__get_symbols_overview, mcp__serena__find_symbol, mcp__serena__find_referencing_symbols, mcp__serena__search_for_pattern, mcp__serena__find_file, mcp__serena__list_dir
 version: 1.0.0
 ---
 
-# Implementation Plan
+# Create plan
 
-You are tasked with creating detailed implementation plans through an interactive, iterative process. You should be skeptical, thorough, and work collaboratively with the user to produce high-quality technical specifications.
+Build the plan with the person and get their agreement at each step. Be skeptical: verify every requirement against the code, and research each correction the person makes before accepting it. When the person names an existing plan and asks for changes, follow [Revising an existing plan](#revising-an-existing-plan) instead.
 
-Replace `PROJ` in ticket references with your Linear team's prefix from `.catalyst/config.json`.
+**Paths.** `${CLAUDE_SKILL_DIR}` is this skill's directory, which Claude Code fills in. On another harness, set it to the directory holding this SKILL.md, or stop and report `skill_dir_unresolved`.
 
-**Paths.** Commands below name files inside this skill's own directory as `${CLAUDE_SKILL_DIR}/…`. Claude Code fills that in. On any other harness, set CLAUDE_SKILL_DIR to the absolute directory that contains this SKILL.md before running them. If you cannot, stop and report `skill_dir_unresolved`.
+## Start
 
-## Prerequisites
+Run this, then start session tracking as [references/session-tracking.md](references/session-tracking.md) shows.
 
 ```bash
 # Thoughts must exist for this skill's documents. That is the only host check here: the skill runs anywhere.
-[[ -e thoughts/shared ]] || echo "⚠️ thoughts/shared is missing in $(pwd) — run \`humanlayer thoughts init\`; if the prompt names an output path, write there" >&2
+[[ -e thoughts/shared ]] || echo "⚠️ thoughts/shared is missing in $(pwd) — run \`humanlayer thoughts init\` in the repo root, or create the worktree with the create-worktree skill, which does it; if the prompt names an output path, write there" >&2
 
 # explicit-input discovery: begin
 # Find the research to plan from on disk for the ticket this run was given: $CATALYST_TICKET under a
@@ -55,342 +52,27 @@ else
 fi
 ```
 
-## Session Tracking
+- **Input given** (a path or ticket): it overrides discovery. Read those files, ask whether any research the block found (📋) should inform the plan, then begin.
+- **No input, research found (📋):** show its path, ask whether to plan from it, and wait.
+- **Nothing found (⚠️):** ask for the task or ticket, its constraints, and related research, and wait.
 
-```bash
-# Session tracking uses the installed catalyst-session CLI when this host has one; skipped otherwise.
-SESSION_SCRIPT="$(command -v catalyst-session 2>/dev/null || true)"
-if [[ -n "$SESSION_SCRIPT" ]]; then
-  CATALYST_SESSION_ID=$("$SESSION_SCRIPT" start --skill "create-plan" \
-    --ticket "${TICKET_ID:-}" \
-    --workflow "${CATALYST_SESSION_ID:-}")
-  export CATALYST_SESSION_ID
-  "$SESSION_SCRIPT" phase "$CATALYST_SESSION_ID" "planning" --phase 1
-fi
-```
+## Steps
 
-## Initial Response
+1. **Gather context.** Read every mentioned file yourself, in full (no limit or offset), before spawning subagents. Take the ticket from the research's `source_ticket`, the argument, or the conversation. Run `codebase-locator`, `codebase-analyzer` and `thoughts-locator` scoped to the ticket (the `research-codebase` skill's agents) and read what they find in full. Check the requirements against the code, present your understanding with file:line references, and ask only what the code cannot answer.
+2. **Research.** Track the work in TodoWrite and run in parallel `codebase-locator`, `codebase-analyzer`, `codebase-pattern-finder`, `external-research` (framework patterns), `thoughts-locator` and `thoughts-analyzer`. Each agent's instructions ship as `${CLAUDE_SKILL_DIR}/assets/agents/<name>.md`; run a subagent with that file plus your request, or do the task inline when the harness has no subagents. Wait for all of them, then present design options with pros and cons.
+3. **Outline.** Once you agree on an approach, show the phases and what each does, and get feedback before writing details.
+4. **Write.** Save to `thoughts/shared/plans/YYYY-MM-DD-PROJ-123-description.md`, or `YYYY-MM-DD-description.md` with no ticket, where `PROJ` is the team prefix in `.catalyst/config.json`. Write only under `thoughts/shared/plans/`; `thoughts/searchable/` is a read-only index. Fill the template in [references/plan-template.md](references/plan-template.md): every phase runs Red, Green, Refactor, and success criteria split into Automated Verification (prefer `make check`) and Manual Verification. Resolve every open question before saving.
+5. **Review.** Run `humanlayer thoughts sync`, show the plan's path, and ask whether the phases are scoped right, the criteria specific, and any edge case missing. Revise until the person is satisfied, syncing after each change. Above 60% context, recommend clearing before implementation.
+6. **Hand off.** End session tracking, then tell the person to start a fresh session and use the implement-plan skill with `[--team] thoughts/shared/plans/{PLAN_FILENAME}`. Add `--team` for 3+ parallel phases in distinct domains with non-overlapping files, or 10+ files.
 
-Auto-discovery has already run in Prerequisites above. Check its output and follow this priority:
+Planning moves no ticket; a person who asks for a move uses `catalyst write state <ID> --slot <slot>` (the Cloud pack's `catalyst-linear` skill), or the operator-only `linearis-cli` skill. Once the plan is saved, comment its path on the ticket through the app actor: `catalyst write comment <ID>` on a Catalyst Cloud account, or `linear-reply.mjs --as <role>` from `linearis-cli`. Bare `linearis issues discuss`/`reply` posts as the token's owner, so leave it unused. Skip the comment when `CATALYST_PHASE` is set, and skip silently when `command -v catalyst` and `command -v linearis` both fail.
 
-1. **If user provided parameters** (file path or ticket reference):
-   - Use the provided path (user override)
-   - Read any provided files FULLY
-   - If Prerequisites also discovered research (📋), mention it and ask if it should inform the plan
-   - Begin the research process
+## Revising an existing plan
 
-2. **If no parameters provided AND Prerequisites discovered research (📋)**:
-   - Show the discovered research path
-   - Ask if it should be used as context for the plan
-   - Wait for user's confirmation
+Use this when the person names an existing plan (a path, or a ticket with a plan on disk) and asks for changes. Back each change with research, not just text edits.
 
-3. **If no parameters AND no research found (⚠️)**:
-   - Ask for: task/ticket description, context/constraints, related research
-   - Wait for user's input
-
-## Process Steps
-
-### Step 1: Context Gathering & Initial Analysis
-
-1. **Read all mentioned files immediately and FULLY**:
-   - Ticket files, research documents, related plans, JSON/data files
-   - **IMPORTANT**: Use the Read tool WITHOUT limit/offset parameters
-   - **CRITICAL**: Read these files yourself before spawning sub-tasks
-
-2. **Extract ticket and update Linear state**:
-
-   If a ticket is detected (from the research document's `source_ticket` frontmatter, from the command argument, or from context), update ticket status to `stateMap.planning` from config using Linearis CLI (run `linearis issues usage` for syntax). If Linearis CLI is not available, skip silently and continue planning. **Phase-container guard:** skip every `linearis` call when `CATALYST_PHASE` is set (an automated run's container holds no Linear credential; its runner owns the ticket write-back) or when `command -v linearis` fails (the CLI is not installed); say so in one line and continue.
-
-3. **Gather context using research sub-agents** — use the same agent palette and orientation process as the `research-codebase` skill (that skill is the single source of truth for how codebase research works). For planning, focus agents on the specific ticket/task scope rather than broad exploration:
-   - **codebase-locator** — find all files related to the ticket/task
-   - **codebase-analyzer** — understand how the current implementation works
-   - **thoughts-locator** — find existing thoughts documents about this feature (if relevant)
-
-4. **Read all files identified by research tasks** FULLY into the main context
-
-5. **Analyze and verify understanding**:
-   - Cross-reference ticket requirements with actual code
-   - Identify discrepancies, assumptions, and true scope
-
-6. **Present informed understanding and focused questions**:
-   - Show what you found with file:line references
-   - Only ask questions you genuinely cannot answer through code investigation
-
-### Step 2: Research & Discovery
-
-After getting initial clarifications:
-
-1. **If the user corrects any misunderstanding**:
-   - Spawn new research tasks to verify — don't just accept corrections
-   - Only proceed once you've verified the facts yourself
-
-2. **Create a research todo list** using TodoWrite
-
-3. **Spawn parallel sub-tasks for comprehensive research**:
-
-   **For local codebase:**
-   - **codebase-locator** — find specific files
-   - **codebase-analyzer** — understand implementation details
-   - **codebase-pattern-finder** — find similar features to model after
-
-   **For external research:**
-   - **external-research** — framework patterns and best practices from popular repos
-
-   **For historical context:**
-   - **thoughts-locator** / **thoughts-analyzer** — find past research, plans, decisions
-
-   Each agent's instructions ship with this skill as `${CLAUDE_SKILL_DIR}/assets/agents/<name>.md` (for example `${CLAUDE_SKILL_DIR}/assets/agents/codebase-locator.md`). To use one, run a subagent with the instructions in that file plus your request, or do the task inline if the harness has no subagents.
-
-4. **Wait for ALL sub-tasks to complete** before proceeding
-
-5. **Present findings and design options** with pros/cons for each approach
-
-### Step 3: Plan Structure Development
-
-Once aligned on approach:
-
-1. **Create initial plan outline** showing phases and what each accomplishes
-2. **Get feedback on structure** before writing details
-
-### Step 4: Detailed Plan Writing
-
-After structure approval:
-
-1. **Gather metadata**:
-
-   ```bash
-   CURRENT_ISO_DATETIME=$(date -Iseconds)
-   CURRENT_DATE=$(date +%Y-%m-%d)
-   GIT_COMMIT_SHORT=$(git rev-parse --short HEAD)
-   GIT_BRANCH=$(git branch --show-current)
-   REPO_NAME=$(basename "$(git rev-parse --show-toplevel)")
-   ```
-
-   **IMPORTANT: Document Storage Rules**
-   - ALWAYS write to `thoughts/shared/plans/`
-   - NEVER write to `thoughts/searchable/` (read-only search index)
-
-2. **Write the plan** to `thoughts/shared/plans/YYYY-MM-DD-PROJ-XXXX-description.md`
-   - With ticket: `YYYY-MM-DD-PROJ-123-parent-child-tracking.md`
-   - Without ticket: `YYYY-MM-DD-improve-error-handling.md`
-
-3. **Use this template structure** (frontmatter comes BEFORE the heading):
-
-````markdown
----
-date: { CURRENT_ISO_DATETIME }
-researcher: claude
-git_commit: { GIT_COMMIT_SHORT }
-branch: { GIT_BRANCH }
-repository: { REPO_NAME }
-topic: "{PLAN_TITLE}"
-tags: [plan, implementation, { RELEVANT_COMPONENT_TAGS }]
-status: ready_for_implementation
-last_updated: { CURRENT_DATE }
-last_updated_by: claude
-type: implementation_plan
-source_ticket: { TICKET-ID or null }
-source_research: "[[research-doc-filename]]" # or null
----
-
-# [Feature/Task Name] Implementation Plan
-
-## Overview
-
-[Brief description of what we're implementing and why]
-
-## Current State Analysis
-
-[What exists now, what's missing, key constraints discovered]
-
-## Desired End State
-
-[Specification of the desired end state and how to verify it]
-
-### Key Discoveries:
-
-- [Important finding with file:line reference]
-- [Pattern to follow]
-- [Constraint to work within]
-
-## What We're NOT Doing
-
-[Explicitly list out-of-scope items to prevent scope creep]
-
-## Implementation Approach
-
-[High-level strategy and reasoning]
-
-## Phase 1: [Descriptive Name]
-
-### Overview
-
-[What this phase accomplishes]
-
-### Tests First (Red):
-
-Define the expected behavior before writing implementation code.
-
-#### 1. [Test File/Group]
-
-**File**: `tests/path/to/feature.test.ext` **Tests to write**:
-
-```[language]
-// Test describing expected behavior — should FAIL before implementation
-```
-
-### Implementation (Green):
-
-Write the minimum code to make the tests pass.
-
-#### 1. [Component/File Group]
-
-**File**: `path/to/file.ext` **Changes**: [Summary of changes]
-
-```[language]
-// Specific code to add/modify
-```
-
-### Refactor (if needed):
-
-[Any cleanup, extraction, or simplification to do while tests stay green]
-
-### Success Criteria:
-
-#### Automated Verification:
-
-- [ ] Unit tests pass: `make test`
-- [ ] Type checking passes: `make check`
-- [ ] Linting passes: `make lint`
-
-#### Manual Verification:
-
-- [ ] Feature works as expected when tested
-- [ ] No regressions in related features
-
----
-
-## Phase 2: [Descriptive Name]
-
-[Similar structure — always Tests First → Implementation → Refactor]
-
----
-
-## Testing Strategy (TDD)
-
-**Approach: Test-Driven Development (Red → Green → Refactor)**
-
-Each phase writes tests BEFORE implementation code. This ensures:
-
-- Requirements are encoded as executable specifications
-- Implementation stays focused on passing defined behavior
-- Refactoring is safe because tests catch regressions
-
-**Test tiers:**
-
-- **Unit tests** — written first for each function with business logic
-- **Integration tests** — written first for API endpoints and data flows
-- **Edge case tests** — written first for error states, invalid inputs, auth failures
-
-**Per-phase rhythm:**
-
-1. Write failing tests that describe the phase's expected behavior
-2. Implement the minimum code to make tests pass
-3. Refactor while keeping tests green
-
-[Additional manual testing steps if needed]
-
-## Performance Considerations
-
-[Any performance implications]
-
-## Migration Notes
-
-[If applicable]
-
-## References
-
-- Original ticket: [[PROJ-XXX]]
-- Related research: [[YYYY-MM-DD-relevant-research]]
-- Similar implementation: `[file:line]`
-````
-
-### Step 5: Sync, Track, and Review
-
-**5a. Sync thoughts:**
-
-```bash
-humanlayer thoughts sync
-```
-
-**5b. Present plan** and ask for review:
-
-- Show plan location
-- Ask: Are phases properly scoped? Success criteria specific enough? Missing edge cases?
-- If context >60%, recommend clearing before implementation phase
-
-4. **Iterate based on feedback** until the user is satisfied
-   - Re-sync thoughts after changes
-
-5. **End session tracking:**
-
-   ```bash
-   if [[ -n "${CATALYST_SESSION_ID:-}" && -x "$SESSION_SCRIPT" ]]; then
-     "$SESSION_SCRIPT" end "$CATALYST_SESSION_ID" --status done
-   fi
-   ```
-
-6. **After plan approval**, provide implementation command:
-
-   - **Use `--team` when:** 3+ parallel phases, distinct domains, non-overlapping files, 10+ files
-   - **Use standard mode when:** sequential phases, same directory, <10 files, tightly coupled
-
-   ```
-   ## Ready to Implement
-
-   Start a new session and use the implement-plan skill with:
-   [--team] thoughts/shared/plans/{PLAN_FILENAME}
-
-   Tip: Start a fresh session — implementation needs context for source files and progress tracking.
-   ```
-
-## Important Guidelines
-
-1. **Be Skeptical**: Question vague requirements. Don't assume — verify with code.
-2. **Be Interactive**: Don't write the full plan in one shot. Get buy-in at each step.
-3. **Be Thorough**: Read all context files COMPLETELY. Include file:line references. Use `make check` over individual lint/test commands when available.
-4. **Be Practical**: Focus on incremental, testable changes. Include "what we're NOT doing".
-5. **No Open Questions in Final Plan**: Research or ask for clarification immediately. The plan must be complete and actionable — every decision made before finalizing.
-
-## Success Criteria Guidelines
-
-**Always separate into two categories:**
-
-1. **Automated Verification** (run by agents): `make test`, `make lint`, type checking, etc.
-2. **Manual Verification** (requires human): UI/UX, performance, edge cases, acceptance criteria
-
-## Common Patterns
-
-All patterns follow TDD: write tests for each step BEFORE implementing it.
-
-### For Database Changes:
-
-Schema/migration → **tests for** store methods → store methods → **tests for** business logic → business logic → **tests for** API → API → clients
-
-### For New Features:
-
-Research patterns → data model → **tests for** backend logic → backend logic → **tests for** API endpoints → API endpoints → **tests for** UI components → UI
-
-### For Refactoring:
-
-**Capture existing behavior as tests first** → incremental changes (keep tests green) → backwards compatibility → migration strategy
-
-## Linear Integration
-
-State names (`stateMap.*`) come from `.catalyst/config.json`. The canonical transition table is in the operator-only `linearis-cli` skill, which a default install leaves out; without the Linearis CLI (every tenant machine) the transition is skipped, and on a Catalyst Cloud tenant the card moves with the `linear` skill's `catalyst write state` or with the automated run's coordinator.
-
-If a ticket is detected (from research document's `source_ticket` frontmatter, command argument, or context):
-
-- **At planning start** (Step 1): Update ticket status to `stateMap.planning` from config using Linearis CLI (run `linearis issues usage` for syntax).
-- **After plan saved**: Add a comment with the plan path — this is an agent-authored comment, so post it through the app actor: `catalyst write comment <ID>` (the `linear` skill) on a Catalyst Cloud tenant, or `linear-reply.mjs --as <role>` from the operator `linearis-cli` skill. Never use bare `linearis issues discuss`/`reply`: those post as the person who owns the token.
-- If the tooling is not available, skip silently and continue planning
+1. **Find the plan.** Use the path given, or the newest plan for `TICKET_ID`: `find -H thoughts/shared/plans -type f -name '*.md' -ipath "*${TICKET_ID}[!0-9]*" -exec ls -t {} + 2>/dev/null | head -1`. Show it, ask "**Update this plan?** [Y/n]", then ask what should change. With no plan found, ask for its path.
+2. **Read it in full**, noting which phases are done.
+3. **Research when the change needs it**, with the agents from Step 2. Show the findings (file:line) and their impact before editing.
+4. **Update the plan.** Keep completed phases unchanged unless asked. Update pending phases, add or remove phases as the scope moved, and give every change matching success criteria. Append to an `## Iteration History` section the reason, what changed per phase, and any research document used. Resolve every open question.
+5. **Save over the existing file** in `thoughts/shared/plans/`, run `humanlayer thoughts sync`, and summarise what changed and which phases it affects.

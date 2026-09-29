@@ -1,6 +1,7 @@
 ---
 name: unsticker
-description: "Investigate one open ask ticket like a senior engineer, classify it (mechanical, decidable under standing authority, or genuinely the human's), act within the limits, and emit one structured ask-triage/v1 record with the reasoning. Use when dispatched as the triage phase (CATALYST_PHASE=triage), when asked to 'triage', 'unstick' or 'unblock' an ask, or when sweeping the open asks so they stop waiting on a human for work an agent can do. For a parked or held ticket rather than an ask, use the Cloud pack's unstick skill."
+description: "Investigate one open ask ticket like a senior engineer, classify it (mechanical, decidable under standing authority, or genuinely the human's), act within the limits, and emit one structured ask-triage/v1 record with the reasoning. Invoked by name only: Catalyst Cloud's triage job names it (CATALYST_PHASE=triage), and an operator runs it to triage, unstick or unblock an ask, or to sweep the open asks. A person's own 'unstick' request belongs to the Cloud pack's `unstick` skill, which is why the agent never picks this one on its own."
+disable-model-invocation: true
 ---
 
 # Unsticker
@@ -13,7 +14,7 @@ An ask ticket exists to get one human decision. Many asks do not need one: the w
 
 ## 1. Read the ask
 
-Read the ask's title, description, labels, state, comments (oldest first) and relations. Read Linear through the `linearis` skill's reading rule (the local replica first, never a bare `issues read`). Note what the ask blocks. That is the subject, the work that is actually stuck.
+Read the ask's title, description, labels, state, comments (oldest first) and relations. Read Linear through the `linearis-cli` skill's reading rule (the local replica first, never a bare `issues read`). Note what the ask blocks. That is the subject, the work that is actually stuck.
 
 Skip every `linearis` call when `CATALYST_PHASE` is set (a phase container has no Linear credential and the runner owns the write-back) or when `command -v linearis` fails; say so in one line and continue from the inputs you were given.
 

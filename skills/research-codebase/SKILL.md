@@ -14,292 +14,56 @@ allowed-tools:
 version: 1.0.0
 ---
 
-# Research Codebase
+# Research codebase
 
-You are tasked with conducting comprehensive research across the codebase to answer user questions by spawning parallel sub-agents and synthesizing their findings.
+Answer the person's question by running parallel subagents over the codebase and writing up their findings. You are a documentarian: describe what exists, and critique it or propose changes only when the person asks.
 
-**You are a documentarian, not a critic.** Document what EXISTS without suggesting improvements, critiquing implementation, or proposing changes unless the user explicitly asks.
+Your job ends when the research document is saved under `thoughts/shared/research/` and synced. Save it there and nowhere else (not memory, not personal notes). Planning and implementation belong to the `create-plan` skill, so stay out of EnterPlanMode.
 
-**CRITICAL REQUIREMENTS — read these before doing anything else:**
+**Paths.** `${CLAUDE_SKILL_DIR}` is this skill's directory, which Claude Code fills in. On another harness, set it to the directory holding this SKILL.md, or stop and report `skill_dir_unresolved`.
 
-1. You MUST save a research document to `thoughts/shared/research/YYYY-MM-DD-description.md`
-2. Do NOT save to memory, personal notes, or any other location
-3. Do NOT use the EnterPlanMode tool, create plans, or start implementing
-4. Your job ends when the research document is written and synced to thoughts/
-
-**Paths.** Commands below name files inside this skill's own directory as `${CLAUDE_SKILL_DIR}/…`. Claude Code fills that in. On any other harness, set CLAUDE_SKILL_DIR to the absolute directory that contains this SKILL.md before running them. If you cannot, stop and report `skill_dir_unresolved`.
-
-## Prerequisites
+## Start
 
 ```bash
 # Thoughts must exist for this skill's documents. That is the only host check here: the skill runs anywhere.
-[[ -e thoughts/shared ]] || echo "⚠️ thoughts/shared is missing in $(pwd) — run \`humanlayer thoughts init\`; if the prompt names an output path, write there" >&2
+[[ -e thoughts/shared ]] || echo "⚠️ thoughts/shared is missing in $(pwd) — run \`humanlayer thoughts init\` in the repo root, or create the worktree with the create-worktree skill, which does it; if the prompt names an output path, write there" >&2
 ```
 
-## Session Tracking
-
-```bash
-# Session tracking uses the installed catalyst-session CLI when this host has one; skipped otherwise.
-SESSION_SCRIPT="$(command -v catalyst-session 2>/dev/null || true)"
-if [[ -n "$SESSION_SCRIPT" ]]; then
-  CATALYST_SESSION_ID=$("$SESSION_SCRIPT" start --skill "research-codebase" \
-    --ticket "${TICKET_ID:-}" \
-    --workflow "${CATALYST_SESSION_ID:-}")
-  export CATALYST_SESSION_ID
-fi
-```
-
-## Initial Setup
-
-When this command is invoked, respond with:
+Start session tracking as [references/session-tracking.md](references/session-tracking.md) shows; it also holds the phase and end calls used below. Then reply, and wait for the research query:
 
 ```
 I'm ready to research the codebase. Please provide your research question or area of interest,
 and I'll analyze it thoroughly by exploring relevant components and connections.
 ```
 
-Then wait for the user's research query.
-
-## Pull-Before-Read
-
-Before the first thoughts read, fast-forward the HumanLayer thoughts checkouts so research picks up the freshest peer state. Fast-forward only and non-fatal; it runs through the installed `thoughts-pull-sync` CLI when this host has one and is skipped otherwise:
+Before the first thoughts read, fast-forward the thoughts checkouts so you read the freshest peer state:
 
 ```bash
 # Pull-before-read: ff-only, non-fatal, host tooling — never a dependency of the research.
 if command -v thoughts-pull-sync >/dev/null 2>&1; then thoughts-pull-sync >/dev/null 2>&1 || true; fi
 ```
 
-## Steps to Follow After Receiving the Research Query
-
-### Step 0: Orient with Serena (ALWAYS attempt this first)
-
-Before reading files or spawning sub-agents, get a fast semantic map of the codebase from Serena, a local code-understanding MCP server. This is free and usually answers "where does X live / how is Y wired" in one call instead of many `Grep`s, so your sub-agent prompts come out specific rather than exploratory.
-
-**Prerequisite check** — only do this if the `mcp__serena__*` tools are available (Serena MCP is installed). If they are not, skip straight to Step 1 — do not retry or warn the user.
-
-1. **Activate the project** so the language servers target this repo: `mcp__serena__activate_project` with the repo root (the current working directory, or `.`).
-2. **Read the persisted orientation**: `mcp__serena__list_memories`, then `mcp__serena__read_memory("codebase_map")` for the directory map and key concepts.
-3. **Map the relevant area** instead of broad grepping: `mcp__serena__get_symbols_overview` on a key file, `mcp__serena__find_symbol` to jump to a definition, and `mcp__serena__find_referencing_symbols` to see its callers.
-
-Serena's results are a starting point — always verify against live code via the sub-agents below.
-
-### Step 1: Read any directly mentioned files first
-
-- If the user mentions specific files (tickets, docs, JSON), read them FULLY first
-- **IMPORTANT**: Use the Read tool WITHOUT limit/offset parameters to read entire files
-- **CRITICAL**: Read these files yourself in the main context before spawning any sub-tasks
-
-### Step 2: Analyze and decompose the research question
-
-- Break down the user's query into composable research areas
-- Think deeply about underlying patterns, connections, and architectural implications
-- Create a research plan using TodoWrite to track all subtasks
-- If a Linear ticket is provided, update it to the configured research state via Linearis CLI (from `stateMap.research`). **Skip this when `CATALYST_PHASE` is set** — in an automated run the coordinator owns the Linear status write-back, and the run's container holds no Linear credential. If Linearis CLI is not available, skip silently and continue research.
-
-### Step 3: Spawn parallel sub-agent tasks for comprehensive research
-
-Create multiple Task agents to research different aspects concurrently.
-
-**Specialized agents available:**
-
-- **codebase-locator** — find WHERE files and components live
-- **codebase-analyzer** — understand HOW specific code works
-- **codebase-pattern-finder** — find examples of existing patterns
-- **thoughts-locator** — discover relevant documents in thoughts/ (if configured)
-- **thoughts-analyzer** — extract key insights from specific thoughts documents
-- **external-research** — research external repos/frameworks (only if user asks)
-
-Each agent's instructions ship with this skill as `${CLAUDE_SKILL_DIR}/assets/agents/<name>.md` (for example `${CLAUDE_SKILL_DIR}/assets/agents/codebase-locator.md`). To use one, run a subagent with the instructions in that file plus your request, or do the task inline if the harness has no subagents.
-
-The key is to use these agents intelligently:
-
-- Start with locator agents to find what exists
-- Then use analyzer agents on the most promising findings
-- Run multiple agents in parallel when they're searching for different things
-- Each agent knows its job - just tell it what you're looking for
-- Remind agents they are documenting, not evaluating
-
-**After spawning agents, record the phase transition:**
-
-```bash
-if [[ -n "${CATALYST_SESSION_ID:-}" && -x "$SESSION_SCRIPT" ]]; then
-  "$SESSION_SCRIPT" phase "$CATALYST_SESSION_ID" "researching" --phase 1
-fi
-```
-
-### Step 4: Wait for all sub-agents to complete and synthesize findings
-
-- **IMPORTANT**: Wait for ALL sub-agent tasks to complete before proceeding
-- Compile all sub-agent results
-- Prioritize live codebase findings as primary source of truth
-- Use thoughts/ findings as supplementary historical context
-- Connect findings across different components
-- Include specific file paths and line numbers (format: `file.ext:line`)
-- Mark all research tasks as complete in TodoWrite
-
-### Step 5: Gather metadata for the research document
-
-Collect metadata using git commands:
-
-- Current date/time
-- Git commit hash: `git rev-parse HEAD`
-- Current branch: `git branch --show-current`
-- Repository name from working directory
-
-**Document location:** `thoughts/shared/research/YYYY-MM-DD-{ticket}-{description}.md`
-
-- With ticket: `thoughts/shared/research/YYYY-MM-DD-PROJ-XXXX-description.md`
-- Without ticket: `thoughts/shared/research/YYYY-MM-DD-description.md`
-- Replace `PROJ` with your ticket prefix from `.catalyst/config.json`
-
-**IMPORTANT: Document Storage Rules**
-
-- ALWAYS write to `thoughts/shared/research/`
-- NEVER write to `thoughts/searchable/` (read-only search index)
-
-### Step 6: Generate research document
-
-Create a structured research document:
-
-```markdown
----
-date: YYYY-MM-DDTHH:MM:SS+TZ
-researcher: { your-name }
-git_commit: { commit-hash }
-branch: { branch-name }
-repository: { repo-name }
-topic: "{User's Research Question}"
-tags: [research, codebase, { component-names }]
-status: complete
-last_updated: YYYY-MM-DD
-last_updated_by: { your-name }
-type: research
-source_ticket: { TICKET-ID or null }
----
-
-# Research: {User's Research Question}
-
-**Date**: {date/time with timezone} **Researcher**: {your-name} **Git Commit**: {commit-hash} **Branch**: {branch-name} **Repository**: {repo-name}
-
-## Research Question
-
-{Original user query, verbatim}
-
-## Summary
-
-{High-level documentation of what you found. 2-3 paragraphs explaining the current state of the system in this area. Focus on WHAT EXISTS, not what should exist.}
-
-## Detailed Findings
-
-### {Component/Area 1}
-
-**What exists**: {Describe the current implementation}
-
-- File location: `path/to/file.ext:123`
-- Current behavior: {what it does}
-- Key functions/classes: {list with file:line references}
-
-**Connections**: {How this component integrates with others}
-
-### {Component/Area N}
-
-{Continue for all major findings}
-
-## Code References
-
-- `path/to/file1.ext:123-145` - {What this code does}
-- `path/to/file2.ext:67` - {What this code does}
-
-## Architecture Documentation
-
-{Document current architectural patterns and data flow. Descriptive, not prescriptive.}
-
-## Historical Context (from thoughts/)
-
-{Include insights from thoughts/ documents that provide context, if applicable}
-
-## Open Questions
-
-{Areas that would benefit from further investigation}
-
-## Related Documents
-
-{List related thoughts documents using wiki-links, e.g.:}
-
-- [[YYYY-MM-DD-source-ticket|Source Ticket]]
-- [[YYYY-MM-DD-related-research|Related Research]]
-```
-
-### Step 7: Add GitHub permalinks (if applicable)
-
-- If on main/master or commit is pushed, generate GitHub permalinks: `https://github.com/{owner}/{repo}/blob/{commit}/{file}#L{line}`
-- If on unpushed feature branch, keep local file references
-
-### Step 8: Sync, track, and present findings
-
-**MANDATORY — do all three sub-steps before presenting results to the user.**
-
-**8a. Sync thoughts:**
-
-```bash
-humanlayer thoughts sync
-```
-
-**8b. Linear comment** (if ticket detected): Add a comment noting research is complete and linking the document path. Use Linearis CLI (run `linearis comments usage` for syntax). **Skip this when `CATALYST_PHASE` is set** — the runner publishes the phase outcome to the ticket itself. If Linearis CLI is not available, skip silently and continue.
-
-**8c. Present summary to user:**
-
-```
-Research complete!
-
-**Research document**: {exact file path you wrote}
-
-**Summary**: {2-3 sentence summary}
-
-**Key files**: {Top 3-5 file references}
-
-Would you like me to:
-1. Dive deeper into any specific area?
-2. Explore related topics?
-```
-
-**End session tracking:**
-
-```bash
-if [[ -n "${CATALYST_SESSION_ID:-}" && -x "$SESSION_SCRIPT" ]]; then
-  "$SESSION_SCRIPT" end "$CATALYST_SESSION_ID" --status done
-fi
-```
-
-**STOP HERE. Do NOT offer to create plans, use EnterPlanMode, or start implementing. Research is complete.**
-
-### Step 9: Handle follow-up questions
-
-If the user has follow-up questions:
-
-- DO NOT create a new research document - append to the same one
-- Update frontmatter: `last_updated`, `last_updated_by`, add `last_updated_note`
-- Add new section: `## Follow-up Research: {Question}`
-- Spawn new sub-agents as needed
-- Re-sync thoughts
-
-## Important Notes
-
-- **NEVER use EnterPlanMode or create implementation plans** — that's the `create-plan` skill's job
-- ALWAYS use parallel Task agents - spawn all at once, then wait for all to complete
-- Always perform fresh codebase research - never rely solely on existing docs
-- Focus on concrete file paths and line numbers
-- Read mentioned files FULLY (no limit/offset) before spawning sub-tasks
-- Follow the numbered steps exactly - don't skip or reorder
-- `thoughts/searchable/` paths should be documented as `thoughts/shared/` equivalents
-- If context exceeds 60% after research, recommend clearing before planning phase
+## Steps
+
+0. **Orient with Serena** when the `mcp__serena__*` tools exist; otherwise go straight to Step 1 without a warning. Call `mcp__serena__activate_project` on the repo root, read `mcp__serena__list_memories` and `mcp__serena__read_memory("codebase_map")`, then map the area with `mcp__serena__get_symbols_overview`, `mcp__serena__find_symbol` and `mcp__serena__find_referencing_symbols`, so your agent prompts name specific places for the agents to verify.
+1. **Read mentioned files** (tickets, docs, JSON) yourself, in full with no limit or offset, before spawning any subagent.
+2. **Decompose the question** into research areas and track each in TodoWrite.
+3. **Spawn subagents in parallel**, all at once: `codebase-locator` (where code lives), `codebase-analyzer` (how it works), `codebase-pattern-finder` (existing examples), `thoughts-locator` and `thoughts-analyzer` (past documents in thoughts/), and `external-research` only when the person asks for outside sources. Each agent's instructions ship as `${CLAUDE_SKILL_DIR}/assets/agents/<name>.md`; run a subagent with that file plus your request, or do the task inline when the harness has no subagents. Start with locators, point analyzers at the best findings, and remind each agent it documents rather than evaluates. Record the `researching` phase.
+4. **Synthesize** once every agent has finished. Live code is the source of truth; thoughts/ documents add history. Research the code fresh rather than relying on existing docs. Connect findings across components, cite `file.ext:line`, and write `thoughts/searchable/` paths as their `thoughts/shared/` equivalents. Mark the todos complete.
+5. **Name the document** `thoughts/shared/research/YYYY-MM-DD-PROJ-XXXX-description.md`, or `YYYY-MM-DD-description.md` with no ticket, where `PROJ` is the ticket prefix in `.catalyst/config.json`. Write only under `thoughts/shared/research/`; `thoughts/searchable/` is a read-only index. Collect the date and time, `git rev-parse HEAD`, `git branch --show-current` and the repository name.
+6. **Write the document** from [references/research-template.md](references/research-template.md).
+7. **Add GitHub permalinks** (`https://github.com/{owner}/{repo}/blob/{commit}/{file}#L{line}`) when on main or master or the commit is pushed; on an unpushed branch keep local references.
+8. **Sync, comment and present.** Do all three before presenting results.
+
+   **8a.** Run `humanlayer thoughts sync`.
+
+   **8b. Linear comment** (when a ticket is known): comment that research is complete with the document path, through the app actor as [Linear Integration](#linear-integration) describes. Skip this when `CATALYST_PHASE` is set, since the runner publishes the phase outcome itself; if that tooling is not available, skip silently and continue.
+
+   **8c.** Present the summary from the research template, then end session tracking. If context is above 60%, recommend clearing it before planning. Research is complete: stop here, and leave plans and implementation for the person to start.
+9. **Follow-up questions** go into the same document. Update `last_updated` and `last_updated_by`, add `last_updated_note`, add a `## Follow-up Research: {Question}` section, spawn agents as needed, and sync again.
 
 ## Linear Integration
 
-State names (`stateMap.*`) come from `.catalyst/config.json`; the operator-only `linearis-cli` skill holds the canonical transition table, not restated here.
+This skill moves no ticket between workflow stages; on Catalyst Cloud the cloud does that when a phase outcome is recorded.
 
-If a ticket is detected (provided as argument, mentioned in query, or from context):
-
-- **At research start**: Update ticket status to `stateMap.research` from config using Linearis CLI (run `linearis issues usage` for syntax) — interactive runs only; skip when `CATALYST_PHASE` is set.
-- **After document saved** (interactive runs only; skip when `CATALYST_PHASE` is set): Add a comment with the document link — this is an agent-authored comment, so post it through the app actor: `catalyst write comment <ID>` (the `linear` skill) on a Catalyst Cloud tenant, or `linear-reply.mjs --as <role>` from the operator `linearis-cli` skill. Never use bare `linearis issues discuss`/`reply`: those post as the person who owns the token.
-- If the tooling is not available, skip silently and continue research
+When a ticket is known (an argument, the query, or context), after the document is saved, post its link as an agent-authored comment through the app actor: `catalyst write comment <ID>` (the Cloud pack's `catalyst-linear` skill) on a Catalyst Cloud account, or `linear-reply.mjs --as <role>` from the operator `linearis-cli` skill, never bare `linearis issues discuss`/`reply`, which post as the token's owner. Skip it when `CATALYST_PHASE` is set, and skip silently when `command -v catalyst` and `command -v linearis` both fail.

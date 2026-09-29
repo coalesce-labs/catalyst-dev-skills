@@ -8,10 +8,10 @@
 
 import { describe, test, expect } from "bun:test";
 import { readdirSync, readFileSync, existsSync } from "node:fs";
-import { join } from "node:path";
+import { join, relative } from "node:path";
 import { fileURLToPath } from "node:url";
 
-import { RULES, check, findings } from "../scripts/check-public-prose.mjs";
+import { RULES, check, findings, targets } from "../scripts/check-public-prose.mjs";
 
 const repoRoot = fileURLToPath(new URL("..", import.meta.url));
 
@@ -25,6 +25,7 @@ describe("skill prose is public and harness-agnostic", () => {
     "dated-history": "Decided on 2026-09-26, so the rail is gone.",
     "retired-cli": "Run `catalyst-skills query issue ENG-1`.",
     "private-reference": "Clone coalesce-labs/catalyst-cloud and ask Lantern.",
+    "tenant-word": "Move the card on the tenant's board.",
   };
 
   for (const rule of RULES) {
@@ -47,6 +48,9 @@ describe("skill prose is public and harness-agnostic", () => {
       "Run `npx -p @catalyst-cloud/cli catalyst query issue ENG-1`.",
       "```\nthoughts/shared/handoffs/ENG-1/2025-01-08_13-44-55_auth.md\n```",
       "The development pack is `coalesce-labs/catalyst-dev-skills`.",
+      "Move the card on your cloud account's board; the route is `/v1/tenant/:id` and the field `tenantId`.",
+      "See [the contract](https://example.com/tenant-contract).",
+      "```\ncatalyst query issue ENG-1 --tenant tenant-0\n```",
     ].join("\n");
     expect(findings("clean.md", clean)).toEqual([]);
   });
@@ -54,6 +58,27 @@ describe("skill prose is public and harness-agnostic", () => {
   test("no skill, README or install block breaks a rule", () => {
     const found = check(repoRoot).map((f) => `${f.file}:${f.line} ${f.rule}  ${f.text}`);
     expect(found).toEqual([]);
+  });
+});
+
+describe("every skill the prose names exists", () => {
+  // The Cloud pack's skills, which this pack may point at by name.
+  const CLOUD_SKILLS = [
+    "catalyst-github", "catalyst-linear", "catalyst-onboard", "catalyst-setup", "connect-me",
+    "how-catalyst-works", "run-this-project", "unstick", "what-needs-me", "whats-happening",
+  ];
+  // Mergify's own published skills, which merge-pr points at for its merge queue.
+  const MERGIFY_SKILLS = ["mergify-merge-queue", "mergify-config"];
+  const known = new Set([...readdirSync(join(repoRoot, "skills")), ...CLOUD_SKILLS, ...MERGIFY_SKILLS]);
+
+  test("a reference like `name` skill names a skill in this pack or the Cloud pack", () => {
+    const unknown = targets(repoRoot).flatMap((file) =>
+          [...readFileSync(file, "utf8").matchAll(/`\/?\$?([a-z0-9-]+)` skill/g)]
+            .map((m) => m[1])
+            .filter((name) => !known.has(name))
+            .map((name) => `${relative(repoRoot, file)}: ${name}`),
+        );
+    expect(unknown).toEqual([]);
   });
 });
 
@@ -75,6 +100,20 @@ describe("SKILL.md frontmatter follows the Agent Skills specification", () => {
       return typeof name !== "string" || name !== d || name.length > 64 || !/^[a-z0-9]+(-[a-z0-9]+)*$/.test(name);
     });
     expect(bad).toEqual([]);
+  });
+
+  test("a skill whose description says to apply it routinely lets the agent invoke it", () => {
+    const bad = skills.filter((d) => {
+      const f = front(d);
+      return f["disable-model-invocation"] === true && /\b(always|every|routinely)\b/i.test(String(f.description));
+    });
+    expect(bad).toEqual([]);
+  });
+
+  test("unslop is the writing standard agents apply without being asked", () => {
+    const f = front("unslop");
+    expect(f["disable-model-invocation"]).not.toBe(true);
+    expect(String(f.description)).toMatch(/everything a person reads/);
   });
 
   test("every description is non-empty and at most 1024 characters", () => {

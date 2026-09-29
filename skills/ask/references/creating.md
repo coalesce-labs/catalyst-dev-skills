@@ -2,8 +2,8 @@
 
 The body shape below is parsed by Catalyst Cloud's decision trigger. A body in any other shape yields **zero** options, and then every reply the human writes is rejected.
 
-- **Team and assignee come from THIS tenant's config, never from a literal you copy out of
-  here.** The team is `catalyst.linear.teamKey` and the assignee is `catalyst.human.linearUserId`, both read from `.catalyst/config.json` (or the per-machine `~/.config/catalyst/config.json`); `ask.mjs create` resolves both for you, and `--team` is only for the case where the decision belongs to a team other than the repo's own. There is no default human — an unconfigured tenant gets a named refusal, because an ask assigned to a user who does not exist on that workspace files cleanly and reaches nobody. No delegate: the assignee is the human.
+- **Team and assignee come from THIS cloud account's config, never from a literal you copy out of
+  here.** The team is `catalyst.linear.teamKey` and the assignee is `catalyst.human.linearUserId`, both read from `.catalyst/config.json` (or the per-machine `~/.config/catalyst/config.json`); `ask.mjs create` resolves both for you, and `--team` is only for the case where the decision belongs to a team other than the repo's own. There is no default human — an unconfigured cloud account gets a named refusal, because an ask assigned to a user who does not exist on that workspace files cleanly and reaches nobody. No delegate: the assignee is the human.
 - **Labels — both, exact names:** `catalyst-ask` + `ask/decision`. Linear labels are **team-scoped**:
   if a team lacks them, create them once (`issueLabelCreate` with the personal token — the app actor cannot create labels). `catalyst-ask` is what the "Waiting on me" view and the push trigger key on; `ask/decision` is the human-readable class.
 - **Title:** starts with `ASK:` (or names the click/decision itself); one line a phone can show.
@@ -43,7 +43,7 @@ An ask that tells the person to do a step an agent could do, or one that is alre
 
 `ask.mjs create` warns (it never refuses) when the text says "only you", names a GitHub App with no settings link, or claims a missing credential or access (check it is not a policy); the warnings are in its JSON as `copyFindings`. The Waiting on me card applies the same rules when it rewrites the ask, but it can only work with what the ask says.
 
-The raw form, for reference (or when you must hand-build). Read the two identities out of the config rather than typing them — a pasted id is how a single-tenant assumption spreads:
+The raw form, for reference (or when you must hand-build). Read the two identities out of the config rather than typing them — a pasted id is how the assumption that there is only one cloud account spreads:
 
 ```bash
 cfg=.catalyst/config.json

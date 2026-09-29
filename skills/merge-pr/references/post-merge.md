@@ -76,9 +76,7 @@ Cleanup:
   Remote branch: $head_branch (deleted)
   Local branch:  $head_branch (deleted)
 
-Linear:
-  Ticket:  $ticket → Done ✅
-  Comment: Added with merge details
+Ticket:  $ticket (not moved here; on Catalyst Cloud the merge moves it to done)
 
 Post-merge tasks: $task_count saved to thoughts/
 

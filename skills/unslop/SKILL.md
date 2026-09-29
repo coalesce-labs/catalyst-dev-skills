@@ -1,7 +1,9 @@
 ---
 name: unslop
-description: Cut AI tells from any writing. Must always apply.
-disable-model-invocation: true
+description: >-
+  The writing standard for everything a person reads: messages, replies, comments, PR titles and
+  bodies, commit messages, tickets, reports and docs. Apply it to every such piece of writing before
+  it is sent or saved, and whenever asked to edit, tighten or de-slop text.
 ---
 
 # Unslop

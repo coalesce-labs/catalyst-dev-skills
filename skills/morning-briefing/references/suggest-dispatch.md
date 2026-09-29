@@ -1,8 +1,8 @@
 # Suggest dispatch candidates
 
-Query Linear for tickets that look ready for dispatch to a ticket-worker session — unblocked, high-priority, sitting in the tenant's triage or backlog stage. This is the same shape of readiness question `steward` asks before dispatching (the `steward` skill's `references/readiness.md`), scoped here to a daily top-10 surfaced for a human to skim rather than acted on automatically:
+Query Linear for tickets that look ready for dispatch to a ticket-worker session — unblocked, high-priority, sitting in the cloud account's triage or backlog stage. This is the same shape of readiness question `steward` asks before dispatching (the `steward` skill's `references/readiness.md`), scoped here to a daily top-10 surfaced for a human to skim rather than acted on automatically:
 
-⛔ **The stage names are resolved from the tenant's own `stateMap`, never typed.** A board that calls its first stage something else — or renames one mid-flight — returns an EMPTY list from `--status`, not an error, so a briefing built on typed names reports a quiet morning it cannot distinguish from a wrong query.
+⛔ **The stage names are resolved from the cloud account's own `stateMap`, never typed.** A board that calls its first stage something else — or renames one mid-flight — returns an EMPTY list from `--status`, not an error, so a briefing built on typed names reports a quiet morning it cannot distinguish from a wrong query.
 
 ⛔ **And the resolution is CHECKED before the query runs.** This pipeline discards stderr and writes `suggested.json` either way, so an unresolved slot inlined as `$(state …)` would turn a named refusal into an empty briefing — the same silence, one layer up. A command substitution used as an *argument* does not propagate its exit status; assigned to a variable it does.
 

@@ -7,7 +7,7 @@ Target: **≤ 45 minutes** from their comment to a launched steward, confirmed i
 
 ⛔ **One question at a time, each with a recommended answer.** Not a questionnaire, not a wall. ⭐ **"Use your recommendations" ends the grill immediately** and you proceed on every recommendation you had queued. Say that sentence to them in your first reply so they always have the exit.
 
-Use the `grilling` skill for the question shapes. Stop when you can write acceptance criteria — not when you have run out of questions. A grill that keeps going after the ACs are writable is a grill that is costing the human attention for nothing, which is the one currency this role is protecting.
+Use a grilling skill for the question shapes, if your install has one. Stop when you can write acceptance criteria — not when you have run out of questions. A grill that keeps going after the ACs are writable is a grill that is costing the human attention for nothing, which is the one currency this role is protecting.
 
 ⚠️ **A steward does NOT do this.** A steward grills the **codebase and the replica**, and files what survives as **one ask** with Options + Default. Only the concierge grills a human interactively.
 

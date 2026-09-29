@@ -83,4 +83,4 @@ Rules that make this land:
 
 ## Routing: who to send it to
 
-One human per tenant: every ask goes to `catalyst.human.linearUserId`, so routing is a no-op. Routing between several humans (how an ask picks its addressee, what happens when the addressee does not answer, whether an unrouted ask is an error) is deliberately undefined. Do not invent that scheme ad hoc when a second human appears.
+One human per cloud account: every ask goes to `catalyst.human.linearUserId`, so routing is a no-op. Routing between several humans (how an ask picks its addressee, what happens when the addressee does not answer, whether an unrouted ask is an error) is deliberately undefined. Do not invent that scheme ad hoc when a second human appears.

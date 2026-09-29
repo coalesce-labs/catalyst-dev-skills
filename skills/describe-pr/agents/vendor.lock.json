@@ -2,6 +2,7 @@
   "generatedBy": "catalyst-packaging vendor",
   "files": [
     "scripts/lib/canonical-event.sh",
+    "scripts/lib/catalyst-cloud-read.sh",
     "scripts/lib/catalyst-paths.sh",
     "scripts/lib/host-identity.sh",
     "scripts/lib/linear-pr-skip.sh",

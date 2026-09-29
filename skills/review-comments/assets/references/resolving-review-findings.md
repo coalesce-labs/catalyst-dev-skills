@@ -32,7 +32,7 @@ If any finding is unclear, settle it before implementing any of them; findings a
 8. **Defer, do not fix, these:** `pre-existing/out-of-scope` findings, plan-only notes, findings marked `preexisting`, and P2-and-lower findings after round 1. File a follow-up ticket, reply with its link, and resolve the thread.
 9. **Never resolve silently.** Every resolve carries a reply naming the SHA and file:line, or saying why nothing changed. Never delete or disable the feature to make a finding go away; re-read the ticket's acceptance criteria before any fix that removes behaviour.
 10. **Never re-request a review.** The merge gate is green checks plus zero unresolved threads; a re-request starts a review-fix treadmill.
-11. **Self-review the diff before pushing,** for what reviewers flag: swallowed errors, unhandled branches, missing tenant scoping, a test that passes with the fix reverted.
+11. **Self-review the diff before pushing,** for what reviewers flag: swallowed errors, unhandled branches, missing per-account scoping, a test that passes with the fix reverted.
 12. **Escalate with an ask, not another round,** when a finding recurs after a fix aimed at it; needs an architecture, contract or migration change; contradicts the plan or an ADR; cannot be verified; or needs more than one pass. See "Raising an ask".
 13. **Replies are terse and factual:** "Fixed in abc1234 at src/x.ts:42." No thanks, no "you're right", no "great catch".
 

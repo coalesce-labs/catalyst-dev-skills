@@ -18,7 +18,7 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO_ROOT="$(cd "${SCRIPT_DIR}/.." && pwd)"
 SKILLS_ROOT="${REPO_ROOT}/skills"
 
-SKILLS="agent-browser ask ask-triage briefing-followup catalyst-sop commit compound-estimate concierge create-handoff create-plan create-pr create-worktree describe-pr fix-typescript gherkin-ticket implement-plan iterate-plan linear linearis-cli merge-pr morning-briefing project-orchestrator prune-worktrees remediate-plan research-codebase resume-handoff review-code review-comments review-security scan-reward-hacking steward ticket-compound ticket-retro triage-aging-prs unslop unsticker validate-plan validate-type-safety"
+SKILLS="agent-browser ask briefing-followup catalyst-sop commit compound-estimate concierge create-handoff create-plan create-pr create-worktree describe-pr fix-typescript gherkin-ticket implement-plan iterate-plan linearis-cli merge-pr morning-briefing project-orchestrator prune-worktrees remediate-plan research-codebase resume-handoff review-code review-comments review-security scan-reward-hacking steward ticket-compound ticket-retro triage-aging-prs unslop unsticker validate-plan validate-type-safety"
 
 PASS=0
 FAIL=0
@@ -112,8 +112,8 @@ for skill in create-pr describe-pr; do
 done
 run_isolated "describe-pr: replica read helper sources" describe-pr \
   'source "$CLAUDE_SKILL_DIR/scripts/lib/linear-read-replica.sh" && declare -F linear_read_ticket >/dev/null'
-run_isolated "merge-pr: linear-transition --help (sources its replica helper)" merge-pr \
-  '"$CLAUDE_SKILL_DIR/scripts/linear-transition.sh" --help 2>/dev/null; test $? -eq 0'
+run_isolated "merge-pr: merge-route parses on its own" merge-pr \
+  'bash -n "$CLAUDE_SKILL_DIR/scripts/merge-route.sh"'
 # pull-primary-worktree runs inside the repository it merges in; a scratch repo is its real shape.
 run_isolated "merge-pr: pull-primary-worktree from the primary checkout of a scratch repo exits 0" merge-pr \
   'git init -q "$HOME/repo" && cd "$HOME/repo" && "$CLAUDE_SKILL_DIR/scripts/pull-primary-worktree.sh" --branch main'
@@ -273,9 +273,6 @@ for agent in codebase-locator codebase-analyzer codebase-pattern-finder thoughts
   for skill in research-codebase create-plan; do
     run_isolated "${skill}: carries the ${agent} subagent prompt" "$skill" "test -s \"\$CLAUDE_SKILL_DIR/assets/agents/${agent}.md\""
   done
-done
-for agent in codebase-locator codebase-analyzer codebase-pattern-finder; do
-  run_isolated "iterate-plan: carries the ${agent} subagent prompt" iterate-plan "test -s \"\$CLAUDE_SKILL_DIR/assets/agents/${agent}.md\""
 done
 
 echo ""

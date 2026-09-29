@@ -37,7 +37,7 @@ describe("collision check", () => {
 
   test("the installed folder name is the frontmatter name, which matches the directory (Agent Skills spec)", () => {
     const ours = skillNames(repoRoot);
-    expect(ours.length).toBe(38);
+    expect(ours.length).toBe(36);
     expect(ours.filter((s) => s.name !== s.dir)).toEqual([]);
     expect(ours.find((s) => s.dir === "linearis-cli")?.name).toBe("linearis-cli");
     expect(collisions(ours, [])).toEqual([]);

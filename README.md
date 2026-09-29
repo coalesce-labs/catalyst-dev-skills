@@ -2,7 +2,7 @@
 
 The Catalyst development workflow as agent skills: research → plan → implement → validate → ship, plus the Linear, pull-request and coordination skills around it. Each skill is a directory under [`skills/`](skills) with a `SKILL.md` and everything it runs, so the same files work in Claude Code, Codex and OpenCode.
 
-This repository is the development pack, the supported source for development skills. The `catalyst-dev@catalyst` plugin in the `coalesce-labs/catalyst` repository is a separate, older copy and is deprecated; use this repository for new installs. For tenant setup and operation, also install the Cloud pack, [`coalesce-labs/catalyst-cloud-skills`](https://github.com/coalesce-labs/catalyst-cloud-skills).
+This repository is the development pack, the supported source for development skills. The `catalyst-dev@catalyst` plugin in the `coalesce-labs/catalyst` repository is a separate, older copy and is deprecated; use this repository for new installs. To set up and operate your cloud account, also install the Cloud pack, [`coalesce-labs/catalyst-cloud-skills`](https://github.com/coalesce-labs/catalyst-cloud-skills).
 
 ## Install
 
@@ -15,7 +15,7 @@ the inspection rule is below.
 npx skills@latest add coalesce-labs/catalyst-dev-skills --all -g
 ```
 
-It installs all 36 skills for each agent it detects (Claude Code, Codex, OpenCode, Cursor and the rest). These skills are yours, not a repository's: `-g` installs into your home directory, and a project-scoped install is not a supported shape. If a project has an older skill install, inspect its lock file and each agent's skill path before removing anything. Remove only copies proven to come from the deprecated `coalesce-labs/catalyst` repository or project-scoped copies of this pack that you intend to replace. Keep unrelated and uncertain copies.
+It installs all 34 skills for each agent it detects (Claude Code, Codex, OpenCode, Cursor and the rest). These skills are yours, not a repository's: `-g` installs into your home directory, and a project-scoped install is not a supported shape. If a project has an older skill install, inspect its lock file and each agent's skill path before removing anything. Remove only copies proven to come from the deprecated `coalesce-labs/catalyst` repository or project-scoped copies of this pack that you intend to replace. Keep unrelated and uncertain copies.
 
 The add command replaces existing same-named skill directories and links. Before either first install or refresh on an existing machine, read `$XDG_STATE_HOME/skills/.skill-lock.json` when `XDG_STATE_HOME` is set, or `~/.agents/.skill-lock.json` otherwise. Check every same-named agent path. Proceed only when each destination is absent or a verified, unmodified copy of this pack or its link. A lock entry alone does not prove every path is safe. Leave independent, changed, or uncertain copies in place and resolve the conflict before running the command. Do not schedule the raw command as an unattended refresh. Once destinations are verified, refresh the pack, including newly added skills, with:
 
@@ -23,7 +23,7 @@ The add command replaces existing same-named skill directories and links. Before
 npx skills@latest add coalesce-labs/catalyst-dev-skills --all -g
 ```
 
-**Operator skills.** `concierge` and `linearis-cli` are for the pack's operators: they coordinate the operator's own board across sessions and use a personal Linearis credential, so they are marked internal and a default install leaves them out. The installer shows and installs internal skills only when `INSTALL_INTERNAL_SKILLS=1` is set, so an operator installs them by name with it: `INSTALL_INTERNAL_SKILLS=1 npx skills@latest add coalesce-labs/catalyst-dev-skills --skill concierge --skill linearis-cli -g`. `npx skills update -g` keeps an installed copy current. Tenant ticket work (reading, commenting, moving, labelling and creating tickets) belongs to [`coalesce-labs/catalyst-cloud-skills`](https://github.com/coalesce-labs/catalyst-cloud-skills), whose writes go through the tenant's route as the Catalyst app actor. A machine that installed an earlier default roster keeps both. On a machine that is not an operator's, remove them with `npx skills@latest remove concierge linearis-cli -g`, after checking each path by the same rule as a refresh: only a verified copy of this pack goes.
+**Operator skills.** `concierge` and `linearis-cli` are for the pack's operators: they coordinate the operator's own board across sessions and use a personal Linearis credential, so they are marked internal and a default install leaves them out. The installer shows and installs internal skills only when `INSTALL_INTERNAL_SKILLS=1` is set, so an operator installs them by name with it: `INSTALL_INTERNAL_SKILLS=1 npx skills@latest add coalesce-labs/catalyst-dev-skills --skill concierge --skill linearis-cli -g`. `npx skills update -g` keeps an installed copy current. Ticket work on your cloud account (reading, commenting, moving, labelling and creating tickets) belongs to [`coalesce-labs/catalyst-cloud-skills`](https://github.com/coalesce-labs/catalyst-cloud-skills), whose writes go through the cloud route as the Catalyst app actor. A machine that installed an earlier default roster keeps both. On a machine that is not an operator's, remove them with `npx skills@latest remove concierge linearis-cli -g`, after checking each path by the same rule as a refresh: only a verified copy of this pack goes.
 
 <details><summary><strong>One agent at a time</strong></summary>
 
@@ -44,7 +44,7 @@ The `npx skills` install reads this repository's `skills/` tree; it does not pub
 
 **Research and planning**
 - `research-codebase`: parallel codebase research, written up under `thoughts/shared/research/`.
-- `create-plan`, `iterate-plan`: a test-first implementation plan, and its revisions.
+- `create-plan`: a test-first implementation plan, and its revisions (`iterate-plan` is kept as an alias for revising).
 - `gherkin-ticket`: shape a ticket as an outcome title with Given/When/Then acceptance criteria.
 
 **Building and checking**
@@ -53,7 +53,7 @@ The `npx skills` install reads this repository's `skills/` tree; it does not pub
 - `review-code`, `review-security`: review a branch's diff for real defects and exploitable vulnerabilities.
 - `fix-typescript`, `scan-reward-hacking`, `validate-type-safety`: TypeScript errors fixed without shortcuts, and the gate that checks it.
 - `agent-browser`: browser automation for checking a UI.
-- `unslop`: edit text to remove the patterns that mark it as AI-written (third-party, see below).
+- `unslop`: the writing standard every message, comment, PR and doc goes through; it removes the patterns that mark text as AI-written (adapted from a third-party skill, see below).
 
 **Shipping**
 - `commit`, `create-pr`, `describe-pr`, `review-comments`, `merge-pr`, `triage-aging-prs`: commit through merge, including review feedback and an aging PR backlog.
@@ -61,11 +61,10 @@ The `npx skills` install reads this repository's `skills/` tree; it does not pub
 - `prune-worktrees`: reclaim disk from finished worktrees, fail-closed; the installer's housekeeping job runs it.
 
 **Linear and coordination**
-- `linear`: ticket workflow on a Catalyst Cloud tenant (create from a thoughts doc, comment, move, search), through the Cloud pack's `catalyst` CLI (`@catalyst-cloud/cli`) as the tenant's app actor.
 - `ask`: raise a decision for a human as a ticket and close it when answered.
 - `unsticker`: investigate one open ask, move it when the stall is mechanical, and record the verdict with its reasoning. In a Catalyst Cloud `triage` container it only reads and writes its record. `ask-triage` is its old name, kept as an alias.
 - `steward`, `project-orchestrator`: long-running owners of a project and of a project's ready backlog.
-- `concierge`, `linearis`: operator-only (see Install): the owner of a human's board, and the Linearis CLI reference with the read-from-replica rule.
+- `concierge`, `linearis-cli`: operator-only (see Install): the owner of a human's board, and the Linearis CLI reference with the read-from-replica rule.
 - `create-handoff`, `resume-handoff`: hand work to another session and pick it up.
 - `morning-briefing`, `briefing-followup`: a daily briefing and its walk-through.
 - `compound-estimate`, `ticket-compound`, `ticket-retro`: the post-merge learning loop.
@@ -74,7 +73,7 @@ The `npx skills` install reads this repository's `skills/` tree; it does not pub
 
 ## Third-party skills
 
-- `skills/unslop` is copied unchanged from [cursor/plugins](https://github.com/cursor/plugins/blob/main/pstack/skills/unslop/SKILL.md), by Lauren Tan, under the MIT License. Its licence is in [`skills/unslop/LICENSE`](skills/unslop/LICENSE) and its attribution in [`skills/unslop/NOTICE.md`](skills/unslop/NOTICE.md).
+- `skills/unslop` is adapted from [cursor/plugins](https://github.com/cursor/plugins/blob/main/pstack/skills/unslop/SKILL.md), by Lauren Tan, under the MIT License. Its licence is in [`skills/unslop/LICENSE`](skills/unslop/LICENSE); [`skills/unslop/NOTICE.md`](skills/unslop/NOTICE.md) gives the attribution and lists what changed.
 
 - `vendor-src/references/resolving-review-findings.md` (vendored into `remediate-plan`, `review-comments` and `triage-aging-prs`) is adapted from [obra/superpowers](https://github.com/obra/superpowers/blob/main/skills/receiving-code-review/SKILL.md) (commit `3fb75974`), by Jesse Vincent, under the MIT License; the file's header carries the credit and what changed.
 

@@ -1,8 +1,8 @@
 # Data source — where each field comes from
 
-## `estimate_at_start` — the replica, gated
+## `estimate_at_start` — the catalyst CLI, else the replica
 
-The helper reads the ticket's starting estimate via `linear_read_ticket`, the same replica-backed, freshness-gated helper `linearis`/`steward` use (the `steward` skill's cloud-detection reference) — never a bare `linearis issues read`. The team's estimation config (T-shirt, Fibonacci, linear) is applied client-side when re-scoring in the process's step 3.
+On a machine connected to a cloud account, the helper reads the ticket's starting estimate with `catalyst query issue <ID> --json`, which needs no replica and no `linearis`. When `catalyst` is missing or cannot answer (an operator off the cloud), it falls back to `linear_read_ticket`, the replica-backed, freshness-gated helper the `steward` skill uses (its cloud-detection reference), whose fallback is `linearis` — never a bare `linearis issues read`. `--estimate-start` overrides both. The team's estimation config (T-shirt, Fibonacci, linear) is applied client-side when re-scoring in the process's step 3.
 
 ## `cost_usd` — local aggregates, in this order
 

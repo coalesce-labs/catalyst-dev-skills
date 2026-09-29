@@ -1,6 +1,6 @@
 ---
 name: validate-plan
-description: "Validate that implementation plans were correctly executed. **ALWAYS use when** the user says 'validate the plan', 'check if the plan was implemented correctly', 'verify the implementation', or after the implement-plan skill completes, to confirm all phases were properly executed and success criteria met."
+description: "Validate that an implementation plan was executed: every phase done and every success criterion met. **ALWAYS use when** the user says 'validate the plan', 'check if the plan was implemented correctly', 'verify the implementation', or after the implement-plan skill completes."
 disable-model-invocation: false
 allowed-tools: Read, Grep, Glob, Bash, Task
 version: 1.0.0
@@ -8,9 +8,7 @@ version: 1.0.0
 
 # Validate Plan
 
-You are tasked with validating that an implementation plan was correctly executed, verifying all success criteria and identifying any deviations or issues.
-
-## Prerequisites
+## 1. Find the plan
 
 ```bash
 # Thoughts must exist for this skill's documents. That is the only host check here: the skill runs anywhere.
@@ -44,95 +42,26 @@ else
 fi
 ```
 
-## Initial Setup
+A plan path argument wins. Otherwise, after `📋 Found plan`, show the path and ask "**Validate this plan?** [Y/n]". Otherwise, or on no, search recent commits for plan references, list the plans in `thoughts/shared/plans/`, and ask which to validate.
 
-Auto-discovery has already run in Prerequisites above. Check its output and follow this priority:
+## 2. Gather evidence
 
-1. **If user provided a plan path as parameter**: Use the provided path (user override).
+Read the plan whole, noting every file it expects to change and every success criterion. Then:
 
-2. **If no parameter AND Prerequisites discovered a plan (📋)**:
-   - Show user the discovered plan path
-   - Ask: "**Validate this plan?** [Y/n]"
-   - If yes: use it
-   - If no: proceed to option 3
+- Read `git log --oneline -n 20` and `git diff HEAD~N..HEAD`, N covering the implementation commits.
+- Run the repo's own check and test commands from its root (its `package.json` scripts or `Makefile` targets), recording each command's real exit code.
+- Spawn parallel tasks comparing planned with actual: database changes; code changes, file by file; tests, and whether each phase's tests were committed before or with its code (TDD).
+- If you implemented it, check your todo list too and name every shortcut or unfinished item.
 
-3. **If no parameter AND no plan found (⚠️)**:
-   - Search recent commits for plan references
-   - List available plans from `thoughts/shared/plans/`
-   - Ask user which plan to validate
+## 3. Validate each phase
 
-4. **Gather implementation evidence**:
+Confirm that every phase checked off (`- [x]`) has matching code and every "Automated Verification" command ran; find the root cause of each failure. Turn manual criteria into clear steps for the user. Look for unhandled errors, missing validations, regressions and departures from the repo's patterns.
 
-   ```bash
-   # Check recent commits
-   git log --oneline -n 20
-   git diff HEAD~N..HEAD  # Where N covers implementation commits
+## 4. Write the Validation Report
 
-   # Run comprehensive checks
-   cd $(git rev-parse --show-toplevel) && make check test
-   ```
+Render the report as your response; this skill writes no file.
 
-## Validation Process
-
-### Step 1: Context Discovery
-
-If starting fresh or need more context:
-
-1. **Read the implementation plan** completely
-2. **Identify what should have changed**:
-   - List all files that should be modified
-   - Note all success criteria (automated and manual)
-   - Identify key functionality to verify
-
-3. **Spawn parallel research tasks** to discover implementation:
-
-   ```
-   Task 1 - Verify database changes:
-   Research if migration [N] was added and schema changes match plan.
-   Check: migration files, schema version, table structure
-   Return: What was implemented vs what plan specified
-
-   Task 2 - Verify code changes:
-   Find all modified files related to [feature].
-   Compare actual changes to plan specifications.
-   Return: File-by-file comparison of planned vs actual
-
-   Task 3 - Verify test coverage and TDD adherence:
-   Check if tests were added/modified as specified.
-   Check git history to verify tests were committed before or alongside implementation (TDD).
-   Run test commands and capture results.
-   Return: Test status, TDD adherence, and any missing coverage
-   ```
-
-### Step 2: Systematic Validation
-
-For each phase in the plan:
-
-1. **Check completion status**:
-   - Look for checkmarks in the plan (- [x])
-   - Verify the actual code matches claimed completion
-
-2. **Run automated verification**:
-   - Execute each command from "Automated Verification"
-   - Document pass/fail status
-   - If failures, investigate root cause
-
-3. **Assess manual criteria**:
-   - List what needs manual testing
-   - Provide clear steps for user verification
-
-4. **Think deeply about edge cases**:
-   - Were error conditions handled?
-   - Are there missing validations?
-   - Could the implementation break existing functionality?
-
-### Step 3: Generate Validation Report
-
-**Before generating report, check context usage**:
-
-Create comprehensive validation summary:
-
-```
+```markdown
 # Validation Report: {Feature Name}
 
 **Plan**: `thoughts/shared/plans/YYYY-MM-DD-PROJ-XXXX-feature.md`
@@ -141,117 +70,65 @@ Create comprehensive validation summary:
 
 ## 📊 Context Status
 Current usage: {X}% ({Y}K/{Z}K tokens)
-
-{If >60%}:
-⚠️ **Context Alert**: Validation consumed {X}% of context.
-
-**Recommendation**: After reviewing this report, clear context before PR creation.
-
-**Why?** PR description generation benefits from fresh context to:
-- Synthesize changes clearly
-- Write concise summaries
-- Avoid accumulated error context
-
-**Next steps**:
-1. Review this validation report
-2. Address any failures
-3. Close this session (clear context)
-4. Start fresh for the `commit` and `describe-pr` skills
-
-{If <60%}:
-✅ Context healthy. Ready for PR creation.
-
----
-
-{Continue with rest of validation report...}
-```
-
-```markdown
-## Validation Report: [Plan Name]
+{Above 60%: ⚠️ start a fresh session for `commit` and `describe-pr`. Else: ✅ Ready for PR creation.}
 
 ### Implementation Status
-
-✓ Phase 1: [Name] - Fully implemented ✓ Phase 2: [Name] - Fully implemented ⚠️ Phase 3: [Name] -
-Partially implemented (see issues)
+✓ Phase 1: [Name] - Fully implemented
+⚠️ Phase 3: [Name] - Partially implemented (see issues)
 
 ### Automated Verification Results
-
-✓ Build passes: `make build` ✓ Tests pass: `make test` ✗ Linting issues: `make lint` (3 warnings)
+✓ `{command}` exit 0
+✗ `{command}` exit 1
 
 ### Code Review Findings
+- Matches plan: [what was built as planned]
+- Deviations: [deviation] in [file:line] (improvement / problem)
+- Potential issues: [risk]
 
-#### Matches Plan:
+### Manual Testing Required
+- [ ] [step for the user]
 
-- Database migration correctly adds [table]
-- API endpoints implement specified methods
-- Error handling follows plan
-
-#### Deviations from Plan:
-
-- Used different variable names in [file:line]
-- Added extra validation in [file:line] (improvement)
-
-#### Potential Issues:
-
-- Missing index on foreign key could impact performance
-- No rollback handling in migration
-
-### Manual Testing Required:
-
-1. UI functionality:
-   - [ ] Verify [feature] appears correctly
-   - [ ] Test error states with invalid input
-
-2. Integration:
-   - [ ] Confirm works with existing [component]
-   - [ ] Check performance with large datasets
-
-### Recommendations:
-
-- Address linting warnings before merge
-- Consider adding integration test for [scenario]
-- Document new API endpoints
+### Recommendations
+- [what to address before merge]
 ```
 
-## Working with Existing Context
+End with the ladder block below. On FAIL or PARTIAL the next step is the `remediate-plan` skill; on PASS, `commit` and `describe-pr`.
 
-If you were part of the implementation:
+## The validation ladder block
 
-- Review the conversation history
-- Check your todo list for what was completed
-- Focus validation on work done in this session
-- Be honest about any shortcuts or incomplete items
+The report's machine-readable verdict is one fenced `catalyst-validation-ladder` block, the **last** fenced block in the report, written exactly once. The `remediate-plan` skill reads it to decide what to fix, and a Catalyst Cloud run parses it too.
 
-## Important Guidelines
+A Catalyst Cloud validate phase may put its own ladder instructions in the prompt. They ask for the same block and win on any detail. What follows is the default, as on a laptop.
 
-1. **Be thorough but practical** - Focus on what matters
-2. **Run all automated checks** - Don't skip verification commands
-3. **Document everything** - Both successes and issues
-4. **Think critically** - Question if the implementation truly solves the problem
-5. **Consider maintenance** - Will this be maintainable long-term?
+#### Shape
 
-## Validation Checklist
+```catalyst-validation-ladder
+{"version":1,"steps":[
+  {"step":"plan-conformance","verdict":"PASS","materiality":"material","detail":"all 3 phases implemented as planned"},
+  {"step":"type-safety","verdict":"PASS","detail":"validate-type-safety: typecheck, scan, tests, lint all exit 0"},
+  {"step":"code-review","verdict":"FAIL","detail":"review-code: 1 finding","findings":[{"path":"src/x.ts","line":42}]},
+  {"step":"security-review","verdict":"PASS","detail":"review-security: no findings"},
+  {"step":"security-audit","verdict":"SKIPPED","detail":"no dependency audit configured in this repo"}
+]}
+```
 
-Always verify:
+- **`step`**: each of the five ids appears exactly once: `plan-conformance`, `type-safety`, `code-review`, `security-review`, `security-audit`. A step left out counts as unreported, never as skipped.
+- **`verdict`**: one of `PASS`, `FAIL`, `SKIPPED`, `UNAVAILABLE`, `ENVIRONMENT_GAP`. (`UNREPORTED` also exists, but only a reader writes it, for a missing or malformed step.)
+- **`detail`**: one line naming the evidence: the command and its outcome, the finding, or why the step did not run.
+- **`findings`** (optional): `{"path","line"}` for each finding, with `"preexisting":true` on one the diff did not introduce.
+- **`materiality`** (plan-conformance only): `material` when a deviation changes what the plan promised, `plan-only` when only the plan's wording is off.
+- **`declared`** (plan-conformance only, optional): `true` when the deviation is one the implementation declared up front.
 
-- [ ] All phases marked complete are actually done
-- [ ] **TDD was followed** — tests exist for each phase and were written before/alongside implementation
-- [ ] Automated tests pass
-- [ ] Code follows existing patterns
-- [ ] No regressions introduced
-- [ ] Error handling is robust
-- [ ] Documentation updated if needed
-- [ ] Manual test steps are clear
+Keep each `detail` under about 1,200 characters and the whole block small: a cloud run carries it in a size-limited receipt, and a step that overflows is rejected.
 
-## Relationship to Other Skills
+#### Filling each step
 
-Recommended workflow:
+| step | how | when it cannot run |
+| -- | -- | -- |
+| `plan-conformance` | this skill's own check of the plan against the code | — |
+| `type-safety` | the `validate-type-safety` skill | `SKIPPED`, "not a TypeScript workspace" |
+| `code-review` | the `review-code` skill's verdict line | `SKIPPED` with the reason, e.g. no diff against a base |
+| `security-review` | the `review-security` skill's verdict line | as above |
+| `security-audit` | the repo's own dependency and secret audit, for example `bun audit` or `npm audit`; `FAIL` only on a HIGH or CRITICAL advisory in a direct production dependency the diff adds or changes | `SKIPPED`, "no audit configured" |
 
-1. `implement-plan` - Execute the implementation
-2. `commit` - Create atomic commits for changes
-3. `validate-plan` - Verify implementation correctness
-4. `describe-pr` - Generate PR description
-
-The validation works best after commits are made, as it can analyze the git history to understand what was implemented.
-
-Remember: Good validation catches issues before they reach production. Be constructive but thorough in identifying gaps or improvements.
+`UNAVAILABLE` is only for a step whose own tool could not run. A step you ran out of time for is `FAIL`. `ENVIRONMENT_GAP` names a missing system piece, such as a library or an unreachable registry. None of these is `PASS`. The report's overall status line (PASS, FAIL or PARTIAL) is for the person reading it, while the ladder is what a fix round acts on.
