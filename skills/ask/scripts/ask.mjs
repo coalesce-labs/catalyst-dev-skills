@@ -156,6 +156,14 @@ export function howToAnswerLine(hasOptions) {
 }
 
 /**
+ * CTC-4229 — who should answer a review ask. The first four are the surfaces that trigger a design
+ * review in plan; `product` and `infra` join one that already triggered. The line is rendered
+ * after the default, outside the options block the decision trigger parses, so routing can read
+ * it later without changing how an answer is recognized.
+ */
+export const REVIEW_AUDIENCES = ["ux", "devex", "agentx", "data_ai", "product", "infra"];
+
+/**
  * buildAskBody — the canonical shape. Exactly one blank line between sections, because a
  * blank line is what ends the option list for the parser above.
  *
@@ -164,11 +172,12 @@ export function howToAnswerLine(hasOptions) {
  * no letters is the exact defect CTC-1298 measured on the cloud side ("did I need to put
  * the word decided there?"). Neither half ships without the other.
  */
-export function buildAskBody({ why, options = [], defaultIfSilent, blocks = [] }) {
+export function buildAskBody({ why, options = [], defaultIfSilent, blocks = [], audience = [] }) {
   const hasOptions = options.length > 0;
   const parts = [`**Why:** ${why}`];
   if (hasOptions) parts.push(["**Options:**", ...askOptionBullets(options)].join("\n"));
   if (nonEmpty(defaultIfSilent)) parts.push(`**Default if silent:** ${defaultIfSilent}`);
+  if (audience.length > 0) parts.push(`**Review audience:** ${audience.join(", ")}`);
   parts.push(howToAnswerLine(hasOptions));
   if (blocks.length > 0) parts.push(`Blocks: ${blocks.join(", ")}`);
   return parts.join("\n\n");
@@ -438,6 +447,7 @@ function usage() {
   ask.mjs create [--team <TEAM>] --title <t> --why <text>
                  --option <label> --option <label> [--option ...]   (at least TWO)
                  --default <text> --blocks <ISSUE> [--blocks <ISSUE> ...]
+                 [--audience <ux|devex|agentx|data_ai|product|infra> ...]
                  [--priority <1-4>] [--dry-run]
   ask.mjs accept <ISSUE> --as <AGENT> (--body <markdown|-> | --body-file <path>) [--dry-run]
 
@@ -476,6 +486,7 @@ function cmdCreate(argv) {
   const options = argOf(argv, "--option", { many: true });
   const dflt = argOf(argv, "--default");
   const blocks = argOf(argv, "--blocks", { many: true });
+  const audience = argOf(argv, "--audience", { many: true });
   const priority = argOf(argv, "--priority") ?? "2";
   const dryRun = argv.includes("--dry-run");
 
@@ -533,7 +544,15 @@ function cmdCreate(argv) {
     );
     return 1;
   }
-  const body = buildAskBody({ why, options, defaultIfSilent: dflt, blocks });
+  const unknownAudience = audience.filter((a) => !REVIEW_AUDIENCES.includes(a));
+  if (unknownAudience.length > 0) {
+    console.error(
+      `ask create: REFUSING — --audience takes ${REVIEW_AUDIENCES.join(", ")} ` +
+        `(got ${unknownAudience.join(", ")}).`
+    );
+    return 1;
+  }
+  const body = buildAskBody({ why, options, defaultIfSilent: dflt, blocks, audience });
   // CTC-4075 — wording warnings, never a refusal (see lib/ask-copy.mjs).
   const copyFindings = askCopyFindings(`${title}\n${body}`);
   for (const f of copyFindings) {

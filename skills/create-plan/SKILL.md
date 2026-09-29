@@ -171,11 +171,13 @@ After structure approval:
    - ALWAYS write to `thoughts/shared/plans/`
    - NEVER write to `thoughts/searchable/` (read-only search index)
 
-2. **Write the plan** to `thoughts/shared/plans/YYYY-MM-DD-PROJ-XXXX-description.md`
+2. **Decide the review surface.** Read [`assets/review-surface.md`](assets/review-surface.md) and decide whether this ticket changes a screen, a developer surface, an agent surface or a chart people decide from. The decision goes on the `Review surface:` line, and a non-empty surface adds the `## Design for review` section. Done when the line names every surface the files in scope touch, or says `none` with its reason.
+
+3. **Write the plan** to `thoughts/shared/plans/YYYY-MM-DD-PROJ-XXXX-description.md`
    - With ticket: `2025-01-08-PROJ-123-parent-child-tracking.md`
    - Without ticket: `2025-01-08-improve-error-handling.md`
 
-3. **Use this template structure** (frontmatter comes BEFORE the heading):
+4. **Use this template structure** (frontmatter comes BEFORE the heading):
 
 ````markdown
 ---
@@ -196,9 +198,17 @@ source_research: "[[research-doc-filename]]" # or null
 
 # [Feature/Task Name] Implementation Plan
 
+Review surface: [ux, devex, agentx, data_ai (also review: product, infra) | none]. Why: [one sentence]
+
 ## Overview
 
 [Brief description of what we're implementing and why]
+
+## Design for review
+
+[Only when the review surface is not none. What the reviewer approves, shown as the thing itself:
+wireframes with exact copy and states, invocations with output, agent-facing text, metric
+definitions. At most three questions, each with the default the phases below build.]
 
 ## Current State Analysis
 
@@ -324,7 +334,9 @@ Each phase writes tests BEFORE implementation code. This ensures:
 humanlayer thoughts sync
 ```
 
-**5b. Present plan** and ask for review:
+**5b. Raise the design review** when the review surface is not `none`: one ask that blocks the ticket, as [`assets/review-surface.md`](assets/review-surface.md) → "Raising the design-review ask" shows. Skip it in a phase container, where the runner owns the ask.
+
+**5c. Present plan** and ask for review:
 
 - Show plan location
 - Ask: Are phases properly scoped? Success criteria specific enough? Missing edge cases?
@@ -361,7 +373,7 @@ humanlayer thoughts sync
 2. **Be Interactive**: Don't write the full plan in one shot. Get buy-in at each step.
 3. **Be Thorough**: Read all context files COMPLETELY. Include file:line references. Use `make check` over individual lint/test commands when available.
 4. **Be Practical**: Focus on incremental, testable changes. Include "what we're NOT doing".
-5. **No Open Questions in Final Plan**: Research or ask for clarification immediately. The plan must be complete and actionable — every decision made before finalizing.
+5. **No Open Questions in Final Plan**: Research or ask for clarification immediately. The plan must be complete and actionable — every decision made before finalizing. The one place a question belongs is `## Design for review`, and each one there carries the default the plan builds.
 
 ## Success Criteria Guidelines
 
