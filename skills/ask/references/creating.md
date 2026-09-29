@@ -62,6 +62,10 @@ linearis issues create "ASK: <one line>" --team "$team" --priority 2 \
 ```
 
 
+## Naming the reviewer (CTC-4229)
+
+A design-review or acceptance ask names who should answer it: pass `--audience` once per value (`ux`, `devex`, `agentx`, `data_ai`, `product`, `infra`). The verb adds a `**Review audience:** ux, product` line after the default, outside the options block, so the decision trigger reads the options exactly as before. Routing asks to a reviewer by audience reads that line later. `create-plan`'s `assets/review-surface.md` says when a plan raises one and which options it offers.
+
 ## Why a verb, not a documented snippet
 
 Documenting the body shape was not enough. CTC-653 measured that EVERY ask filed by hand on 2026-08-17 wrote its options inline rather than bulleted. Those parsed to **zero** options, so no reply could ever match — structurally undecidable, while looking entirely normal. `ask.mjs create` is the shape.
