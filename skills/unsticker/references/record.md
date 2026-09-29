@@ -5,9 +5,9 @@ One JSON object per run, printed last. It is the unit of evaluation: the verdict
 ```json
 {
   "schema": "ask-triage/v1",
-  "ask": "CTC-3690",
-  "ask_title": "Unblock CTC-3682 — it is holding 1 ticket",
-  "subject": ["CTC-3682"],
+  "ask": "ENG-124",
+  "ask_title": "Unblock ENG-123 — it is holding 1 ticket",
+  "subject": ["ENG-123"],
   "mode": "propose",
   "evidence_checked": [
     { "what": "PR #7293 checks", "link": "https://github.com/<org>/<repo>/pull/7293/checks" }
@@ -28,7 +28,7 @@ One JSON object per run, printed last. It is the unit of evaluation: the verdict
   "pattern": "no-relay-entry",
   "secondary_patterns": ["ci-failure"],
   "pattern_detail": "unblock generator fired on a human-owned PR-stage ticket; PR #7293 fails a count test",
-  "owner_seat": "catalyst-cloud-56",
+  "owner_seat": "seat-2",
   "notes": ""
 }
 ```

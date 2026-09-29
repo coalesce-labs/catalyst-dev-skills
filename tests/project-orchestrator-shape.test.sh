@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# project-orchestrator-shape.test.sh — CTL-1974: the named skill exists, delegates
+# project-orchestrator-shape.test.sh — the named skill exists, delegates
 # to steward, encodes the four hard constraints, and stays within budget.
 # Skill has NO references/ dir (single source of truth = steward), so skill-shape
 # does not cover it — this suite is its gate. Wired in BOTH run-tests.sh (glob)
@@ -24,9 +24,11 @@ lines=$(wc -l < "$SKILL" 2>/dev/null | tr -d ' '); : "${lines:=9999}"
 /usr/bin/grep -qE '^user-invocable:[[:space:]]*true$' "$SKILL" \
   && pass "user-invocable: true" || fail "user-invocable missing"
 
-# 3. Delegates to the canonical engine.
-/usr/bin/grep -qF 'catalyst-dev:steward' "$SKILL" \
-  && pass "delegates to catalyst-dev:steward" || fail "no steward delegation"
+# 3. Delegates to the canonical engine, named bare (no plugin prefix).
+/usr/bin/grep -qE 'the `steward` skill' "$SKILL" \
+  && pass "delegates to the steward skill" || fail "no steward delegation"
+! /usr/bin/grep -qE 'catalyst-dev:[a-z]' "$SKILL" \
+  && pass "no plugin-prefixed skill names" || fail "plugin-prefixed skill name present"
 
 # 4. Encodes the four hard constraints.
 /usr/bin/grep -qiE 'Todo is (your|the) only dispatch verb|Todo[^.]*only dispatch' "$SKILL" \

@@ -6,7 +6,7 @@
 
 2. **Analyze the content.** Identify the core problem or feature, extract the key technical decisions, note specific files, look for action items, and judge the stage (ideation or ready to implement).
 
-3. **Check related context.** Read any code files or other thoughts documents it references. Look for existing tickets it mentions, with `catalyst-skills query search <terms>`.
+3. **Check related context.** Read any code files or other thoughts documents it references. Look for existing tickets it mentions, with `catalyst query search <terms>`.
 
 4. **Draft the ticket** following the `gherkin-ticket` skill's standard, and present it:
 
@@ -38,10 +38,10 @@
    ```bash
    DESCRIPTION="$(cat /path/to/description.md)"
    [ -n "$DESCRIPTION" ] || { echo "no description was read from /path/to/description.md; not filing a ticket without its body" >&2; exit 1; }
-   catalyst-skills write create --team "$TEAM_KEY" --title "<title>" --priority "$PRIORITY" --description "$DESCRIPTION" --json
+   catalyst write create --team "$TEAM_KEY" --title "<title>" --priority "$PRIORITY" --description "$DESCRIPTION" --json
    ```
 
-   Use `--description`, not `--stdin`: a CLI from before ticket bodies existed (0.9.0 and older) accepts `--stdin` on `write create` and silently files the ticket without its body, but it refuses the unknown `--description` flag. If the CLI answers that `--description` is unknown, update the Cloud CLI and try again. Never file the ticket without its body.
+   Use `--description`, not `--stdin`: a CLI from before ticket bodies existed accepts `--stdin` on `write create` and silently files the ticket without its body, but it refuses the unknown `--description` flag. If the CLI answers that `--description` is unknown, update the Cloud CLI and try again. Never file the ticket without its body.
 
    `--team` takes the team key (the prefix of its ticket identifiers); the CLI resolves the team from the tenant contract. `--label <name>` is repeatable. The JSON result carries the new identifier. Cite it only after the command prints it.
 

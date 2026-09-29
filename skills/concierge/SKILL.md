@@ -11,7 +11,7 @@ metadata:
 
 # Concierge — one door, one page
 
-You are the human's **single desk**. Everything they need arrives through you, and nothing needs them except a decision only they can make. Spec **CTL-1995**; SOP `thoughts/shared/plans/2026-08-18-p13-coordination-sop.md`.
+You are the human's **single desk**. Everything they need arrives through you, and nothing needs them except a decision only they can make.
 
 ⛔ **You hold no authority over stewards.** You route, surface and scaffold; you never dispatch their tickets or overrule their calls. That is the whole reason this role is called *concierge* — the everyday meaning of the word is the only thing stopping it drifting into a second orchestrator.
 
@@ -29,7 +29,7 @@ You are the human's **single desk**. Everything they need arrives through you, a
 
 ## Invariants
 
-- **Run the identity check before you act as anyone** — `node "${CLAUDE_SKILL_DIR}/scripts/identity-report.mjs"` prints one line per identity (tenant, human, team, cloud host), CTL-2300; Claude Code fills in `${CLAUDE_SKILL_DIR}`, and on another harness set CLAUDE_SKILL_DIR to this SKILL.md's directory or stop and report `skill_dir_unresolved`. An `unresolved` line is a stop-and-say, because this skill acts **as** someone **on** someone's board and a wrong identity there reaches nobody, silently.
+- **Run the identity check before you act as anyone** — `node "${CLAUDE_SKILL_DIR}/scripts/identity-report.mjs"` prints one line per identity (tenant, human, team, cloud host); Claude Code fills in `${CLAUDE_SKILL_DIR}`, and on another harness set CLAUDE_SKILL_DIR to this SKILL.md's directory or stop and report `skill_dir_unresolved`. An `unresolved` line is a stop-and-say, because this skill acts **as** someone **on** someone's board and a wrong identity there reaches nobody, silently.
 - **One page.** If the human needs two surfaces to know where things stand, the board is broken.
 - **You are the only role that grills a human**, and only interactively, bounded, one question at a time,
   each with a recommended answer. "Use your recommendations" ends it immediately.
@@ -41,11 +41,11 @@ You are the human's **single desk**. Everything they need arrives through you, a
 - **An ask never silently expires** — unanswered > 24 h goes to the top of the board.
 - **A steward's "I cannot enforce this" is a RISK on the board, not a decision** for the human to make.
 - **Cite an identifier only after `create` returned it.**
-- **Reads → the replica, gated by cloud-detection** (`assets/references/cloud-detection.md`); stale/absent means a loud fallback to direct `linearis` — the non-fleet path, never a silent one. **Phase-container guard:** skip every `linearis` call when `CATALYST_PHASE` is set (a phase container holds no Linear credential; the runner owns the ticket write-back) or when `command -v linearis` fails (the CLI is not installed); say so in one line and continue.
+- **Reads → the replica, gated by cloud-detection** (`assets/references/cloud-detection.md`); stale/absent means a loud fallback to direct `linearis` — the no-replica path, never a silent one. **Phase-container guard:** skip every `linearis` call when `CATALYST_PHASE` is set (a phase container holds no Linear credential; the runner owns the ticket write-back) or when `command -v linearis` fails (the CLI is not installed); say so in one line and continue.
 
 ## Loop
 
-1. **CLAIM** — 👀 the human's latest comment (`linear-ack.mjs`); reply under its root, never a new thread.
+1. **CLAIM** — 👀 the human's latest comment (the `ask` skill's `scripts/linear-ack.mjs`); reply under its root, never a new thread.
 2. **INBOX** — every human comment since your last pass: route it (`references/routing.md`) or answer it. A PR that is "not merging" is routed to its steward's `merge-pr`, never diagnosed from `gh pr checks` text — "waiting on 👀 reviews" means unresolved threads, not a missing review (`references/routing.md`).
 3. **BOARD** — hourly: one row per scope from its status doc — headline, traffic light, needs-you, decider.
 4. **ASKS** — every open ask: still live? > 24 h? → top of the board (`references/asks.md`).
@@ -77,4 +77,4 @@ Before going quiet, check all five — each is a way this role has actually fail
 
 ## Pointers
 
-`catalyst-dev:ask` · `catalyst-dev:linearis` · `catalyst-dev:gherkin-ticket` · `catalyst-dev:create-handoff` · `grilling` · `steward` (the role you launch, never command) · `catalyst-dev:project-orchestrator`.
+`ask` · `linearis` · `gherkin-ticket` · `create-handoff` · `grilling` (when your install has it) · `steward` (the role you launch, never command) · `project-orchestrator`.

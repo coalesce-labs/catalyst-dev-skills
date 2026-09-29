@@ -16,9 +16,9 @@ version: 1.0.0
 ## Prerequisites
 
 ```bash
-# Thoughts must exist for this skill's documents. CTL-2306: the full host setup check (daemon,
-# registry, house rules) belongs to the setup-catalyst skill, not to a skill that must run anywhere.
-[[ -e thoughts/shared ]] || echo "⚠️ thoughts/shared is missing in $(pwd) — run \`humanlayer thoughts init\` or the setup-catalyst skill; if the prompt names an output path, write there" >&2
+# Thoughts must exist for this skill's documents. The full host setup check belongs to the
+# Cloud pack's catalyst-setup skill, not to a skill that must run anywhere.
+[[ -e thoughts/shared ]] || echo "⚠️ thoughts/shared is missing in $(pwd) — run \`humanlayer thoughts init\`, or the catalyst-setup skill to check the setup; if the prompt names an output path, write there" >&2
 ```
 
 ## Configuration Note
@@ -40,7 +40,7 @@ You are tasked with writing a handoff document to hand off your work to another 
 - ALWAYS write to `thoughts/shared/` (appropriate subdirectory)
 - NEVER write to `thoughts/searchable/` — this is a read-only search index
 
-**Do NOT compose the filename yourself.** `thoughts/shared` is a *per-project symlink*: the same relative path resolves to a different physical subtree depending on which worktree you are in, and a hand-typed `HH-MM-SS` drifts between the filename, the frontmatter and the citation. Both produce a path you announce and the next turn cannot find (CTL-2104). Ask the helper instead — it stamps the time mechanically and resolves the symlink for you:
+**Do NOT compose the filename yourself.** `thoughts/shared` is a *per-project symlink*: the same relative path resolves to a different physical subtree depending on which worktree you are in, and a hand-typed `HH-MM-SS` drifts between the filename, the frontmatter and the citation. Both produce a path you announce and the next turn cannot find. Ask the helper instead — it stamps the time mechanically and resolves the symlink for you:
 
 ```bash
 source "${CLAUDE_SKILL_DIR}/scripts/lib/handoff-durability.sh"
@@ -133,7 +133,7 @@ source_research: "[[research-filename]]" # or null
 { other notes, references, or useful information - e.g. where relevant sections of the codebase are, where relevant documents are, or other important things you learned that you want to pass on but that don't fall into the above categories}
 ```
 
-**The Resume contract is required, never "see below".** An automated context reset resumes from this document with no human watching (the `catalyst-dev:resume-handoff` skill's unattended mode). A resumer with no `Next step:` and no `Default if unanswered:` has nothing to act on but a question, and nobody is there to answer it.
+**The Resume contract is required, never "see below".** An automated context reset resumes from this document with no human watching (the `resume-handoff` skill's unattended mode). A resumer with no `Next step:` and no `Default if unanswered:` has nothing to act on but a question, and nobody is there to answer it.
 
 ---
 
@@ -152,7 +152,7 @@ HANDOFF_VERDICT="$(handoff_sync_and_classify "$HANDOFF_ABS")"
 printf 'absolute: %s\nrelative: %s\nverdict: %s\n' "$HANDOFF_ABS" "$HANDOFF_REL" "$HANDOFF_VERDICT"
 ```
 
-⚠️ **Cite the echoed `$HANDOFF_ABS` verbatim, and do NOT re-type the path or the timestamp from memory.** A re-typed stamp that differs by one second is a citation that misses a file which genuinely exists — one of the three causes behind CTL-2104.
+⚠️ **Cite the echoed `$HANDOFF_ABS` verbatim, and do NOT re-type the path or the timestamp from memory.** A re-typed stamp that differs by one second is a citation that misses a file which genuinely exists.
 
 ## Durability contract
 
@@ -172,7 +172,7 @@ The helper returns a verdict so the caller never has to re-verify a citation by 
 
 ⚠️ **`$HANDOFF_ABS` is this host's path.** It contains this machine's home and thoughts checkout location, so it is the unambiguous citation *here* but may not resolve on another host. Cite **both** forms: the absolute path for same-host use, and `$HANDOFF_REL` — the `thoughts/shared/...` form — as the portable identity a reader on another host resolves in their own tree.
 
-Never announce "synced" on a `local-only:*` verdict. An unconditional durability claim is exactly what made six real files look like phantoms.
+Never announce "synced" on a `local-only:*` verdict. An unconditional durability claim makes a real file look like a phantom.
 
 **Unattended mode** is ON when the arguments contain `--unattended`, `CATALYST_UNATTENDED=1` is set, the run is a pipeline phase (`$CATALYST_TICKET` set with no interactive user), or the invoking prompt says the session is unattended. In unattended mode the response below is the whole reply: add no question, no offer, and no "want me to…" line, and put `--unattended` on the resume command so the next session inherits the mode.
 
@@ -215,7 +215,7 @@ for example (between <example_response></example_response> XML tags — do NOT i
 <example_response> Handoff written, verified, and synced — durable and safe to cite from any host. Resume from it in a new session with:
 
 ```text
-Use the resume-handoff skill with /Users/you/hlt/coalesce-labs/thoughts/repos/my-project/shared/handoffs/PROJ-123/2025-01-08_13-44-55_create-context-compaction.md
+Use the resume-handoff skill with /Users/you/thoughts/repos/my-project/shared/handoffs/PROJ-123/2025-01-08_13-44-55_create-context-compaction.md
 ```
 
 </example_response>

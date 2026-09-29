@@ -2,13 +2,13 @@
 
 Two jobs live here. **Before** you raise an ask: don't create a duplicate. **After** asks exist: rank them by what they actually hold up, so the human is told what to do first rather than handed a list.
 
-Both depend on one thing being true: **every ask records what it blocks.** An ask with no `blocks` relation is structurally unrankable — invisible to every query below, no matter how long it has waited. Measured 2026-08-21: 2 of 5 open asks had no blocking link, one of them the oldest item on the human's plate (71h). That is the same class of defect as a body the trigger cannot parse (see [`creating.md`](creating.md)) — it looks fine on the board and cannot work.
+Both depend on one thing being true: **every ask records what it blocks.** An ask with no `blocks` relation is structurally unrankable — invisible to every query below, no matter how long it has waited, and it is often the oldest item on the human's plate. That is the same class of defect as a body the trigger cannot parse (see [`creating.md`](creating.md)) — it looks fine on the board and cannot work.
 
 ## Before you create: search for an existing ask
 
 One decision should be one ask. When several agents hit the same wall and each files its own, the human sees N tickets for one decision and each carries a fraction of the true urgency — so the decision that is actually blocking the most work sorts *below* trivia.
 
-Search open asks before creating (replica only — never the Linear API, it is a shared fleet quota).
+Search open asks before creating (replica only — never the Linear API, it is a shared quota).
 
 ⛔ **A miss is only evidence of absence if the replica was fit to answer.** During a writer outage or a mid-reseed this query returns nothing, and "nothing" then reads as "no existing ask" — which files the duplicate this page exists to prevent. So gate the search, and treat an ungated or stale result as **inconclusive**: do not create, resolve the replica first.
 
@@ -30,7 +30,7 @@ else
 fi
 ```
 
-⚠️ Match the two canonical label names **exactly**, against the normalized `issue_labels`/`labels` tables. The earlier form of this query read `json_extract(raw,'$.labels.nodes')` and matched `LIKE '%ask%'`; both are wrong. `raw.labels` is an **array** in the replica, so the `.nodes` path matched nothing for those rows, and `%ask%` additionally swallows unrelated labels such as `task`. Measured on the live replica 2026-08-21: the old predicate found **5** open asks where there were **11** — six invisible, five of them blocking real work.
+⚠️ Match the two canonical label names **exactly**, against the normalized `issue_labels`/`labels` tables. Do not read `json_extract(raw,'$.labels.nodes')` or match `LIKE '%ask%'`: `raw.labels` is an **array** in the replica, so a `.nodes` path matches nothing, and `%ask%` also swallows unrelated labels such as `task`. Either mistake hides open asks, including ones blocking real work.
 
 **If an open ask already covers your decision, ATTACH — do not file a second one.** Add a `blocks` edge from that ask to your work ticket:
 
@@ -83,4 +83,4 @@ Rules that make this land:
 
 ## Routing: who to send it to
 
-Today: one human per tenant, so every ask goes to `catalyst.human.linearUserId` and routing is a no-op. **Deliberately deferred, not overlooked.** When more than one human can answer, this section gains: how an ask picks its addressee (scope owner? assignee of the blocked work? explicit `--to`?), what happens when the addressee doesn't answer, and whether an unrouted ask is an error or falls back to a default owner. Do not invent that scheme ad-hoc when the second human appears — extend this file.
+One human per tenant: every ask goes to `catalyst.human.linearUserId`, so routing is a no-op. Routing between several humans (how an ask picks its addressee, what happens when the addressee does not answer, whether an unrouted ask is an error) is deliberately undefined. Do not invent that scheme ad hoc when a second human appears.

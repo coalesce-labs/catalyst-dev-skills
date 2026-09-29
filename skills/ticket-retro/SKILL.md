@@ -1,9 +1,9 @@
 ---
 name: ticket-retro
 description:
-  "Cross-ticket retrospective VIEW (CTL-789 Loop C / CTL-814). **ALWAYS use when** a ticket's PR
-  has merged and merge-pr's post-merge deploy-verification (CTL-2232) has resolved a terminal
-  sentinel for it (the workflow's compound closing step — relay-native trigger, CTL-2244; see
+  "Cross-ticket retrospective VIEW (compound engineering Loop C). **ALWAYS use when** a ticket's PR
+  has merged and merge-pr's post-merge deploy-verification has resolved a terminal
+  sentinel for it (the workflow's compound closing step; see
   the `compound-estimate` skill's `references/trigger.md`), or when the user says 'ticket retro', 'run a
   retro', 'retrospective', 'what did we learn lately',
   or 'how are the estimates calibrating'. Synthesizes everything the compound loops captured since
@@ -17,7 +17,7 @@ allowed-tools: Bash, Read, Write, Grep, Glob
 
 Loop C of compound engineering: a human-readable reflection across a SET of tickets. It mostly **reads** what Loop B (friction logs, learnings) and Loop A (compound-log, estimation corpus) captured, then writes ONE artifact: the retro document.
 
-**Runs automatically per ticket, relay-native (CTL-2244):** `merge-pr` Step 14 (the `merge-pr` skill's `references/post-merge.md`) invokes this skill last — after `compound-estimate` and `ticket-compound` — once Step 13b's deploy verification (the `merge-pr` skill's `references/post-merge-deploy-verify.md`, CTL-2232) resolves a terminal sentinel for the merge, so the system learns from every ticket it ships without being asked, and this ticket's own learning (just written by `ticket-compound`) is already in the store by the time this runs — see the `compound-estimate` skill's `references/trigger.md` for the shared trigger contract and why this no longer depends on the retiring daemon-era `phase-monitor-merge` phase agent. Best-effort in that context — a retro failure never blocks a merge. Several merges per day are normal: same-day re-runs REGENERATE today's file cumulatively (the gather floor skips today — see Step 3).
+**Runs automatically per ticket:** the `merge-pr` skill's compound closing ritual (its `references/post-merge.md`) invokes this skill last — after `compound-estimate` and `ticket-compound` — once merge-pr's deploy verification (its `references/post-merge-deploy-verify.md`) resolves a terminal sentinel for the merge, so the system learns from every ticket it ships without being asked, and this ticket's own learning (just written by `ticket-compound`) is already in the store by the time this runs — see the `compound-estimate` skill's `references/trigger.md` for the shared trigger contract. Best-effort in that context — a retro failure never blocks a merge. Several merges per day are normal: same-day re-runs REGENERATE today's file cumulatively (the gather floor skips today — see Step 3).
 
 **Hard contract — read-only VIEW:**
 
@@ -33,11 +33,10 @@ Loop C of compound engineering: a human-readable reflection across a SET of tick
 ```text
 ticket-retro skill, no arguments               # since-last-retro (default scope)
 ticket-retro skill with: --since 2026-06-01    # explicit window floor
-ticket-retro skill with: --tickets CTL-1,CTL-2 # explicit ticket set (all time)
+ticket-retro skill with: --tickets ENG-1,ENG-2 # explicit ticket set (all time)
 ```
 
-Default scope is **since-last-retro, no time box** (solo-dev rhythm — design decision, plan
-line 114): the window floor is the date of the most recent retro in
+Default scope is **since-last-retro, no time box**: the window floor is the date of the most recent retro in
 `thoughts/shared/retros/ticket/`; the first retro ever falls back to 14 days.
 
 ## Step 1: Gather (deterministic, read-only)
@@ -65,7 +64,7 @@ What it returns (see the script header for the full shape):
 | `merged_prs[]` | `gh pr list --state merged` in-window, ticket id from branch/title | `[]` |
 | `db_stats[]` | `~/catalyst/catalyst.db` sessions⋈session_metrics per ticket (SPARSE — see note) | `[]` |
 
-**Actuals note:** `db_stats` covers only orchestrator-run tickets with metrics rows (historically ~13 of 333). `merged_prs[].additions/deletions` (diff churn) is the universal actuals fallback — use it for the aggregate stats; treat db cost/hours as a bonus column where present.
+**Actuals note:** `db_stats` covers only orchestrator-run tickets with metrics rows, usually a small minority. `merged_prs[].additions/deletions` (diff churn) is the universal actuals fallback — use it for the aggregate stats; treat db cost/hours as a bonus column where present.
 
 ## Step 2: Synthesize (your judgment — this is the LLM half)
 
@@ -81,7 +80,7 @@ What it returns (see the script header for the full shape):
 
 ## Step 3: Write the retro document
 
-Path: `thoughts/shared/retros/ticket/<YYYY-MM-DD>.md` (today UTC). **If today's file already exists, OVERWRITE it** — the gather floor deliberately skips today's retro (CTL-831), so a same-day re-run covers the same since-prior-retro window plus whatever just merged; today's file is always the cumulative day view, never a near-empty increment. Template:
+Path: `thoughts/shared/retros/ticket/<YYYY-MM-DD>.md` (today UTC). **If today's file already exists, OVERWRITE it** — the gather floor deliberately skips today's retro, so a same-day re-run covers the same since-prior-retro window plus whatever just merged; today's file is always the cumulative day view, never a near-empty increment. Template:
 
 ```markdown
 ---
@@ -99,7 +98,7 @@ Window: <window.since> → today (<window.source>)
 
 ## What we did
 
-- `CTL-x` title — #PR (+adds/−dels)
+- `ENG-x` title — #PR (+adds/−dels)
 - …                                      (_none_ when empty)
 
 ## Aggregate stats
@@ -112,7 +111,7 @@ Window: <window.since> → today (<window.source>)
 
 ## Recurring friction patterns
 
-- **<pattern name>** (N records: CTL-a·research, CTL-b·implement) — one-sentence synthesis.
+- **<pattern name>** (N records: ENG-a·research, ENG-b·implement) — one-sentence synthesis.
 - …                                      (_none_ when empty)
 
 ## What we learned
@@ -136,7 +135,7 @@ entries: N · exact: N · mean signed delta: +X.X · median |delta|: X
 
 ```yaml watch-items
 - pattern: "<short greppable description>"
-  component: <orchestrator|phase-agent|broker|monitor|cli|ci|worktree|linear|execution-core|estimation|website|plugins>
+  component: <orchestrator|phase-agent|broker|monitor|cli|ci|worktree|linear|runner|estimation|website|plugins>
   first_seen: <YYYY-MM-DD of when it first appeared — preserve across retros>
   source: <TICKET the clearest record came from>
 ```

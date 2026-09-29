@@ -1,6 +1,6 @@
 ---
 name: remediate-plan
-description: "Fixes what the validate-plan skill found, verifying each finding before touching code. Consumes validate-plan's Validation Report from either of two places — the report rendered into this conversation by a same-session validate-plan run (validate-plan has no Write tool and produces no verify.json), or a persisted report handed to a fresh session as a materialized prior-artifact file whose path the dispatch prompt names (the cloud runner's path — CTC-1384). Classifies every finding (valid, invalid, already-fixed, pre-existing/out-of-scope, needs-human) against the shared resolving-review-findings reference, fixes only valid findings on steps the report FAILED with the smallest diff, answers invalid ones with evidence and no code change, and raises an ask instead of looping. Use right after validate-plan reports FAIL or PARTIAL, or when dispatched as a remediate session with a validation report on disk, especially inside a /relay-ticket session: relay-ticket's phase list names '(→ remediate)' but the only other remediation-shaped skill, phase-remediate, is bound to the daemon-era verify.json contract relay-ticket does not produce — this is the relay-native replacement (CTL-2243). Not for a fresh implementation pass, and never a chase of a report's PASS-step notes."
+description: "Fixes what the validate-plan skill found, verifying each finding before touching code. Reads validate-plan's Validation Report from either of two places: the report rendered into this conversation by a same-session validate-plan run (validate-plan writes no file), or a persisted report handed to a fresh session as a file whose path the dispatch prompt names. Classifies every finding (valid, invalid, already-fixed, pre-existing/out-of-scope, needs-human) against the shared resolving-review-findings reference, fixes only valid findings on steps the report FAILED with the smallest diff, answers invalid ones with evidence and no code change, and raises an ask instead of looping. Use right after validate-plan reports FAIL or PARTIAL, when dispatched as a remediate session with a validation report on disk, or as the remediate step after validate in an automated ticket run. Not for a fresh implementation pass, and never a chase of a report's PASS-step notes."
 disable-model-invocation: false
 user-invocable: true
 allowed-tools: Read, Grep, Glob, Bash, Edit, Write, Task
@@ -20,7 +20,7 @@ Load the `validate-plan` skill (in a skills-CLI install, its SKILL.md sits in th
 Two modes, same report, same steps:
 
 - **Same-session (laptop):** right after a `validate-plan` run in this session reported FAIL or PARTIAL — its Validation Report is sitting in the conversation.
-- **Fresh session (cloud dispatch):** the session was dispatched to remediate a validate failure and the persisted Validation Report is a real file on disk — primarily a materialized prior-artifact file (the runner fetches the failed validate phase's `validation.md` from the R2 artifact store and your dispatch prompt names its local path); failing that, a thoughts doc or Linear attachment the prompt points at.
+- **Fresh session (cloud dispatch):** the session was dispatched to remediate a validate failure and the persisted Validation Report is a real file on disk — primarily a materialized prior-artifact file (the runner fetches the failed validate phase's `validation.md` from its artifact store and your dispatch prompt names its local path); failing that, a thoughts doc or Linear attachment the prompt points at.
 
 If no Validation Report is in context and no report file is named in your prompt, run the `validate-plan` skill first, in this session, before invoking this skill.
 
@@ -41,20 +41,16 @@ If no Validation Report is in context and no report file is named in your prompt
 
 **No code change is a valid outcome** when every finding is non-`valid`. Locally, reply with the per-finding evidence. In a cloud round, follow the reference's "Cloud rounds" section: a validate-report finding has no manifest entry, so write `remediation.json` as `[]` and put the per-finding evidence in `adjudication.json`'s `reasoning` with `next_stage: "advance"`. Never leave the tree untouched without that evidence.
 
-**One repair round per validate report, and a cap.** A ticket gets one remediate round for its validate findings; the pipeline then rechecks the repair once and moves the ticket to PR, filing what remains as follow-ups. This is the same rule the local relay follows (cap yourself at two remediation rounds; a third failure is report-and-stop). If the dispatch prompt says this round is past the cap, repair nothing: file each remaining finding as a follow-up, record it in `adjudication.json`, and stop. The platform enforces the count (CTC-3915); this text makes the session agree with it.
+**One repair round per validate report, and a cap.** A ticket gets one remediate round for its validate findings; the pipeline then rechecks the repair once and moves the ticket to PR, filing what remains as follow-ups. Locally, cap yourself at two remediation rounds; a third failure is report-and-stop. If the dispatch prompt says this round is past the cap, repair nothing: file each remaining finding as a follow-up, record it in `adjudication.json`, and stop. The platform enforces the count; this rule makes the session agree with it.
 
-**Escalate instead of looping** (reference rule 12): when a finding recurs after a fix aimed at it, needs an architecture, contract or migration change, contradicts the plan or an ADR, or cannot be verified, raise an ask — `$CATALYST_ARTIFACT_DIR/decisions.json` in a cloud round, `catalyst-dev:ask` locally — and do not start another round.
+**Escalate instead of looping** (reference rule 12): when a finding recurs after a fix aimed at it, needs an architecture, contract or migration change, contradicts the plan or an ADR, or cannot be verified, raise an ask — `$CATALYST_ARTIFACT_DIR/decisions.json` in a cloud round, the `ask` skill locally — and do not start another round.
 
 ## Phase-completion evidence
 
-Report what you did in the shape a coordinator can check, per D1's phase-completion-evidence model (the `steward` skill's `references/dispatch.md`, "Phase-completion evidence"): the fix commit visible in `git log`, the gate's real exit code, the re-run validate-plan verdict (local only), and the classification table — not a summary of any of those:
+Report what you did in the shape a coordinator can check (the `steward` skill's `references/dispatch.md`, "Phase-completion evidence", describes it): the fix commit visible in `git log`, the gate's real exit code, the re-run validate-plan verdict (local only), and the classification table — not a summary of any of those:
 
 | Finding | Report step (FAIL/PASS) | Class   | Action     | Evidence                                                        |
 | ------- | ----------------------- | ------- | ---------- | --------------------------------------------------------------- |
 | F1      | code-review (FAIL)      | valid   | fixed      | `abc1234` src/x.ts:42; `x.test.ts` "rejects empty id" red→green |
 | F2      | code-review (FAIL)      | invalid | none       | src/y.ts:17 already guards null; `bun test y.test.ts` passes    |
 | F3      | plan-conformance (PASS) | —       | not chased | plan-only note on a PASS step                                   |
-
-## Not this skill
-
-`phase-remediate` (daemon-era: reads `${ORCH_DIR}/workers/<ticket>/verify.json`, dispatched by `phase-agent-dispatch`) is a different contract for a retired pipeline. Do not mix the two, and do not wait on anything `phase-remediate` would have waited on.

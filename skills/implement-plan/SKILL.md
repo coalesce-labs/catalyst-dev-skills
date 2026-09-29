@@ -19,11 +19,10 @@ You are tasked with implementing an approved technical plan from `thoughts/share
 ## Prerequisites
 
 ```bash
-# Thoughts must exist for this skill's documents. CTL-2306: the full host setup check (daemon,
-# registry, house rules) belongs to the setup-catalyst skill, not to a skill that must run anywhere.
-[[ -e thoughts/shared ]] || echo "⚠️ thoughts/shared is missing in $(pwd) — run \`humanlayer thoughts init\` or the setup-catalyst skill; if the prompt names an output path, write there" >&2
+# Thoughts must exist for this skill's documents. That is the only host check here: the skill runs anywhere.
+[[ -e thoughts/shared ]] || echo "⚠️ thoughts/shared is missing in $(pwd) — run \`humanlayer thoughts init\`; if the prompt names an output path, write there" >&2
 
-# CTL-2306 explicit-input discovery: begin
+# explicit-input discovery: begin
 # Find the plan to implement on disk for the ticket this run was given: $CATALYST_TICKET under a
 # phase, else a ticket named in the skill's argument text (Claude Code substitutes the token in
 # the heredoc below; another harness leaves it literal, which names no ticket). Nothing is
@@ -43,7 +42,7 @@ if [[ -n "$TICKET_ID" ]]; then
 elif [[ -z "${CATALYST_PHASE:-}" ]]; then
   RECENT_PLAN=$(find -H thoughts/shared/plans -type f -name '*.md' -exec ls -t {} + 2>/dev/null | head -1)
 fi
-# CTL-2306 explicit-input discovery: end
+# explicit-input discovery: end
 if [[ -n "$RECENT_PLAN" ]]; then
   echo "📋 Found plan: $RECENT_PLAN"
 else
@@ -92,8 +91,8 @@ Once you have a plan path:
 - Check for any existing checkmarks (- [x]) to see what's done
 - Read the original ticket and all files mentioned in the plan
 - **Extract ticket from plan frontmatter** (`source_ticket` field) and update Linear state
-  to `stateMap.inProgress` from config using Linearis CLI (run `linearis issues usage` for syntax). If Linearis CLI is not available, skip silently and continue implementation. **Skip the status transition when `CATALYST_PHASE` is set** — under a phase agent (e.g. `phase-implement`, or this skill invoked as a sub-task from `phase-pr` / `phase-monitor-merge` during PR resolution / CI fix-up loops) the deterministic coordinator (CTL-558) owns the Linear status write-back. A direct write here would regress the ticket from `PR` back to `Implement`, producing operator-visible state flicker (CTL-601). Mirrors the gate in `create-pr/SKILL.md:227-232`.
-- **Bring an adopted branch up to date before building on it (CTC-3491).** If the branch already carries work from an earlier session or an open pull request, meaning `git fetch origin main && git log --oneline origin/main..HEAD` lists commits before you change anything, merge main into it first: `git merge --no-edit origin/main`, resolving any conflict as part of this phase. A branch that never took the current main makes validate review main's own changes as this ticket's (CTC-2746: 923 files for a 16-file branch). A fresh branch with no commits of its own needs nothing.
+  to `stateMap.inProgress` from config using Linearis CLI (run `linearis issues usage` for syntax). If Linearis CLI is not available, skip silently and continue implementation. **Skip the status transition when `CATALYST_PHASE` is set** — in an automated run (this skill as the implement step, or invoked as a sub-task while a later step resolves PR feedback or fixes CI) the run's coordinator owns the Linear status write-back. A direct write here would move the ticket from `PR` back to `Implement`, and the card would visibly flicker. The `create-pr` skill carries the same gate.
+- **Bring an adopted branch up to date before building on it.** If the branch already carries work from an earlier session or an open pull request, meaning `git fetch origin main && git log --oneline origin/main..HEAD` lists commits before you change anything, merge main into it first: `git merge --no-edit origin/main`, resolving any conflict as part of this phase. A branch that never took the current main makes validate review main's own changes as this ticket's, which can turn a small branch into hundreds of files. A fresh branch with no commits of its own needs nothing.
 - Think deeply about how the pieces fit together
 - Create a todo list to track your progress
 - Start implementing if you understand what needs to be done
@@ -118,16 +117,13 @@ For each phase, follow **Red → Green → Refactor**:
    pass. Then **commit the Green result**, and only after that push the draft PR, so a mid-phase kill loses at most one Red→Green cycle:
 
 ```bash implement-plan-commit-green
-# CTL-1490 (Codex round-2, PR #2697): commit BEFORE the draft-pr-push block below —
-# draft_pr_push (this skill's scripts/lib/draft-pr.sh) is a pure `git push`; it commits
-# nothing itself. Without a commit here, this push re-pushes whatever HEAD already
-# had (the previous phase's/step's commit) and the just-written Green code sits
-# uncommitted in the worktree only — a mid-phase kill after this point still loses
-# it, defeating the "durable off-disk record" purpose the push exists for. Run
-# after EVERY TDD Green step, same gate as the push below (phase-agent mode only;
-# interactive runs skip so there's no surprise commit). Fail-open: never blocks the
-# phase — an empty/failed commit here is not fatal, it just means the upcoming push
-# has nothing new to carry (same durability gap as before this fix, not a regression).
+# Commit BEFORE the draft-pr-push block below: draft_pr_push (this skill's
+# scripts/lib/draft-pr.sh) is a pure `git push` and commits nothing itself. Without a
+# commit here, the push re-pushes whatever HEAD already had (the previous step's commit)
+# and the just-written Green code sits uncommitted in the worktree, where a mid-phase
+# kill loses it. Run after EVERY TDD Green step, same gate as the push below (automated
+# runs only; interactive runs skip so there's no surprise commit). Fail-open: never
+# blocks the phase — an empty or failed commit only means the push has nothing new to carry.
 if [[ -n "${CATALYST_PHASE:-}" ]]; then
   # `git status --porcelain`, not `git diff`/`git diff --cached` alone — a
   # Green step very often ADDS a new file (new test, new implementation
@@ -143,11 +139,11 @@ fi
 ```
 
 ```bash implement-plan-draft-pr-early
-# CTL-783/CTL-1490: make the PR the durable off-disk work record from the FIRST commit.
+# Make the PR the durable off-disk work record from the FIRST commit.
 # Run after EVERY TDD Green step: first run opens the draft PR, later runs just
 # push (draft_pr_ensure is idempotent). Interactive runs (no CATALYST_PHASE)
 # skip — no surprise pushes. Fail-open: never blocks the phase.
-# CTL-2306: the helper ships inside this skill; a missing copy under a phase is reported, never silently skipped.
+# The helper ships inside this skill; a missing copy in an automated run is reported, never silently skipped.
 if [[ -n "${CATALYST_PHASE:-}" ]]; then
   if [[ -r "${CLAUDE_SKILL_DIR}/scripts/lib/draft-pr.sh" ]]; then
     # shellcheck source=/dev/null
@@ -197,8 +193,8 @@ If you encounter a mismatch:
 - Update your progress in both the plan and your todos
 - Check off completed items in the plan file itself using Edit
 - **Check context usage** - monitor token consumption
-- **Push + ensure the draft PR (phase-agent mode)** — The `implement-plan-draft-pr-early` block
-  runs automatically after each Green step (see TDD Rhythm above; CTL-1490). Interactive `implement-plan` runs skip it via the CATALYST_PHASE gate.
+- **Push + ensure the draft PR (automated runs)** — The `implement-plan-draft-pr-early` block
+  runs automatically after each Green step (see TDD Rhythm above). Interactive `implement-plan` runs skip it via the CATALYST_PHASE gate.
 
 Don't let verification interrupt your flow - batch full suite runs at natural stopping points. But always run the specific tests you wrote during each Red → Green cycle.
 
@@ -228,12 +224,12 @@ Current usage: {X}% ({Y}K/{Z}K tokens)
 
 **Options**:
 1. ✅ Create handoff and clear context (recommended)
-   - Use `/create-handoff` to generate properly formatted handoff
+   - Use the `create-handoff` skill to generate a properly formatted handoff
    - Format: `thoughts/shared/handoffs/{ticket}/YYYY-MM-DD_HH-MM-SS_description.md`
    - Includes timestamp for lexical sorting by recency
 2. Continue to next phase (if close to completion)
 
-**To resume**: Start fresh session, run `/implement-plan {plan-path}`
+**To resume**: Start a fresh session and use the `implement-plan` skill with `{plan-path}`
 (The plan file tracks progress with checkboxes - you'll resume automatically)
 
 {If <60%}:
@@ -258,7 +254,7 @@ Current usage: {X}% ({Y}K/{Z}K tokens)
 
 When recommending a handoff, guide the user:
 
-1. Offer to create the handoff using `/create-handoff`
+1. Offer to create the handoff with the `create-handoff` skill
 2. Or create a manual handoff following the timestamp convention
 3. Handoff filename format: `thoughts/shared/handoffs/{ticket}/YYYY-MM-DD_HH-MM-SS_description.md`
 4. Include: completed phases, next steps, key learnings, file references
@@ -274,8 +270,8 @@ Everywhere else, after all implementation phases pass, run the quality gates bel
 
 ```
 Quality Gates:
-├── 1. /validate-type-safety  → tsc + reward hacking scan + tsconfig check + tests + lint
-├── 2. review-security skill  → scan for security vulnerabilities (the owned skill, on every harness)
+├── 1. validate-type-safety   → tsc + reward hacking scan + tsconfig check + tests + lint
+├── 2. review-security skill  → scan for security vulnerabilities (this pack's skill, on every harness)
 ├── 3. code-reviewer agent    → style/guideline adherence check
 └── 4. pr-test-analyzer agent → test coverage verification
 ```
@@ -284,33 +280,33 @@ Quality Gates:
 
 **Gate 1: Type Safety Validation**
 
-Invoke `/validate-type-safety`. This runs the full 5-step gate (type check, reward hacking scan, test inclusion, tests, lint). If it fails, fix issues and re-run before proceeding.
+Use the `validate-type-safety` skill. It runs the full 5-step gate (type check, reward hacking scan, test inclusion, tests, lint). If it fails, fix issues and re-run before proceeding.
 
 **Gate 2: Security Review**
 
-Run the owned `review-security` skill, not Claude Code's built-in `/security-review`: one reviewer on every harness (Ryan, 2026-09-27). Review findings and fix any vulnerabilities before proceeding.
+Run this pack's `review-security` skill, not Claude Code's built-in `/security-review`, so every harness gets the same reviewer. Review findings and fix any vulnerabilities before proceeding.
 
 **Gate 3: Code Review**
 
-Spawn the `code-reviewer` agent:
+Run a `code-reviewer` subagent. In Claude Code with the `pr-review-toolkit` plugin installed:
 
 ```
 Agent(subagent_type="pr-review-toolkit:code-reviewer",
       prompt="Review the uncommitted changes for adherence to project guidelines and style.")
 ```
 
-Address any findings that violate project conventions.
+On another harness, run a subagent with the same prompt. Address any findings that violate project conventions.
 
 **Gate 4: Test Coverage**
 
-Spawn the `pr-test-analyzer` agent:
+Run a `pr-test-analyzer` subagent. In Claude Code with the `pr-review-toolkit` plugin installed:
 
 ```
 Agent(subagent_type="pr-review-toolkit:pr-test-analyzer",
       prompt="Analyze test coverage for the uncommitted changes. Identify critical gaps.")
 ```
 
-If critical gaps exist, write the missing tests.
+On another harness, run a subagent with the same prompt. If critical gaps exist, write the missing tests.
 
 ### File Improvement Findings
 
@@ -323,7 +319,7 @@ If critical gaps exist, write the missing tests.
   --skill implement-plan
 ```
 
-Findings go to a shared queue (under orchestrate/oneshot, that skill's queue; direct invocations get a per-session queue). The block below files the queue at end-of-run. It's a safety net: when `implement-plan` runs under `/orchestrate` or `/oneshot`, the parent's filing step drains the same queue first and this block finds an empty file:
+Findings go to a shared queue (under a parent workflow, that workflow's queue; a direct invocation gets a per-session queue). The block below files the queue at end-of-run. It's a safety net: when a parent workflow runs `implement-plan`, the parent's filing step drains the same queue first and this block finds an empty file:
 
 ```bash
 FEEDBACK="${CLAUDE_SKILL_DIR}/scripts/file-feedback.sh"
@@ -434,12 +430,12 @@ Lead (Opus) — Coordinates implementation
 
 ## Linear Integration
 
-State names (`stateMap.*`) come from `.catalyst/config.json`. The canonical transition table is in the operator-only `linearis` skill, which a default install leaves out; without the Linearis CLI (every tenant machine) the transition is skipped, and on a tenant the card moves with the `linear` skill's `catalyst-skills write state` or with the phase runner.
+State names (`stateMap.*`) come from `.catalyst/config.json`. The canonical transition table is in the operator-only `linearis-cli` skill, which a default install leaves out; without the Linearis CLI (every tenant machine) the transition is skipped, and on a Catalyst Cloud tenant the card moves with the `linear` skill's `catalyst write state` or with the automated run's coordinator.
 
 If a ticket is detected (from plan document's `source_ticket` frontmatter or from context):
 
 - **At implementation start** (Step 3): Update ticket status to `stateMap.inProgress` from config
   using Linearis CLI (run `linearis issues usage` for syntax).
-- **Skip the status transition when `CATALYST_PHASE` is set** — the deterministic coordinator
-  (CTL-558) owns Linear write-back under phase agents. See the gate at Step 3 above for details. CTL-601 — without this gate, invoking this skill as a sub-task from another phase agent (typical in `phase-pr` / `phase-monitor-merge` resolution loops) regresses the ticket state to `Implement` and produces operator-visible flicker.
+- **Skip the status transition when `CATALYST_PHASE` is set** — the automated run's coordinator
+  owns Linear write-back. See the gate at Step 3 above for details.
 - If Linearis CLI not available, skip silently and continue implementation

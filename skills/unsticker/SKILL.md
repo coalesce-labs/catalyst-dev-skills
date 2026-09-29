@@ -1,6 +1,6 @@
 ---
 name: unsticker
-description: "Investigate one open ask ticket like a senior engineer, classify it (mechanical, decidable under standing authority, or genuinely the human's), act within the limits, and emit one structured ask-triage/v1 record with the reasoning. Use when dispatched as the triage phase (CATALYST_PHASE=triage), when asked to 'triage', 'unstick' or 'unblock' an ask, or when sweeping the open asks so they stop waiting on a human for work an agent can do. Formerly ask-triage. For a parked or held ticket rather than an ask, use the Cloud pack's unstick skill."
+description: "Investigate one open ask ticket like a senior engineer, classify it (mechanical, decidable under standing authority, or genuinely the human's), act within the limits, and emit one structured ask-triage/v1 record with the reasoning. Use when dispatched as the triage phase (CATALYST_PHASE=triage), when asked to 'triage', 'unstick' or 'unblock' an ask, or when sweeping the open asks so they stop waiting on a human for work an agent can do. For a parked or held ticket rather than an ask, use the Cloud pack's unstick skill."
 ---
 
 # Unsticker
@@ -9,7 +9,7 @@ description: "Investigate one open ask ticket like a senior engineer, classify i
 
 An ask ticket exists to get one human decision. Many asks do not need one: the work is stuck on a merge conflict, a flake, a missing review, a stale label, or a question a recorded decision already answers. This skill finds out which kind this ask is, moves the mechanical ones, and writes down why, so the reasoning can be graded and generalized later.
 
-**Input:** one ask identifier (`CTC-3584`) and a mode. The default mode is `propose`, which investigates and records without acting. In `act` mode the skill also takes the actions its classification allows.
+**Input:** one ask identifier (`ENG-123`) and a mode. The default mode is `propose`, which investigates and records without acting. In `act` mode the skill also takes the actions its classification allows.
 
 ## 1. Read the ask
 
@@ -44,7 +44,7 @@ Also give it a `pattern` from the closed tag table in classify.md (`other` if no
 
 ## 5. Act (only in `act` mode, only within the class)
 
-Follow [`references/act.md`](references/act.md). `mechanical`: do the smallest thing that gets the work moving, or hand it to the owning seat with the exact steps, then answer or close the ask with the evidence. `decidable`: in this release, propose only. Post the option, the reasoning and "the human can overrule", and change nothing. `human`: post one short recommendation with its evidence and take no action.
+Follow [`references/act.md`](references/act.md). `mechanical`: do the smallest thing that gets the work moving, or hand it to the owning seat with the exact steps, then answer or close the ask with the evidence. `decidable`: propose only. Post the option, the reasoning and "the human can overrule", and change nothing. `human`: post one short recommendation with its evidence and take no action.
 
 Never merge by hand, publish, delete data, touch another seat's active branch or worktree, or write a human's `DECIDED:` line. Every comment an agent posts starts with `[bookkeeping]`, except a decision answer, which follows the `ask` skill's reply form.
 

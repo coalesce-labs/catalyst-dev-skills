@@ -29,8 +29,8 @@ fi
 
 Prompt the user interactively, one at a time. Keep prompts short and concrete — the estimate re-scoring is the calibration signal, so don't skip it.
 
-- **estimate_actual** — re-score on the CTL-746 T-shirt → points scale (XS=1, S=3, M=5, L=8,
-  XL=13 — the same Fibonacci mirror `phase-triage` writes to `Issue.estimate`). Ask: "After shipping, what T-shirt would you set this ticket to? (XS/S/M/L/XL or integer 1/3/5/8/13)". Off-scale integers are accepted by the helper, but the corpus-refresh override ignores them.
+- **estimate_actual** — re-score on the T-shirt → points scale (XS=1, S=3, M=5, L=8,
+  XL=13 — the same Fibonacci mirror triage writes to `Issue.estimate`). Ask: "After shipping, what T-shirt would you set this ticket to? (XS/S/M/L/XL or integer 1/3/5/8/13)". Off-scale integers are accepted by the helper, but the corpus-refresh override ignores them.
 - **what_worked** — "What worked? (one or two sentences)"
 - **what_surprised_me** — "What surprised you? (one or two sentences — the highest-signal
   calibration input)"

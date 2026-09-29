@@ -1,11 +1,11 @@
 # Step 6 — Diagnose and Resolve Merge Blockers (Reactive PR Lifecycle)
 
-_The canonical reactive-PR loop (documented here since CTL-2240 removed `monitor-events`): a single `wait-for` fires on any of PR merged, PR closed, CI failure, review changes-requested, or push to the base branch. Each wake-up is paired with an authoritative `gh api` REST re-check._
+_The reactive-PR loop, used when the event log is live and the `catalyst-events` CLI is installed: a single `wait-for` fires on any of PR merged, PR closed, CI failure, review changes-requested, or push to the base branch. Each wake-up is paired with an authoritative `gh api` REST re-check._
 
 Read and follow the full workflow in
 `"${CLAUDE_SKILL_DIR}/assets/references/merge-blocker-diagnosis.md"`.
 
-The wake-up mechanism here is the **canonical "Reactive PR lifecycle" pattern (Pattern 3, CTL-228; the `monitor-events` skill that first documented it was removed with the daemon, CTL-2240)**: each wake-up tells the agent *what changed*; `gh api` tells it *the current truth*. Subscribe only to `github.pr.merged` is wrong — most of the interval between PR-create and PR-merge is spent on CI, review, and base-branch churn; the disjunctive filter restores event-driven dispatch for those cases.
+The wake-up mechanism here is the **"Reactive PR lifecycle" pattern**: each wake-up tells the agent *what changed*; `gh api` tells it *the current truth*. Subscribing only to `github.pr.merged` is wrong — most of the interval between PR-create and PR-merge is spent on CI, review, and base-branch churn; the disjunctive filter restores event-driven dispatch for those cases.
 
 ```bash
 # Two-phase compliant cadence loop. The 600s timeout serves as a fallback cadence;
@@ -65,7 +65,7 @@ while [ $ITER -lt $MAX_ITER ]; do
 done
 ```
 
-**Why every wake-up runs `gh api`:** if orch-monitor is down, no events flow and `wait-for` blocks until the timeout. The REST call is the safety net for merge confirmation when the event stream has dropped. Events are wake-up triggers; `gh api` REST is the source of truth.
+**Why every wake-up runs `gh api`:** if the event producer is down, no events flow and `wait-for` blocks until the timeout. The REST call is the safety net for merge confirmation when the event stream has dropped. Events are wake-up triggers; `gh api` REST is the source of truth.
 
 Blocker resolution table (full details in `merge-blocker-diagnosis.md`):
 
@@ -75,7 +75,7 @@ Blocker resolution table (full details in `merge-blocker-diagnosis.md`):
 | DIRTY (conflicts) | `gh pr checkout && git rebase origin/<base>`; if unresolvable, exit non-success |
 | draft | `gh pr ready` |
 | UNSTABLE (CI failing) | analyze failure logs, fix code, push, continue polling |
-| unresolved-threads | run `/review-comments`, resolve via GraphQL, continue polling |
+| unresolved-threads | run the `review-comments` skill, resolve via GraphQL, continue polling |
 | changes-requested | check if addressed; suggest re-request review |
 | review-required | exit non-success — report how many approvals needed and who to request |
 | HAS_HOOKS | wait one cadence cycle and re-query |

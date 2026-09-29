@@ -44,7 +44,7 @@ describe("ownership manifest", () => {
     expect(declared.length).toBe(38);
     expect(actual.length).toBe(38);
     expect(declared.every((s) => s.scope === "home")).toBe(true);
-    expect(declared.find((s) => s.dir === "linearis")?.name).toBe("linearis-cli");
+    expect(declared.find((s) => s.dir === "linearis-cli")?.name).toBe("linearis-cli");
     expect(ownershipProblems(declared, actual)).toEqual([]);
     expect(declared.map((s) => s.dir)).toEqual([...declared.map((s) => s.dir)].sort());
   });
@@ -248,7 +248,7 @@ describe("the documented install is home-scoped", () => {
   // CTC-3202: the operator-only skills are hidden from `add --all` by `metadata: internal: true`.
   // Hiding a skill changes what every customer install lands, so the set is pinned here.
   test("exactly the operator-only skills are internal", () => {
-    expect(skillNames(repoRoot).filter((s) => s.internal).map((s) => s.dir)).toEqual(["concierge", "linearis"]);
+    expect(skillNames(repoRoot).filter((s) => s.internal).map((s) => s.dir)).toEqual(["concierge", "linearis-cli"]);
   });
 
   test("an internal skill may be absent from HOME, but a repository copy of it is still reported", () => {

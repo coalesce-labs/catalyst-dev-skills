@@ -28,13 +28,15 @@ Full schema:
       "updateLinearOnMerge": true,
       "requireApproval": false,
       "requireCI": false,
-      "testCommand": "make test"
+      "testCommand": "make test",
+      "queueLabel": "queue:ready",
+      "handStepPaths": "^(db/schema/|.*migrations/)"
     }
   }
 }
 ```
 
-State names are read from `stateMap` with sensible defaults.
+State names are read from `stateMap` with sensible defaults. `queueLabel` opts the repository into a label-driven merge queue: the skill applies the label and stops instead of merging, and `handStepPaths` (an extended regex) names the paths that queue excludes, which stay hand-merged. Both are optional; without `queueLabel` the skill merges as usual.
 
 ## Safety features
 
@@ -52,7 +54,7 @@ State names are read from `stateMap` with sensible defaults.
 
 **Diagnose and fix automatically:**
 - CI failures → analyze errors, fix code, push, re-poll
-- Unresolved review threads → run `/review-comments`, resolve via GraphQL
+- Unresolved review threads → run the `review-comments` skill, resolve via GraphQL
 - Branch behind → rebase and push
 - Draft PR → mark as ready with `gh pr ready`
 
@@ -64,7 +66,7 @@ State names are read from `stateMap` with sensible defaults.
 **Always automated:**
 - Rebase if behind (no conflicts)
 - Squash merge
-- Delete remote branch (checkout-free, CTL-56)
+- Delete remote branch (checkout-free)
 - Delete local branch (when not in a linked worktree)
 - Update Linear to Done (if Linearis available)
 - Pull latest base branch

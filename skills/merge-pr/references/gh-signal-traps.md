@@ -1,6 +1,6 @@
 # GitHub signal traps — two shapes that look like an answer and aren't
 
-Both traps below have burned real waits in this repo. Check both before trusting a bounded-poll result.
+Check both traps below before trusting a bounded-poll result.
 
 ## Trap 1: rollup `conclusion` is `""`, not `null`, while running — and empty means "no evidence yet," not "success"
 
@@ -58,7 +58,7 @@ A THIRD trap sits inside that second one: you can't fix it by comparing the reac
 
 **Fix: scope to the specific automated reviewer, exclude an explicit rejection, and use a BASELINE of prior reaction ids — never a timestamp — to prove a reaction is new.** Three mechanical requirements this snippet has to get right: `gh api --jq` takes exactly one query string and has no `--arg`/`--argjson` of its own (those are `jq`'s flags, not `gh api`'s — pipe to a separate `jq` invocation instead); the baseline snapshot must be taken AFTER the push lands, not before, since a review of the still-in-flight OLD head can complete in the gap between an earlier snapshot and the push actually landing; and, because a bounded-poll wait can itself span a LATER push (a remediation or update-branch commit landing mid-wait), the baseline must be re-captured every time `HEAD_SHA` changes, never taken once and reused for the rest of the wait.
 
-**Capturing a baseline never asks for a review.** Asking is a separate, guarded step, `request_review_once`. On a repository whose review asks are managed by the Catalyst Cloud mirror, you never ask: the mirror asks the reviewer once per head (catalyst-cloud CTC-3845, CTC-3924) and publishes a `Review Evidence` check run on that head, which is how you detect it. Elsewhere you ask at most once per head, and not at all when the reviewer already reviewed that head. Why: when this snippet asked on every head change, seats posted `@codex review` 50 times in 7.5 h on 2026-09-28. Each one could restart the reviewer on a head it had already passed, raise a fresh P2 and dequeue the PR (CTC-3968).
+**Capturing a baseline never asks for a review.** Asking is a separate, guarded step, `request_review_once`. On a repository whose review asks are managed by the Catalyst Cloud mirror, you never ask: the mirror asks the reviewer once per head and publishes a `Review Evidence` check run on that head, which is how you detect it. Elsewhere you ask at most once per head, and not at all when the reviewer already reviewed that head: every extra ask can restart the reviewer on a head it already passed, raise a fresh finding and dequeue the PR.
 
 ```bash
 BOT_LOGIN="chatgpt-codex-connector[bot]"   # the automated reviewer configured for this repo — the GitHub App suffix is part of the login, verify with: gh api repos/{owner}/{repo}/pulls/{n}/reviews --jq '[.[].user.login] | unique'

@@ -23,11 +23,11 @@ You are resuming work from a handoff document, interactively by default or unatt
 ## Prerequisites
 
 ```bash
-# Thoughts must exist for this skill's documents. CTL-2306: the full host setup check (daemon,
-# registry, house rules) belongs to the setup-catalyst skill, not to a skill that must run anywhere.
-[[ -e thoughts/shared ]] || echo "⚠️ thoughts/shared is missing in $(pwd) — run \`humanlayer thoughts init\` or the setup-catalyst skill; if the prompt names an output path, write there" >&2
+# Thoughts must exist for this skill's documents. The full host setup check belongs to the
+# Cloud pack's catalyst-setup skill, not to a skill that must run anywhere.
+[[ -e thoughts/shared ]] || echo "⚠️ thoughts/shared is missing in $(pwd) — run \`humanlayer thoughts init\`, or the catalyst-setup skill to check the setup; if the prompt names an output path, write there" >&2
 
-# CTL-2306 explicit-input discovery: begin
+# explicit-input discovery: begin
 # Find the handoff to resume on disk for the ticket this run was given: $CATALYST_TICKET under a
 # phase, else a ticket named in the skill's argument text (Claude Code substitutes the token in
 # the heredoc below; another harness leaves it literal, which names no ticket). Nothing is
@@ -47,8 +47,8 @@ if [[ -n "$TICKET_ID" ]]; then
 elif [[ -z "${CATALYST_PHASE:-}" ]]; then
   RECENT_HANDOFF=$(find -H thoughts/shared/handoffs -type f -name '*.md' -exec ls -t {} + 2>/dev/null | head -1)
 fi
-# CTL-2306 explicit-input discovery: end
-# CTL-2104: guard the discovered path anyway — thoughts/shared is a per-project symlink and a path can vanish mid-run; an unguarded read of a phantom path yields an empty document that reads like an empty handoff.
+# explicit-input discovery: end
+# Guard the discovered path anyway — thoughts/shared is a per-project symlink and a path can vanish mid-run; an unguarded read of a phantom path yields an empty document that reads like an empty handoff.
 if [[ -n "$RECENT_HANDOFF" && ! -f "$RECENT_HANDOFF" ]]; then
   echo "⚠️ Cited handoff is not on disk: $RECENT_HANDOFF"
   echo "   The channel is authoritative — recover from the last turn's text, see references/discovery.md."

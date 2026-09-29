@@ -279,7 +279,7 @@ describe("every catalyst-dev skill is self-contained (CTL-2306)", () => {
     const required = [
       "agent-browser", "ask", "briefing-followup", "commit", "compound-estimate", "concierge",
       "create-handoff", "create-plan", "create-pr", "create-worktree", "describe-pr", "fix-typescript",
-      "gherkin-ticket", "implement-plan", "iterate-plan", "linear", "linearis", "merge-pr",
+      "gherkin-ticket", "implement-plan", "iterate-plan", "linear", "linearis-cli", "merge-pr",
       "morning-briefing", "project-orchestrator", "remediate-plan", "research-codebase", "resume-handoff",
       "review-comments", "scan-reward-hacking", "steward", "ticket-compound", "ticket-retro",
       "triage-aging-prs", "validate-plan", "validate-type-safety",

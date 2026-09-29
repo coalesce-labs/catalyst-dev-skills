@@ -37,4 +37,4 @@ else
 fi
 ```
 
-`linear_read_ticket` is replica-first with a loud `linearis` fallback (CTL-1397) — never a bare `linearis issues read`. Title is an auto-generated section: update it without prompting.
+`linear_read_ticket` is replica-first with a loud `linearis` fallback — never a bare `linearis issues read`. Title is an auto-generated section: update it without prompting.

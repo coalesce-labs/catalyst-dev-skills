@@ -36,11 +36,3 @@ esac
 ## Idempotence
 
 Re-running with the same resolutions file produces the same markdown: the previous "## Decisions Made Today" block is stripped before the new one is appended, and the `resolutions:` array is replaced rather than amended.
-
-## Phase history
-
-- Phase 1 (CTL-462): load, parse, walk with placeholder approve/reject/defer.
-- Phase 2 (CTL-463): action handlers — calendar, ticket, dispatch, email.
-- Phase 3 (CTL-464): ADR-drift resolution (`action-adr.sh`).
-- Phase 4 (CTL-465, this write-back step): resolutions write-back to the briefing frontmatter.
-- Compound engineering (CTL-789): `pending:` decisions route to `action-compound.sh`.

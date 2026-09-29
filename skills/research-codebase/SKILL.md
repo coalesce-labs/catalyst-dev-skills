@@ -32,9 +32,8 @@ You are tasked with conducting comprehensive research across the codebase to ans
 ## Prerequisites
 
 ```bash
-# Thoughts must exist for this skill's documents. CTL-2306: the full host setup check (daemon,
-# registry, house rules) belongs to the setup-catalyst skill, not to a skill that must run anywhere.
-[[ -e thoughts/shared ]] || echo "⚠️ thoughts/shared is missing in $(pwd) — run \`humanlayer thoughts init\` or the setup-catalyst skill; if the prompt names an output path, write there" >&2
+# Thoughts must exist for this skill's documents. That is the only host check here: the skill runs anywhere.
+[[ -e thoughts/shared ]] || echo "⚠️ thoughts/shared is missing in $(pwd) — run \`humanlayer thoughts init\`; if the prompt names an output path, write there" >&2
 ```
 
 ## Session Tracking
@@ -61,12 +60,12 @@ and I'll analyze it thoroughly by exploring relevant components and connections.
 
 Then wait for the user's research query.
 
-## Pull-Before-Read (CTL-1236)
+## Pull-Before-Read
 
 Before the first thoughts read, fast-forward the HumanLayer thoughts checkouts so research picks up the freshest peer state. Fast-forward only and non-fatal; it runs through the installed `thoughts-pull-sync` CLI when this host has one and is skipped otherwise:
 
 ```bash
-# Pull-before-read (CTL-1236): ff-only, non-fatal, host tooling — never a dependency of the research.
+# Pull-before-read: ff-only, non-fatal, host tooling — never a dependency of the research.
 if command -v thoughts-pull-sync >/dev/null 2>&1; then thoughts-pull-sync >/dev/null 2>&1 || true; fi
 ```
 
@@ -74,7 +73,7 @@ if command -v thoughts-pull-sync >/dev/null 2>&1; then thoughts-pull-sync >/dev/
 
 ### Step 0: Orient with Serena (ALWAYS attempt this first)
 
-Before reading files or spawning sub-agents, get a fast semantic map of the codebase from Serena — Catalyst's self-hosted, local code-understanding MCP (the DeepWiki replacement). This is free and usually answers "where does X live / how is Y wired" in one call instead of many `Grep`s, so your sub-agent prompts come out specific rather than exploratory.
+Before reading files or spawning sub-agents, get a fast semantic map of the codebase from Serena, a local code-understanding MCP server. This is free and usually answers "where does X live / how is Y wired" in one call instead of many `Grep`s, so your sub-agent prompts come out specific rather than exploratory.
 
 **Prerequisite check** — only do this if the `mcp__serena__*` tools are available (Serena MCP is installed). If they are not, skip straight to Step 1 — do not retry or warn the user.
 
@@ -95,7 +94,7 @@ Serena's results are a starting point — always verify against live code via th
 - Break down the user's query into composable research areas
 - Think deeply about underlying patterns, connections, and architectural implications
 - Create a research plan using TodoWrite to track all subtasks
-- If a Linear ticket is provided, update it to the configured research state via Linearis CLI (from `stateMap.research`). **Skip this when `CATALYST_PHASE` is set** — under a phase agent or a relay session the coordinator owns the Linear status write-back, and a phase container holds no Linear credential. If Linearis CLI is not available, skip silently and continue research.
+- If a Linear ticket is provided, update it to the configured research state via Linearis CLI (from `stateMap.research`). **Skip this when `CATALYST_PHASE` is set** — in an automated run the coordinator owns the Linear status write-back, and the run's container holds no Linear credential. If Linearis CLI is not available, skip silently and continue research.
 
 ### Step 3: Spawn parallel sub-agent tasks for comprehensive research
 
@@ -110,7 +109,7 @@ Create multiple Task agents to research different aspects concurrently.
 - **thoughts-analyzer** — extract key insights from specific thoughts documents
 - **external-research** — research external repos/frameworks (only if user asks)
 
-Each agent's instructions ship with this skill as `${CLAUDE_SKILL_DIR}/assets/agents/<name>.md` (for example `${CLAUDE_SKILL_DIR}/assets/agents/codebase-locator.md`). With the catalyst-dev Claude Code plugin, spawn them as `catalyst-dev:<name>`. On any other harness, spawn a general-purpose subagent with that file's instructions plus your request, or do the task inline if the harness has no subagents.
+Each agent's instructions ship with this skill as `${CLAUDE_SKILL_DIR}/assets/agents/<name>.md` (for example `${CLAUDE_SKILL_DIR}/assets/agents/codebase-locator.md`). To use one, run a subagent with the instructions in that file plus your request, or do the task inline if the harness has no subagents.
 
 The key is to use these agents intelligently:
 
@@ -248,7 +247,7 @@ humanlayer thoughts sync
 
 **8b. Linear comment** (if ticket detected): Add a comment noting research is complete and linking the document path. Use Linearis CLI (run `linearis comments usage` for syntax). **Skip this when `CATALYST_PHASE` is set** — the runner publishes the phase outcome to the ticket itself. If Linearis CLI is not available, skip silently and continue.
 
-**8e. Present summary to user:**
+**8c. Present summary to user:**
 
 ```
 Research complete!
@@ -286,7 +285,7 @@ If the user has follow-up questions:
 
 ## Important Notes
 
-- **NEVER use EnterPlanMode or create implementation plans** — that's `/create_plan`'s job
+- **NEVER use EnterPlanMode or create implementation plans** — that's the `create-plan` skill's job
 - ALWAYS use parallel Task agents - spawn all at once, then wait for all to complete
 - Always perform fresh codebase research - never rely solely on existing docs
 - Focus on concrete file paths and line numbers
@@ -297,10 +296,10 @@ If the user has follow-up questions:
 
 ## Linear Integration
 
-State names (`stateMap.*`) come from the `linearis` skill's single-source transition table — not restated here.
+State names (`stateMap.*`) come from `.catalyst/config.json`; the operator-only `linearis-cli` skill holds the canonical transition table, not restated here.
 
 If a ticket is detected (provided as argument, mentioned in query, or from context):
 
 - **At research start**: Update ticket status to `stateMap.research` from config using Linearis CLI (run `linearis issues usage` for syntax) — interactive runs only; skip when `CATALYST_PHASE` is set.
-- **After document saved** (interactive runs only; skip when `CATALYST_PHASE` is set): Add a comment with the document link — this is an agent-authored comment, so post it through the app actor (`linear-reply.mjs --as <role>`, or the `linear-comment-post.sh` helper), never bare `linearis issues discuss`/`reply` (those post as the human — see the `linearis` skill's "Comment on a ticket" section).
+- **After document saved** (interactive runs only; skip when `CATALYST_PHASE` is set): Add a comment with the document link — this is an agent-authored comment, so post it through the app actor: `catalyst write comment <ID>` (the `linear` skill) on a Catalyst Cloud tenant, or `linear-reply.mjs --as <role>` from the operator `linearis-cli` skill. Never use bare `linearis issues discuss`/`reply`: those post as the person who owns the token.
 - If the tooling is not available, skip silently and continue research

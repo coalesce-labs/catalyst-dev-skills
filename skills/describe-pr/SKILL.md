@@ -18,9 +18,9 @@ Generates or updates a PR description with incremental information, auto-updates
 ## Prerequisites
 
 ```bash
-# Thoughts must exist for this skill's documents. CTL-2306: the full host setup check (daemon,
-# registry, house rules) belongs to the setup-catalyst skill, not to a skill that must run anywhere.
-[[ -e thoughts/shared ]] || echo "⚠️ thoughts/shared is missing in $(pwd) — run \`humanlayer thoughts init\` or the setup-catalyst skill; if the prompt names an output path, write there" >&2
+# Thoughts must exist for this skill's documents. The full host setup check belongs to the
+# Cloud pack's catalyst-setup skill, not to a skill that must run anywhere.
+[[ -e thoughts/shared ]] || echo "⚠️ thoughts/shared is missing in $(pwd) — run \`humanlayer thoughts init\`; if the prompt names an output path, write there" >&2
 ```
 
 ## No Claude attribution
@@ -31,7 +31,7 @@ Never write "Generated with Claude Code", "Co-Authored-By: Claude", or any AI-as
 
 1. **Read the template, identify the PR, extract its ticket, gather its diff/commits/checks.** See [process.md](references/process.md).
 2. **Merge the new analysis into the existing description** (regenerate auto-generated sections, preserve manual edits), **add the Linear reference, generate the title.** Sibling tickets are referenced by GitHub PR number, never a bare Linear token — the own ticket's `Fixes https://linear.app/{workspace}/issue/{ticket}` line stays. See [merge-and-title.md](references/merge-and-title.md); why: [linear-sibling-guard.md](references/linear-sibling-guard.md).
-3. **Run verification checks, save to `thoughts/shared/prs/`, write the description and title back to GitHub** via `linear-pr-skip.sh`'s `linear_sibling_skip_block_from_branch` + `linear_sibling_skip_block_from_body` (CTL-623/633 sibling-skip guard block), **update the Linear ticket** (skip the transition under `CATALYST_PHASE`). See [verify-and-writeback.md](references/verify-and-writeback.md).
+3. **Run verification checks, save to `thoughts/shared/prs/`, write the description and title back to GitHub** via `linear-pr-skip.sh`'s `linear_sibling_skip_block_from_branch` + `linear_sibling_skip_block_from_body` (the Linear sibling-skip guard block), **update the Linear ticket** (skip the transition under `CATALYST_PHASE`). See [verify-and-writeback.md](references/verify-and-writeback.md).
 4. **Report the outcome** — first-time generation vs. incremental update. See [metadata-and-errors.md](references/metadata-and-errors.md), which also covers error handling and configuration.
 
 ## Configuration

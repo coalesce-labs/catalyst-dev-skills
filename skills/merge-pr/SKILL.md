@@ -18,9 +18,9 @@ Safely merges a PR after comprehensive verification, with Linear integration and
 ## Prerequisites
 
 ```bash
-# Thoughts must exist for this skill's documents. CTL-2306: the full host setup check (daemon,
-# registry, house rules) belongs to the setup-catalyst skill, not to a skill that must run anywhere.
-[[ -e thoughts/shared ]] || echo "⚠️ thoughts/shared is missing in $(pwd) — run \`humanlayer thoughts init\` or the setup-catalyst skill; if the prompt names an output path, write there" >&2
+# Thoughts must exist for this skill's documents. The full host setup check belongs to the
+# Cloud pack's catalyst-setup skill, not to a skill that must run anywhere.
+[[ -e thoughts/shared ]] || echo "⚠️ thoughts/shared is missing in $(pwd) — run \`humanlayer thoughts init\`; if the prompt names an output path, write there" >&2
 ```
 
 ## Safety rules
@@ -34,15 +34,15 @@ blockers legitimately or escalate with specifics. See
 1. **Identify PR** — use argument or `gh pr view`/`gh pr list` if none given.
 2. **Verify open + mergeable** — rebase if behind, resolve conflicts or exit.
 3. **Run local tests** — skip with `--skip-tests`.
-4. **Diagnose blockers + reactive wait** — check whether the unified event log is live first (`<events dir>/YYYY-MM.jsonl`, where the events dir is `CATALYST_EVENTS_DIR`, else `paths.events` in `~/.config/catalyst/paths.json`, else `~/.local/state/catalyst/events` present and the daemon running): if so, [blocker-loop.md](references/blocker-loop.md)'s single disjunctive `wait-for` (CI, reviews, push, merge/close) with authoritative `gh api` REST re-check on every wake-up; if the substrate is absent — the relay default since the daemon's retirement — poll instead, on [bounded-poll.md](references/bounded-poll.md)'s merge/review cadence (interval/ceiling), performing the SAME resolution actions as blocker-loop.md's table (CI fix-up, bot-thread resolve via `/review-comments`, BEHIND update) each tick, and checking readiness each tick with [gh-signal-traps.md](references/gh-signal-traps.md)'s combined CI-ready + review-ready check — not `bounded-poll.md`'s bare `bounded_poll_pr_state` alone, which only detects `MERGED`/`CLOSED` and has no way to ever cause either, so a CI-green, fully-reviewed-but-not-yet-merged PR would poll uselessly to the ceiling on that check alone. Proceed to Step 5 once CLEAN.
-5. **Squash merge + cleanup** — checkout-free remote-ref delete (CTL-56), Linear ticket to Done,
-   worktree-safe local branch delete. **catalyst-cloud queue-merge default (CTC-1219):** for an
-   eligible catalyst-cloud PR (no `hold:hand-steps`, no schema/migration path), this step applies
-   `queue:ready` and stops instead of calling `gh pr merge` — Mergify (`.mergify.yml`) owns the
-   actual merge, and "merged by mergify[bot]" is the terminal signal the coordinator/steward
-   watches for, not this session. Hand-step PRs and every other repo keep hand-merging unchanged.
-   Re-entrant: re-running this skill against an already-mergify-merged PR skips straight past the
-   merge call into cleanup, so Linear/deploy/compound still fire. See
+4. **Diagnose blockers + reactive wait** — check whether the unified event log is live first (`<events dir>/YYYY-MM.jsonl`, where the events dir is `CATALYST_EVENTS_DIR`, else `paths.events` in `~/.config/catalyst/paths.json`, else `~/.local/state/catalyst/events` present and its producer running): if so, [blocker-loop.md](references/blocker-loop.md)'s single disjunctive `wait-for` (CI, reviews, push, merge/close) with authoritative `gh api` REST re-check on every wake-up; if the event log is absent, poll instead, on [bounded-poll.md](references/bounded-poll.md)'s merge/review cadence (interval/ceiling), performing the SAME resolution actions as blocker-loop.md's table (CI fix-up, bot-thread resolve via the `review-comments` skill, BEHIND update) each tick, and checking readiness each tick with [gh-signal-traps.md](references/gh-signal-traps.md)'s combined CI-ready + review-ready check — not `bounded-poll.md`'s bare `bounded_poll_pr_state` alone, which only detects `MERGED`/`CLOSED` and has no way to ever cause either, so a CI-green, fully-reviewed-but-not-yet-merged PR would poll uselessly to the ceiling on that check alone. Proceed to Step 5 once CLEAN.
+5. **Squash merge + cleanup** — checkout-free remote-ref delete, Linear ticket to Done,
+   worktree-safe local branch delete. **Merge queue:** in a repository that sets `catalyst.pr.queueLabel`
+   in `.catalyst/config.json`, an eligible PR (no `hold:hand-steps`, no `handStepPaths` match) gets
+   that label applied and this step stops instead of calling `gh pr merge`: the queue bot owns the
+   actual merge, and its merge is the terminal signal your coordinator watches for, not this
+   session. Hand-step PRs and every repository without a queue label hand-merge unchanged. Re-entrant: re-running this skill against an
+   already-mergify-merged PR skips straight past the merge call into cleanup, so
+   Linear/deploy/compound still fire. See
    [worktree-safe-merge.md](references/worktree-safe-merge.md) Step 9 for the exact conditions. **Phase-container guard:** skip every `linearis` call when `CATALYST_PHASE` is set (a phase container holds no Linear credential; the runner owns the ticket write-back) or when `command -v linearis` fails (the CLI is not installed); say so in one line and continue.
 6. **Post-merge** — deployment detection + verification, then (once that verification is terminal) compound-estimate, ticket-compound, ticket-retro, and the success summary.
 
@@ -51,15 +51,15 @@ blockers legitimately or escalate with specifics. See
 | Situation | Reference |
 |---|---|
 | Identifying the PR, checking mergeable, rebasing, running tests | [pr-identification.md](references/pr-identification.md) |
-| Reactive blocker-wait loop (Pattern 3, ci/review/push/merge) | [blocker-loop.md](references/blocker-loop.md) |
+| Reactive blocker-wait loop (ci/review/push/merge) | [blocker-loop.md](references/blocker-loop.md) |
 | Deeper CI fix-up / BEHIND-rebase technique (hooks-disabled push, bounded fix attempts, human-vs-bot threads, empty `merge_commit_sha` retry) | [ci-fixup-and-behind.md](references/ci-fixup-and-behind.md) |
-| Squash merge, CTL-56 checkout-free delete, Linear update, worktree guard | [worktree-safe-merge.md](references/worktree-safe-merge.md) |
-| catalyst-cloud queue-merge default (CTC-1219): label `queue:ready` instead of `gh pr merge` when eligible, hand-step/other-repo exceptions, re-entrant post-merge | [queue-merge-catalyst-cloud.md](references/queue-merge-catalyst-cloud.md) |
+| Squash merge, checkout-free remote-branch delete, Linear update, worktree guard | [worktree-safe-merge.md](references/worktree-safe-merge.md) |
+| Merge queue: apply the configured `queueLabel` instead of `gh pr merge` when eligible, hand-step exceptions, re-entrant post-merge | [queue-merge.md](references/queue-merge.md) |
 | Verifying a ticket is genuinely done before Linear Done (other open PRs, orphan-PR reconciliation) | [done-judgment.md](references/done-judgment.md) |
 | Deeper pre-merge adversarial review (8-gate table + regression-risk scoring) for a risky diff | [verify-gates.md](references/verify-gates.md) |
 | Post-merge tasks, compound close, deployment detection, success summary | [post-merge.md](references/post-merge.md) |
 | Confirming a merged change actually deployed + a live smoke check (bounded-poll, no broker dependency) | [post-merge-deploy-verify.md](references/post-merge-deploy-verify.md) |
-| Blocking on a GitHub state change (CI, review, merge) with a foreground, bounded, quota-conscious loop — the relay-era wait pattern, no daemon needed | [bounded-poll.md](references/bounded-poll.md) |
+| Blocking on a GitHub state change (CI, review, merge) with a foreground, bounded, quota-conscious loop, no event log needed | [bounded-poll.md](references/bounded-poll.md) |
 | GitHub signal shapes that look like an answer and aren't (empty-string `conclusion`, empty check-run set, reaction-only clean review pass) | [gh-signal-traps.md](references/gh-signal-traps.md) |
 | Flags (`--skip-tests`, `--no-update`, `--keep-branch`), errors, examples | [flags-errors.md](references/flags-errors.md) |
 | Configuration (`.catalyst/config.json` schema, safety features) | [config-safety.md](references/config-safety.md) |

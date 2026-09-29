@@ -6,8 +6,8 @@ description:
   structured entry to the shared learnings store (thoughts/shared/learnings/), prunes/amends stale
   notes there autonomously, captures new domain vocabulary to thoughts/shared/CONCEPTS.md, and PROPOSES (for
   human approval) any ADR change. Non-blocking — runs after a ticket ships or fails, never on the
-  critical path. **Trigger (CTL-2244):** invoke once merge-pr's post-merge deploy-verification
-  (CTL-2232) resolves a terminal sentinel for the ticket's merge — the same relay-native signal
+  critical path. **Trigger:** invoke once merge-pr's post-merge deploy-verification
+  resolves a terminal sentinel for the ticket's merge — the same signal
   `compound-estimate` and `ticket-retro` use, see
   the `compound-estimate` skill's `references/trigger.md`. Also use when the user says "compound this ticket",
   "capture learnings", "what did we learn", or names a ticket to compound
@@ -19,7 +19,7 @@ allowed-tools: Read, Write, Edit, Bash, Grep, Glob, Task, AskUserQuestion
 
 # ticket-compound — engineering compound loop
 
-Capture what a ticket taught us into the **shared** store (`thoughts/` + ADRs), so future agents on any machine make better decisions. This is `research-curate` evolved from *inventory* to *action*. Read `reference.md` (this dir) for the learnings-store schema before writing anything.
+Capture what a ticket taught us into the **shared** store (`thoughts/` + ADRs), so future agents on any machine make better decisions. Read `reference.md` (this dir) for the learnings-store schema before writing anything.
 
 **Two authority levels (hard rule):**
 - **Autonomous** — write/append/update/delete in `thoughts/shared/learnings/` and
@@ -35,18 +35,18 @@ Capture what a ticket taught us into the **shared** store (`thoughts/` + ADRs), 
 ticket-compound skill with: <TICKET> [mode:headless]
 ```
 
-- `<TICKET>` — Linear key (e.g. `CTL-619`). If omitted, detect from the branch / `CATALYST_TICKET`.
+- `<TICKET>` — Linear key (e.g. `ENG-123`). If omitted, detect from the branch / `CATALYST_TICKET`.
 - `mode:headless` — non-interactive: apply all unambiguous autonomous actions silently, mark
-  ambiguous learnings `status: stale`, never block on a prompt, end with the sentinel line. This is what the morning ritual (and, later, the daemon) use. Default is interactive.
+  ambiguous learnings `status: stale`, never block on a prompt, end with the sentinel line. This is what the morning ritual and the post-merge closing ritual use. Default is interactive.
 
 ## Step 1 — Gather raw signal (the orchestrator reads; do NOT delegate writes)
 
 For `<TICKET>`, collect:
 1. **Friction** — every `## Friction` / `friction:` block the phase agents left in their artifacts:
-   `thoughts/shared/{research,plans}/*<TICKET>*.md` and the worker signal files `~/catalyst/workers/<TICKET>/*.json`.
+   `thoughts/shared/{research,plans}/*<TICKET>*.md` and any worker signal files your runner leaves at `~/catalyst/workers/<TICKET>/*.json`.
    - `thoughts/shared/friction/<TICKET>.md` — the dedicated per-phase friction log (primary friction source).
 2. **The diff** — `git log --oneline origin/main..HEAD` and `git diff --stat origin/main..HEAD`
-   (or the merged SHA from `phase-monitor-merge.json`).
+   (or the merged SHA, once the PR has merged).
 3. **Ticket** — read via direct SQL against the replica (title, description, final state, estimate); see the `linearis` skill's "Reading Linear" section. **Phase-container guard:** skip every `linearis` call when `CATALYST_PHASE` is set (a phase container holds no Linear credential; the runner owns the ticket write-back) or when `command -v linearis` fails (the CLI is not installed); say so in one line and continue.
 4. **Event trail** (optional) — the ticket's lines in `<events dir>/YYYY-MM.jsonl`, where the events dir is `CATALYST_EVENTS_DIR`, else `paths.events` in `~/.config/catalyst/paths.json`, else `~/.local/state/catalyst/events`. Until housekeeping has migrated it, older history may still be in `~/catalyst/events`.
 
@@ -54,7 +54,7 @@ Capture learnings from **failed/abandoned** tickets too — the dead-ends are hi
 
 ## Step 2 — Three TEXT-ONLY sub-agents (parallel; they return text, never write files)
 
-Spawn via Task, all at once. Each returns text to you; **you** do the single write in Step 3 (avoids partial-write races):
+Run them as subagents, all at once. Each returns text to you; **you** do the single write in Step 3 (avoids partial-write races):
 
 - **Context Analyzer** — from the diff + ticket + friction, pick the track (bug vs knowledge),
   `problem_type`, `category` (subdir), `component`, `severity`, and a filename slug. Returns the frontmatter skeleton (validate against `reference.md`).
@@ -119,8 +119,8 @@ Search before implementing or debugging in a known area. Curated by the ticket-c
 
 ```
 ✓ ticket-compound complete (headless)
-ticket: CTL-619
-entry: thoughts/shared/learnings/orchestrator-issues/daemon-false-dead-first-commit.md (created)
+ticket: ENG-123
+entry: thoughts/shared/learnings/runtime-errors/worker-marked-dead-on-first-commit.md (created)
 curated: 1 updated, 0 deleted ; concepts: +2 ; adr-proposals: 1 (pending approval)
 ticket-compound complete
 ```
@@ -129,4 +129,4 @@ ticket-compound complete
 - The estimation loop (separate slice — `compound-estimate` owns estimation numbers).
 - `ticket-retro` (the cross-ticket view — separate slice).
 
-Superseded: this section used to defer the automatic trigger to "the daemon firing this automatically after `monitor-deploy` (manual / morning-ritual triggered for now)" — that daemon hook was never built, and `monitor-deploy` (`phase-monitor-deploy`) is itself retiring. CTL-2244 fulfills that deferred wiring instead: `merge-pr` Step 14 (the `merge-pr` skill's `references/post-merge.md`) now invokes this skill directly once Step 13b's deploy verification resolves a terminal sentinel — see the `compound-estimate` skill's `references/trigger.md` for the full contract.
+The automatic trigger is the `merge-pr` skill's compound closing ritual (its `references/post-merge.md`), which invokes this skill once merge-pr's deploy verification resolves a terminal sentinel — see the `compound-estimate` skill's `references/trigger.md` for the full contract.

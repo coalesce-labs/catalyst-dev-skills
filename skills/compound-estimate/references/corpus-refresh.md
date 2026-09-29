@@ -2,7 +2,7 @@
 
 ## Opportunistic corpus refresh (off the critical path)
 
-After a successful write, and only when the session is inside a catalyst checkout (the corpus is committed there, and the refresh rewrites it in place), check whether the reference-class corpus is stale and offer to refresh it. Anywhere else, skip this section. **Best-effort: a refresh failure never fails the ritual.**
+After a successful write, and only when the session is inside a checkout of the catalyst repository (github.com/coalesce-labs/catalyst; the corpus is committed there, and the refresh rewrites it in place), check whether the reference-class corpus is stale and offer to refresh it. Anywhere else, skip this section. **Best-effort: a refresh failure never fails the ritual.**
 
 ```bash
 CORPUS="plugins/dev/scripts/estimate/reference-class-corpus.json"   # (catalyst-checkout only)
@@ -44,14 +44,14 @@ It re-runs Extract → Collect → Score and merges fresh entries over the commi
 ## Schema of a written entry
 
 ```markdown
-### CTL-159 — #273 — 2026-04-24T18:32:10Z
+### ENG-123 — #273 — 2025-01-08T18:32:10Z
 
 ​```yaml
-linear_key: CTL-159
+linear_key: ENG-123
 pr_number: 273
-merged_at: 2026-04-24T18:32:10Z
-estimate_at_start: 3     # CTL-746 scale: 3 → S
-estimate_actual: 5       # CTL-746 scale: 5 → M
+merged_at: 2025-01-08T18:32:10Z
+estimate_at_start: 3     # T-shirt scale: 3 → S
+estimate_actual: 5       # T-shirt scale: 5 → M
 cost_usd: 2.47
 wall_time_hours: 3.2
 what_worked: "Tests-first TDD kept the helper script testable."

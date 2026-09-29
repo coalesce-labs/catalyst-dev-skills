@@ -30,4 +30,4 @@ When a fact is in neither input, do not go and fetch it. Say it was unavailable 
 4. **Classify** with [`classify.md`](classify.md): check the always-escalate list first, then pick the class and a pattern from the closed table.
 5. **Write the record** in the shape in [`record.md`](record.md), then print the same object as the last output. A `decidable` record carries `proposed_answer`: the option label copied verbatim from the ask, and a `confidence`. The platform only applies an answer at 0.8 or above, so report the confidence you have, not the one that clears the bar.
 
-Cite every finding to its source: a replica row (`issues:CTC-3682 state`), or a snapshot path (`snapshot.pull_requests[0].checks`).
+Cite every finding to its source: a replica row (`issues:ENG-123 state`), or a snapshot path (`snapshot.pull_requests[0].checks`).

@@ -18,7 +18,7 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO_ROOT="$(cd "${SCRIPT_DIR}/.." && pwd)"
 SKILLS_ROOT="${REPO_ROOT}/skills"
 
-SKILLS="agent-browser ask ask-triage briefing-followup catalyst-sop commit compound-estimate concierge create-handoff create-plan create-pr create-worktree describe-pr fix-typescript gherkin-ticket implement-plan iterate-plan linear linearis merge-pr morning-briefing project-orchestrator prune-worktrees remediate-plan research-codebase resume-handoff review-code review-comments review-security scan-reward-hacking steward ticket-compound ticket-retro triage-aging-prs unslop unsticker validate-plan validate-type-safety"
+SKILLS="agent-browser ask ask-triage briefing-followup catalyst-sop commit compound-estimate concierge create-handoff create-plan create-pr create-worktree describe-pr fix-typescript gherkin-ticket implement-plan iterate-plan linear linearis-cli merge-pr morning-briefing project-orchestrator prune-worktrees remediate-plan research-codebase resume-handoff review-code review-comments review-security scan-reward-hacking steward ticket-compound ticket-retro triage-aging-prs unslop unsticker validate-plan validate-type-safety"
 
 PASS=0
 FAIL=0
@@ -140,21 +140,21 @@ else
 fi
 
 # Cluster 3 — Linear skills. identity-report is the setup check these skills run first (CTL-2300).
-for skill in ask linearis; do
+for skill in ask linearis-cli; do
   run_isolated_expect "${skill}: identity-report runs and names the tenant slot" "$skill" "tenant" \
     'node "$CLAUDE_SKILL_DIR/scripts/identity-report.mjs"'
 done
-for skill in ask gherkin-ticket linearis; do
+for skill in ask gherkin-ticket linearis-cli; do
   run_isolated "${skill}: replica read helper sources" "$skill" \
     'source "$CLAUDE_SKILL_DIR/scripts/lib/linear-read-replica.sh" && declare -F linear_read_ticket >/dev/null'
 done
-for skill in linearis; do
+for skill in linearis-cli; do
   run_isolated "${skill}: cloud-detection marker helper sources" "$skill" \
     'source "$CLAUDE_SKILL_DIR/scripts/lib/plugin-dirs.sh" && declare -F plugin_dirs_repo_config_path >/dev/null'
 done
-run_isolated "linearis: linear-transition --help (sources its replica helper)" linearis \
+run_isolated "linearis-cli: linear-transition --help (sources its replica helper)" linearis-cli \
   '"$CLAUDE_SKILL_DIR/scripts/linear-transition.sh" --help 2>/dev/null'
-for skill in ask linearis; do
+for skill in ask linearis-cli; do
   run_isolated_expect "${skill}: linear-reply loads its import graph (usage error, no missing module)" "$skill" "usage: linear-reply.mjs" \
     'node "$CLAUDE_SKILL_DIR/scripts/linear-reply.mjs"'
 done

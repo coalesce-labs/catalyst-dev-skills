@@ -1,6 +1,6 @@
-# Steps 7–11a — Execute Squash Merge and Cleanup (CTL-56)
+# Steps 7–11a — Execute Squash Merge and Cleanup
 
-_Covers ticket extraction, merge summary, squash merge, checkout-free remote-ref delete, Linear update, and worktree-safe local cleanup. All CTL-56 guard strings live here._
+_Covers ticket extraction, merge summary, squash merge, checkout-free remote-ref delete, Linear update, and worktree-safe local cleanup. All the checkout-free and worktree guards live here._
 
 ## Step 7 — Extract ticket reference
 
@@ -19,47 +19,48 @@ Print a summary (PR number, title, from/to branch, commit count, file count, mer
 
 ## Step 9 — Execute squash merge
 
-Read and follow [queue-merge-catalyst-cloud.md](queue-merge-catalyst-cloud.md) for the full Step 9
-logic, including the CTC-1219 catalyst-cloud queue-merge default: an eligible catalyst-cloud PR
-(no `hold:hand-steps`, no schema/migration path) gets `queue:ready` applied and this session stops
-— no `gh pr merge` — because Mergify owns that merge and "merged by mergify[bot]" is the terminal
-signal a coordinator/steward watches for. Hand-step PRs and every other repo hand-merge unchanged.
-The logic is re-entrant: revisiting an already-mergify-merged PR skips straight to the REST-confirm
+Read and follow [queue-merge.md](queue-merge.md) for the full Step 9
+logic, including the opt-in merge queue: in a repository that sets `catalyst.pr.queueLabel`, an
+eligible PR (no `hold:hand-steps`, no `handStepPaths` match) gets that label applied and this session
+stops — no `gh pr merge` — because the queue owns that merge and the queue bot's merge is the
+terminal signal your coordinator watches for. Hand-step PRs and every repository without a queue
+label hand-merge unchanged. The logic is re-entrant: revisiting a PR the queue already merged skips
+straight to the REST-confirm
 retry below, so Step 9b onward (cleanup, Linear Done, deploy verify, compound close) still runs.
 
 By the end of that step, `head_ref`, `head_repo`, and `merge_sha` are set exactly as before.
 
 ## Step 9b — Delete remote head ref (checkout-free)
 
-After verifying the merge via REST, delete the remote head branch via API — no `git checkout` required, safe from any worktree (CTL-56):
+After verifying the merge via REST, delete the remote head branch via API — no `git checkout` required, safe from any worktree:
 
 ```bash
 # Confirm the merge landed via REST BEFORE deleting anything. `gh pr merge` returning success
 # is NOT proof it merged: with a merge queue it only ENQUEUES the PR, so the head ref may
-# still belong to a still-open PR. Preserve the old atomic delete-on-merge conditional with
-# an executable `.merged` check here (a prose "after verifying" step is not a gate). (CTL-56)
+# still belong to a still-open PR. Keep delete-on-merge atomic with
+# an executable `.merged` check here (a prose "after verifying" step is not a gate).
 merged_ok=$(gh api "repos/${REPO}/pulls/${pr_number}" --jq '.merged' 2>/dev/null || echo "false")
 # Delete the remote head ref checkout-free ONLY when BOTH hold:
 #  - the merge is REST-confirmed (.merged == true), and
 #  - the head branch actually lives in ${REPO}. A fork PR's .head.ref names a branch in the
 #    FORK, so deleting repos/${REPO}/git/refs/heads/${head_ref} could hit a same-named branch
-#    in the base repo. Gate on .head.repo.full_name == ${REPO} (CTL-56).
+#    in the base repo. Gate on .head.repo.full_name == ${REPO}.
 # Idempotent + best-effort: 404/422 means ref already gone or protected.
 if [[ "$merged_ok" == "true" && -n "${head_ref:-}" && "${head_repo:-}" == "${REPO}" ]]; then
-  # CTL-56: URL-encode the head ref (preserve '/') so a metacharacter like '#' can't truncate
+  # URL-encode the head ref (preserve '/') so a metacharacter like '#' can't truncate
   # the endpoint into deleting the wrong ref.
   enc_ref=$(printf '%s' "$head_ref" | jq -sRr @uri | sed 's|%2F|/|g')
   gh api --method DELETE "repos/${REPO}/git/refs/heads/${enc_ref}" >/dev/null 2>&1 \
-    || echo "CTL-56: remote branch ${head_ref} delete skipped (already gone or protected)" >&2
+    || echo "merge-pr: remote branch ${head_ref} delete skipped (already gone or protected)" >&2
 elif [[ "$merged_ok" != "true" ]]; then
-  echo "merge-pr: merge of #${pr_number} not REST-confirmed; skipping branch cleanup (CTL-56)" >&2
+  echo "merge-pr: merge of #${pr_number} not REST-confirmed; skipping branch cleanup" >&2
 fi
 ```
 
 ## Step 10 — Update Linear ticket
 
 ```bash
-# Use the shared transition helper (CTL-69). Reads stateMap from .catalyst/config.json,
+# Use the shared transition helper. Reads stateMap from .catalyst/config.json,
 # is idempotent, and silently skips when the linearis CLI is not installed.
 "${CLAUDE_SKILL_DIR}/scripts/linear-transition.sh" \
   --ticket "$ticket_id" --transition done --config .catalyst/config.json
@@ -71,16 +72,16 @@ fi
 ## Step 11 — Delete local branch and update base
 
 ```bash
-# CTL-56: detect linked-worktree — when absolute-git-dir ≠ git-common-dir we are in a
+# Detect a linked worktree — when absolute-git-dir ≠ git-common-dir we are in a
 # linked worktree. Skip local `git checkout <base>` (fails when base is already checked
-# out in the primary clone); defer local feature-branch delete to teardown/reaper.
+# out in the primary clone); defer local feature-branch delete to worktree cleanup (the `prune-worktrees` skill).
 # NOTE: both sides MUST be absolute. --git-common-dir returns a RELATIVE .git in the
 # primary clone, which would falsely differ from --absolute-git-dir and misfire the guard
 # in the primary. Force absolute with --path-format=absolute.
 _abs_git="$(git rev-parse --absolute-git-dir 2>/dev/null || true)"
 _com_git="$(git rev-parse --path-format=absolute --git-common-dir 2>/dev/null || true)"
 if [[ -n "$_abs_git" && -n "$_com_git" && "$_abs_git" != "$_com_git" ]]; then
-  echo "merge-pr: linked worktree — skipping local base checkout (CTL-56)" >&2
+  echo "merge-pr: linked worktree — skipping local base checkout" >&2
 else
   git checkout $base_branch
   git pull origin $base_branch
