@@ -15,7 +15,7 @@ When a fact is in neither input, do not go and fetch it. Say it was unavailable 
 - No `linearis`, `gh`, `git fetch`, `curl` to a mirror or admin route, or any other network call. The container carries no personal token or admin bearer.
 - No write anywhere except the record file: no Linear comment, no label, no lever, no temp file outside `$CATALYST_ARTIFACT_DIR`.
 - No acting. `mode` is `"propose"` and `action_taken` is `"none"`. Put the would-be action in `chosen_action`.
-- No other skill. The `ask` and `linearis` skills are laptop tools.
+- No other skill. The `ask` and `linearis-cli` skills are laptop tools.
 
 ## Steps
 

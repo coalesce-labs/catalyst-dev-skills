@@ -1,6 +1,6 @@
 # Dispatch — launching a ticket-worker session
 
-⚠️ **This is the OFF-CLOUD shape.** On a Catalyst Cloud tenant the phases run in the tenant's runner containers and you dispatch by moving the card, not by launching anything — read [`cloud-dispatch.md`](cloud-dispatch.md) instead. `cloud-detection.md` is what tells you which you are on; launching a local session on a cloud tenant puts two workers on one branch.
+⚠️ **This is the OFF-CLOUD shape.** On a Catalyst Cloud account the phases run in the cloud account's runner containers and you dispatch by moving the card, not by launching anything — read [`cloud-dispatch.md`](cloud-dispatch.md) instead. `cloud-detection.md` is what tells you which you are on; launching a local session on a cloud account puts two workers on one branch.
 
 ## Launching a ticket-worker session IS the dispatch
 

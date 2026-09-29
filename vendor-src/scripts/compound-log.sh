@@ -32,7 +32,7 @@
 #         --pr <number>               PR number (default: gh pr view on branch)
 #         --merged-at <iso>           override (default: gh pr view mergedAt)
 #         --created-at <iso>          override (default: gh pr view createdAt)
-#         --estimate-start <int>      override (default: linearis read .estimate)
+#         --estimate-start <int>      override (default: the ticket's .estimate, read below)
 #         --estimate-actual <int>     REQUIRED
 #         --cost-usd <float>          override (default: catalyst-state aggregate)
 #         --wall-time-hours <float>   override (default: computed from PR ts)
@@ -49,6 +49,7 @@ set -uo pipefail
 # CTL-1397: direct-SQLite Linear reads (replica-first, loud linearis fallback).
 _COMPOUND_LOG_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 source "${_COMPOUND_LOG_DIR}/lib/linear-read-replica.sh"
+source "${_COMPOUND_LOG_DIR}/lib/catalyst-cloud-read.sh"
 
 # ─── utilities ──────────────────────────────────────────────────────────────
 
@@ -101,9 +102,10 @@ probe_pr() {
 }
 
 probe_linear_estimate() {
-  local ticket="$1" json
-  # CTL-1397: read the estimate via direct SQL against the replica, never bare linearis.
-  json=$(linear_read_ticket "$ticket" 2>/dev/null) || return 1
+  local ticket="$1" json=""
+  # Through the catalyst CLI on a machine connected to a cloud account, where a failed read is
+  # reported and ends here; through the replica helper off the cloud (catalyst-cloud-read.sh).
+  json=$(catalyst_ticket_json "$ticket") || return 1
   [ -z "$json" ] && return 1
   echo "$json" | jq -r '.estimate // empty'
 }
@@ -282,10 +284,10 @@ cmd_write() {
     created_at=$(echo "$pr_json" | jq -r '.createdAt // empty')
   fi
 
-  # 3. Resolve Linear estimate_at_start via linearis unless overridden.
+  # 3. Resolve Linear estimate_at_start unless overridden.
   if [ -z "$est_start" ]; then
     est_start=$(probe_linear_estimate "$ticket") \
-      || fatal "write: could not resolve estimate via linearis (pass --estimate-start to override)"
+      || fatal "write: could not read the ticket's estimate through catalyst, the replica or linearis (pass --estimate-start to override)"
     [ -z "$est_start" ] && fatal "write: ticket $ticket has no estimate set in Linear"
   fi
   is_numeric "$est_start" || fatal "write: estimate_at_start not numeric: $est_start"

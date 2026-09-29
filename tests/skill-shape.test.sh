@@ -116,10 +116,9 @@ done
 #    reason is the load-bearing half — it is what lets a future reader tell a
 #    real collision from a name someone merely disliked.
 #
-#    ⚠️ Only reserve a name NOTHING is currently called: `linear` is a live
-#    machinery word that is ALSO an existing skill, so reserving it would go
-#    red on arrival and the fix would be to delete the entry, not to rename
-#    50 call sites. (`broker` and `teardown` were in that boat until CTL-2240
+#    ⚠️ Only reserve a name NOTHING is currently called: reserving the name of
+#    an existing skill would go red on arrival, and the fix would be to delete
+#    the entry, not to rename every call site. (`broker` and `teardown` were in that boat until CTL-2240
 #    removed the skills of those names with the daemon — they are reserved now.)
 RESERVED_SKILL_NAMES=(
   # execution-core machinery: worker-dir-gc, sdk-worker-registry, worker-label,

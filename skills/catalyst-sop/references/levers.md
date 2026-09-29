@@ -31,7 +31,7 @@ They share the words and share nothing else.
 
 ⚠️ **Knowing that levers are non-interchangeable does not protect you; only reading which table a route touches does.** An agent that has just written the warning about conflating "release a hold" with "move the frontier" can still pick the wrong release route.
 
-⚠️ **All five are admin-gated.** An org-tier `ctc_acct_` token returns `forbidden` / HTTP 403 on `/admin/*`, while the admin bearer returns 200. A tenant-scoped seat can diagnose a hold completely and be unable to clear it — see `answer-arrives.md` for who executes then.
+⚠️ **All five are admin-gated.** An org-tier `ctc_acct_` token returns `forbidden` / HTTP 403 on `/admin/*`, while the admin bearer returns 200. A seat scoped to one cloud account can diagnose a hold completely and be unable to clear it — see `answer-arrives.md` for who executes then.
 
 ## Read the hold kind before you pick a lever
 

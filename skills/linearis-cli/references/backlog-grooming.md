@@ -3,7 +3,7 @@
 > ⛔ **Assign the stage name, then check it — never inline `$(state …)` into the query.** A command substitution used as an *argument* does not propagate its exit status, so a refused slot leaves `linearis` running with an empty `--status` and the named refusal becomes an empty result set. `VAR=$(state slot) || exit 1` DOES propagate: the assignment's status is the substitution's. `state() { bash "${CLAUDE_SKILL_DIR}/scripts/linear-transition.sh" --print-state --transition "$1" --team "$TEAM"; }`
 
 
-Cookbook for a grooming pass: lay of the land, pull by project, find orphans, triage by priority, find stale tickets. All reads here are bulk `linearis` calls (not the replica) because they cross many tickets at once — the replica has no bulk-query CLI form yet (see `SKILL.md` → "Reading Linear" and `reading-linear-detail.md` → "Still needs linearis").
+Cookbook for an off-cloud grooming pass: lay of the land, pull by project, find orphans, triage by priority, find stale tickets. On a cloud account the reads go through `catalyst query projects` and `catalyst query issues [--team K] [--project P] [--state S] [--limit N] --json` (pipe to the same `jq` filters), and linearis keeps only the edits the catalyst route does not support, such as assigning a ticket to a project.
 
 ## Get the lay of the land
 

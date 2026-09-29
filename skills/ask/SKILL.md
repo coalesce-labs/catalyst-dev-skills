@@ -14,7 +14,7 @@ description:
 
 ## 0. Setup check (first, every session)
 
-`node "${CLAUDE_SKILL_DIR}/scripts/identity-report.mjs"` — one line per identity (tenant, human, team, cloud host). An `unresolved` line is a stop-and-say: this skill files a decision **for** a human **on** a team, and an unresolved identity there is an ask that reaches nobody while looking filed.
+`node "${CLAUDE_SKILL_DIR}/scripts/identity-report.mjs"` — one line per identity (the cloud account, printed as `tenant`; then human, team, cloud host). An `unresolved` line is a stop-and-say: this skill files a decision **for** a human **on** a team, and an unresolved identity there is an ask that reaches nobody while looking filed.
 
 ## 1. What an ask ticket is
 
@@ -72,7 +72,7 @@ It replies in-thread as the app actor and moves the ticket to Done. The two deli
 
 - **Reporting to the human:** rank by blast radius (work held × priority), not age — [`references/triage.md`](references/triage.md), `scripts/ask-triage.sh`.
 - Ask view **My decisions — what needs me** (a decided item leaves it); the board is a summary, not the record.
-- Related skills: `linearis`, `create-handoff`, `steward`.
+- Related skills: `linearis-cli`, `create-handoff`, `steward`.
 - **Phase-container guard:** skip every `linearis` call when `CATALYST_PHASE` is set (a phase container holds no Linear credential; the runner owns the ticket write-back) or when `command -v linearis` fails (the CLI is not installed); say so in one line and continue.
 - Measured Linear facts this SOP rests on (threads are one level deep; the app actor cannot create
   states, labels or views): `references/threading.md` and `references/creating.md`.

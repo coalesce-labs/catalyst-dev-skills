@@ -1,60 +1,57 @@
 ---
 name: linearis-cli
 description:
-  Linear access rule + Linearis CLI reference. READS → query the local Linear replica by direct SQL when one runs (`~/.config/catalyst-cloud/replica.db`), else `linearis`; WRITES and list/search → the `linearis` CLI. Use when working with Linear tickets, cycles, projects, milestones, or ticket IDs like TEAM-123.
+  Linearis CLI reference for Catalyst operators (an admin of the cloud account). On a cloud account every Linear read, list, search and supported write goes through `catalyst` (the Cloud pack's `catalyst-linear` skill). Linearis covers only what that route does not support (relations; editing a ticket after it exists, such as title, description, priority, estimate, project, milestone, cycle or assignee; cycle and milestone writes; assigning a ticket to a person or an agent) and a Linear workspace with no cloud account. Use for those operator exceptions with Linear tickets, cycles, projects, milestones, or ticket IDs like TEAM-123.
 metadata:
   internal: true
 ---
 
 # Linearis CLI Reference
 
-> Verified against Linearis v2026.4.9 ([github.com/czottmann/linearis](https://github.com/czottmann/linearis)). ⚠️ **READ vs WRITE.** Linear **READS** → the local replica by direct SQL, or `linear_read_ticket <ID>`. **Never** shell `linearis issues read` for a routine read — on a replica machine it 429s the workspace's shared API quota. **WRITES** → `linearis`. Read [Gotchas](#gotchas--traps) before scripting.
+> Verified against Linearis v2026.4.9 ([github.com/czottmann/linearis](https://github.com/czottmann/linearis)). On a cloud account, Linear work goes through `catalyst`; this skill holds the operator exceptions. Read [Gotchas](#gotchas--traps) before scripting.
+
+## When to use this
+For Catalyst operators, meaning an admin of the cloud account; customers never need it. On a cloud account every read, list, search and supported write goes through `catalyst` (the Cloud pack's `catalyst-linear` skill; without it on PATH, `npx -p @catalyst-cloud/cli catalyst <verb>`):
+- reads: `catalyst query issue <ID>`, `catalyst query issues --team K --state S`, `catalyst query search <terms>`, `query projects|cycles|pulls|changes`, `catalyst replica sql "<select>"`;
+- writes: `catalyst write comment|state|label|create|reaction|attachment|session`.
+
+Use `linearis` for what that route does not support, and for a Linear workspace with no cloud account:
+- relations (blocked-by, related, parent/child);
+- editing a ticket after it exists: title, description, priority, estimate, project, milestone, cycle, assignee;
+- cycle and milestone writes (create, rename, move a ticket between them);
+- assigning a ticket to a person or an agent.
 
 ## Setup check (first, every session)
-
-`node "${CLAUDE_SKILL_DIR}/scripts/identity-report.mjs"` — one line per identity (tenant, human, team, cloud host), and every `unresolved` line is a stop-and-say. Paths like that name files inside this skill: Claude Code fills in `${CLAUDE_SKILL_DIR}`; on another harness set CLAUDE_SKILL_DIR to this SKILL.md's directory, or stop and report `skill_dir_unresolved`. A write addressed to the wrong team or the wrong workspace does not error; it lands somewhere plausible, which is why this runs before the first read as well as the first write.
+`node "${CLAUDE_SKILL_DIR}/scripts/identity-report.mjs"` — one line per identity (the cloud account, printed as `tenant`; then human, team, cloud host), and every `unresolved` line is a stop-and-say. Paths like that name files inside this skill: Claude Code fills in `${CLAUDE_SKILL_DIR}`; on another harness set CLAUDE_SKILL_DIR to this SKILL.md's directory, or stop and report `skill_dir_unresolved`. A write addressed to the wrong team or the wrong workspace does not error; it lands somewhere plausible, which is why this runs before the first read as well as the first write.
 
 ## Reading Linear
-> **Single source of the Linear read rule** — other skills point here, they don't restate it.
+On a cloud account, read with `catalyst query …` (add `--json` for scripts). Its freshness gate is built in: `--source replica|api` defaults to the replica when it is fresh, else the API. It needs no helper and no re-check against live Linear.
 
-1. **Cloud detection, every session** — reuse the existing helpers, never write new ones:
-   ```bash
-   source "${CLAUDE_SKILL_DIR}/scripts/lib/linear-read-replica.sh"
-   replica_fresh; rf=$?                      # 0 = writer heartbeat <5min AND seeded
-   source "${CLAUDE_SKILL_DIR}/scripts/lib/plugin-dirs.sh"
-   marker="$(plugin_dirs_repo_config_path)"  # "" if no .catalyst/config.json found
-   ```
-   Either failing → **no cloud mirror**: say so **loudly** (never silent) and fall back to direct `linearis`/API reads — the path for a machine **with no replica**, and wrong to recommend where a replica runs (it spends the shared 2500/hr API quota). Same pattern: the `steward` skill's `assets/references/cloud-detection.md`.
-2. **Cloud mode confirmed → query the replica and TRUST it.** Don't re-verify against live Linear. **Row missing / not fresh → an ALARM, not a silent reroute:** loud fallback, file a ticket.
-
-**The only reads you should shell directly are through the helper — it is the freshness gate, not a convenience wrapper.** Never run a bare `sqlite3` query against the replica yourself: it skips the `$rf`/`$marker` checks above and can return stale data (or an empty DB) with no fallback.
-
+Off the cloud, or on a machine without the CLI, an operator reads through the raw helper. It is the freshness gate, not a convenience wrapper; never run a bare `sqlite3` query against the replica yourself:
 ```bash
-json=$(linear_read_ticket ENG-123) || return 1   # freshness-gate → SQL → loud fallback, ONE call
-title=$(printf '%s' "$json" | jq -r '.title // empty')
+source "${CLAUDE_SKILL_DIR}/scripts/lib/linear-read-replica.sh"
+json=$(linear_read_ticket ENG-123) || return 1   # freshness gate → SQL → loud linearis fallback, ONE call
 ```
-
-Raw SQL syntax (only after the helper's gate already ran), schema discovery, apply-drift caveat, deprecated wrapper: [`references/reading-linear-detail.md`](references/reading-linear-detail.md).
+When the gate fails it says so loudly and falls back to direct `linearis` reads, which spend the workspace's shared API quota. Gate internals, raw SQL, schema discovery and the apply-drift caveat: [`references/reading-linear-detail.md`](references/reading-linear-detail.md).
 
 ## Core Operations
-Reads → direct SQL via the gated helper above; writes always `linearis` — run `linearis usage` / `linearis <domain> usage` for authoritative, current flag syntax. **`linear_read_ticket` covers a single ticket only** — a scope-wide list/search still goes through `linearis` (no bulk-query replica form yet; see [Reading Linear](references/reading-linear-detail.md#still-needs-linearis)). **Phase-container guard:** skip every `linearis` call when `CATALYST_PHASE` is set (a phase container holds no Linear credential; the runner owns the ticket write-back) or when `command -v linearis` fails (the CLI is not installed); say so in one line and continue.
+The `linearis` commands below are for the exceptions only; run `linearis usage` / `linearis <domain> usage` for current flag syntax. **Phase-container guard:** skip every `linearis` call when `CATALYST_PHASE` is set (a phase container holds no Linear credential; the runner owns the ticket write-back) or when `command -v linearis` fails (the CLI is not installed); say so in one line and continue.
 
 ```bash
-state() { bash "${CLAUDE_SKILL_DIR}/scripts/linear-transition.sh" --print-state --transition "$1" --team "$TEAM"; }  # ⛔ never TYPE a stage name
-linearis issues search "auth bug" --team "$TEAM" --status "$(state todo)"
-linearis issues update ENG-123 --status "$(state inProgress)" --labels "bug" --label-mode add
+linearis issues update ENG-123 --blocked-by ENG-100
+linearis issues update ENG-123 --priority 1 --project "Auth System"
 ```
 
-> ⛔ **Agent comments → `linear-reply.mjs`, never `issues discuss`/`reply`** — those post AS THE HUMAN (personal token; ask-resolution gate reads that as the human deciding).
+> ⛔ On a cloud account `catalyst write comment <ticket> --body …` is the comment path. Off the cloud, **agent comments → `linear-reply.mjs`, never `issues discuss`/`reply`** — those post AS THE HUMAN (personal token; ask-resolution gate reads that as the human deciding).
 ```bash
 direnv exec . node "${CLAUDE_SKILL_DIR}/scripts/linear-reply.mjs" ENG-123 --as <AGENT> --body-file <path> --top  # --body-file for any multi-line body; --body REFUSES a path
 ```
 `issues discussions <id>` (read-only) is safe. Full CRUD, comment-thread commands, common mistakes, other domains: [`references/core-operations.md`](references/core-operations.md).
 
 ## Workflow: Status Transitions
-> **Single source of the Linear `stateMap` table** — `create-plan`, `implement-plan`, `create-pr`, `research-codebase` point here; none restates it.
+This stage table is not an instruction to move cards. Cards move by events: the cloud moves a ticket when a phase outcome is recorded and when its PR merges. An operator uses the table only when a person explicitly asks for a move off the cloud; on a cloud account a requested move is `catalyst write state <ticket> --slot <slot>`.
 
-⛔ **A stage is addressed by SLOT, never by name.** The table below deliberately has no column of stage names: a tenant renames its stages freely, so a board's `inProgress` stage need not be called "In Progress". Resolve the slot with `linear-transition.sh --print-state --transition <slot> --team <KEY>`, which walks the one resolution chain (per-project `stateMap` → global `stateMap` → registry `triageStatus` → bootstrap) and REFUSES rather than substituting our word when a tenant declares a `stateMap` without the slot. The reason this matters more than it looks: `--status` is server-side and **fails empty on a typo** (Gotcha 1) — a name the board does not have returns an empty list, not an error.
+⛔ **A stage is addressed by SLOT, never by name**: a cloud account renames its stages freely. Resolve it with `linear-transition.sh --print-state --transition <slot> --team <KEY>`, which walks per-project `stateMap` → global `stateMap` → registry `triageStatus` → bootstrap, and REFUSES when a declared `stateMap` lacks the slot (`null` skips a transition). `--status` fails empty on a typo (Gotcha 4). UUID calls and the team-key cache: [`references/status-transitions.md`](references/status-transitions.md).
 
 | Workflow Phase | Slot (config key) |
 | --- | --- |
@@ -66,8 +63,6 @@ direnv exec . node "${CLAUDE_SKILL_DIR}/scripts/linear-reply.mjs" ENG-123 --as <
 | PR created | `stateMap.inReview` |
 | Completed / Canceled | `stateMap.done` / `.canceled` |
 
-Names come from `.catalyst/config.json`'s `linear.stateMap` (`null` skips a transition); the bootstrap for a repo that declares none is built into `scripts/linear-transition.sh`. UUID calls + the team-key allowlist cache (`linear-team-keys.json`): [`references/status-transitions.md`](references/status-transitions.md).
-
 ## Gotchas & Traps
 1. `issues list` **hides the done stage** (shows the canceled one) — pass `--status "$(state done)"`, or `issues read <ID>` for one.
 2. `linearis` **consumes stdin** in a loop — append `</dev/null`.
@@ -77,4 +72,4 @@ Names come from `.catalyst/config.json`'s `linear.stateMap` (`null` skips a tran
 6. `project-milestones` fails **silently** to the help dump — the domain is `milestones`.
 7. `status`/`state` are zsh read-only vars (`st`/`s`/`lstate`); `auth status` is the diagnostic entry point when calls return nothing.
 
-Cookbook, one topic per file: grooming/triage/stale sweeps — [`references/backlog-grooming.md`](references/backlog-grooming.md); milestone create/rename/audit — [`references/milestones.md`](references/milestones.md); labels + the cross-team same-name trap — [`references/labels.md`](references/labels.md); cycle review — [`references/cycles.md`](references/cycles.md).
+Cookbook, one topic per file: off-cloud grooming and edits — [`references/backlog-grooming.md`](references/backlog-grooming.md); milestone create/rename/audit — [`references/milestones.md`](references/milestones.md); labels + the cross-team same-name trap — [`references/labels.md`](references/labels.md); cycle review — [`references/cycles.md`](references/cycles.md).

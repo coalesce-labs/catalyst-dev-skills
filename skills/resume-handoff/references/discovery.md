@@ -1,14 +1,14 @@
 # Finding the handoff to resume from
 
-SKILL.md's Prerequisites already searched `thoughts/shared/handoffs/` on disk for the newest handoff of the ticket this run was given (the argument, or `$CATALYST_TICKET` under a phase), guarded against a phantom path; with no ticket in an interactive run it offers the newest handoff on disk. Nothing is remembered between runs. This reference covers what to do with that result, and the other discovery paths.
+SKILL.md's Prerequisites already found the newest handoff on disk for this run's ticket (or, with no ticket in an interactive run, the newest overall). This reference covers what to do with that result.
 
 ## When a cited handoff is missing on disk
 
-A broken citation is **not** lost work, and it is not a reason to stop. The content usually still exists — in a sibling project's `thoughts/shared` subtree, or on the writing host pending the next sync tick.
+A broken citation is not lost work and not a reason to stop. The content usually still exists in a sibling project's `thoughts/shared` subtree, or on the writing host pending the next sync tick.
 
 1. **The channel is authoritative.** Recover the handoff's substance from the last turns of the channel / ticket thread. That text is the record; the file is a convenience.
 2. **Prefer an absolute path** when one was cited — `thoughts/shared` is a per-project symlink, so a *relative* citation is ambiguous across worktrees and may simply be resolving in the wrong tree. If you only have a relative path, search for the basename across sibling subtrees before concluding it is absent.
-3. **Never treat the missing file as lost work**, and never re-do landed work on that assumption — re-doing it is the more expensive failure.
+3. **Keep landed work.** Redoing it on the assumption that it was lost is the more expensive failure.
 
 ## Priority order
 

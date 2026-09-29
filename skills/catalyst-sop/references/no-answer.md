@@ -25,7 +25,7 @@ Three consequences you must act on:
 While an ask is open, **you already proceeded on its default** — that is the contract that makes an unanswered ask survivable. So "waiting" is never idle:
 
 1. **Proceed on the default and record it** in the thread before you go quiet.
-2. **Bounded check, never a poll loop.** If your tenant emits an event when an ask is answered, wait on that. For Linear state generally, one bounded check, stating the interval and ceiling.
+2. **Bounded check, never a poll loop.** If your cloud account emits an event when an ask is answered, wait on that. For Linear state generally, one bounded check, stating the interval and ceiling.
 3. **> 24 h unanswered → the top of the board**, via the concierge (the `concierge` skill → `references/asks.md`). An ask never silently expires.
 4. **> 48 h and it is genuinely blocking** → it is not an ask problem any more, it is a routing problem. Re-read gates 1–4: something changed while you waited, and the commonest change is that the subject resolved itself.
 

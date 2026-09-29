@@ -30,7 +30,7 @@ So: **do not conclude that "A — re-plan" is the wrong answer.** Conclude that 
 - **Answering a hold ask runs the same executor** — it performs the rewind **before** it resumes the blocked work, so the answer lands on the phase that will consume it.
 - **Read-only explains, for deciding without changing anything:** `GET /admin/relay-advance`, `/relay-advance-explain`, `/relay-ledger-explain`.
 
-⚠️ **Admin-gated.** An org-tier `ctc_acct_` token returns `forbidden` / HTTP 403 on `/admin/*`; the admin bearer returns 200. If you hold only a tenant token, hand the exact route and query string to a seat that has admin (`answer-arrives.md`) — do not record the decision as executed.
+⚠️ **Admin-gated.** An org-tier `ctc_acct_` token returns `forbidden` / HTTP 403 on `/admin/*`; the admin bearer returns 200. If you hold only a cloud account's token, hand the exact route and query string to a seat that has admin (`answer-arrives.md`) — do not record the decision as executed.
 
 ## Verify the ladder moved — on the ledger, never the Linear stage
 

@@ -1,4 +1,4 @@
-# Title, Push, Create PR, and Link Linear (Steps 7–11)
+# Title, Push, and Create PR (Steps 7–11)
 
 ## Step 7 — Generate the PR title
 
@@ -59,10 +59,8 @@ The commit-message body makes the PR immediately readable even before the `descr
 
 ## Step 10 — Run the describe-pr skill
 
-Immediately run the `describe-pr` skill with the PR number to generate the full description, run verification, refine the title, save to `thoughts/`, and update Linear.
+Immediately run the `describe-pr` skill with the PR number to generate the full description, run verification, refine the title, and save to `thoughts/`.
 
-## Step 11 — Update the Linear ticket
+## Step 11 — Leave the ticket where it is
 
-If a ticket was extracted: update status to `stateMap.inReview` (`linearis issues usage` for exact syntax) and add a PR-link comment through the app actor (the `linearis` skill's `linear-reply.mjs --as <role>`) — never bare `linearis issues discuss`. Skip silently if the CLI is unavailable.
-
-**Skip the status transition when `CATALYST_PHASE` is set** — inside a phase container, the runner driving that ticket already owns the Linear status write-back. This transition is for interactive `create-pr` use only; the PR-link comment is still posted in both modes.
+Opening a PR moves nothing: the ticket stays where it is until the PR merges. On Catalyst Cloud the cloud moves it when the phase outcome is recorded and again when the PR merges. Linear's GitHub integration (and the cloud, when connected) links the PR to the ticket by branch name or title, so post no comment about it. A person who asks for a move uses `catalyst write state <ID> --slot <slot>` (the Cloud pack's `catalyst-linear` skill), or, off the cloud, the operator-only `linearis-cli` skill.

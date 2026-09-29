@@ -9,7 +9,7 @@
 
 The check is one read: did the frontier move (`catalyst explain <ticket>`, `/admin/relay-ledger-explain`, or the rewind route's own `reset` body)? If not, go to `replan.md` and pull the lever. Only a repeat **after** a confirmed rewind belongs here.
 
-⚠️ **This reflex is not a new counter.** The product already holds a non-converging review for a human at **four** cycles, with `grace_base` release semantics so a human's release buys a fresh budget without erasing `total_holds`. This page's second-occurrence reflex sits **below** that threshold and feeds the same judgement earlier and by hand — it must never be described as a competing threshold, and you must never invent a different number. (Its mode flag `review-convergence-hold` safe-defaults to `shadow`, so on a shadow tenant the hold observes and the reflex below is the only thing operating.)
+⚠️ **This reflex is not a new counter.** The product already holds a non-converging review for a human at **four** cycles, with `grace_base` release semantics so a human's release buys a fresh budget without erasing `total_holds`. This page's second-occurrence reflex sits **below** that threshold and feeds the same judgement earlier and by hand — it must never be described as a competing threshold, and you must never invent a different number. (Its mode flag `review-convergence-hold` safe-defaults to `shadow`, so on a cloud account running it in shadow the hold observes and the reflex below is the only thing operating.)
 
 ## The signal: never-attempted is not broken
 

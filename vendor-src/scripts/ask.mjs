@@ -626,7 +626,7 @@ function cmdCreate(argv) {
 
   // ⛔ Codex #3509 P1: `issues create --team <KEY>` has historically fallen back to the
   // workspace's DEFAULT team when given a key rather than a UUID (czottmann/linearis#56;
-  // the linearis skill says to verify scope by the returned identifier's prefix). An ask
+  // the linearis-cli skill says to verify scope by the returned identifier's prefix). An ask
   // filed on the wrong board still reports success, while its team-scoped labels and
   // blocking relations serve a team nobody is watching.
   if (teamPrefixMismatch(team, id)) {

@@ -1,7 +1,7 @@
 ---
 name: resume-handoff
 description:
-  "Resume work from a handoff document. **ALWAYS use when** the user says 'resume handoff', 'pick up where we left off', 'continue from handoff', or provides a handoff document path. Verifies current codebase state against handoff, validates changes, and creates an action plan."
+  "Resume work from a handoff document: verify the codebase against it, then plan and continue the work. Use when the user says 'resume handoff', 'pick up where we left off' or 'continue from handoff', or gives a handoff document path."
 disable-model-invocation: false
 allowed-tools: Read, Bash, TodoWrite
 version: 1.0.0
@@ -9,23 +9,20 @@ version: 1.0.0
 
 # Resume work from a handoff document
 
-You are resuming work from a handoff document, interactively by default or unattended when automation reset the session. Handoffs carry context, learnings, and next steps from a prior session that need to be understood and continued. Never assume the handoff's state still matches the codebase; verify first.
-
-## Load on demand
+Resume interactively by default, or unattended when automation reset the session. The handoff's state may no longer match the codebase: verify it before acting.
 
 | when | read |
 | -- | -- |
-| finding the handoff to resume from (no path given, path given, ticket given, or the cited path is missing on disk) | [`references/discovery.md`](references/discovery.md) |
-| reading the handoff, verifying it against current state, and building the plan | [`references/process.md`](references/process.md) |
-| deciding what to do given the codebase's divergence from the handoff | [`references/scenarios.md`](references/scenarios.md) |
-| resuming unattended (no human is watching): what replaces each confirmation gate | [`references/process.md`](references/process.md) → "Unattended mode" |
+| finding the handoff (no path given, a path or ticket given, or the cited path is missing on disk) | [`references/discovery.md`](references/discovery.md) |
+| reading and verifying the handoff, building the plan, and the unattended rules | [`references/process.md`](references/process.md) |
+| the codebase has diverged from the handoff | [`references/scenarios.md`](references/scenarios.md) |
 
 ## Prerequisites
 
 ```bash
-# Thoughts must exist for this skill's documents. The full host setup check belongs to the
-# Cloud pack's catalyst-setup skill, not to a skill that must run anywhere.
-[[ -e thoughts/shared ]] || echo "⚠️ thoughts/shared is missing in $(pwd) — run \`humanlayer thoughts init\`, or the catalyst-setup skill to check the setup; if the prompt names an output path, write there" >&2
+# Thoughts must exist for this skill's documents. Set them up with `humanlayer thoughts init` in
+# the repo root, or create the worktree with the create-worktree skill, which runs it.
+[[ -e thoughts/shared ]] || echo "⚠️ thoughts/shared is missing in $(pwd) — run \`humanlayer thoughts init\` in the repo root, or create the worktree with the create-worktree skill, which does it; if the prompt names an output path, write there" >&2
 
 # explicit-input discovery: begin
 # Find the handoff to resume on disk for the ticket this run was given: $CATALYST_TICKET under a
@@ -60,18 +57,15 @@ else
 fi
 ```
 
-## Configuration note
-
-This skill uses ticket references like `PROJ-123`. Replace `PROJ` with your Linear team's ticket prefix — read it from `.catalyst/config.json` if available, otherwise use a generic `TICKET-XXX` form (`ENG-123`, `FEAT-456`).
+Ticket ids look like `PROJ-123`: take the prefix from `.catalyst/config.json`, else write `TICKET-XXX`.
 
 ## Invariants
 
-- **Read the handoff document completely** — no `limit`/`offset` — and read every research or plan document it references, before proposing anything.
-- **Never use sub-agents to read the handoff itself.** Sub-agents are fine for verifying the codebase state it describes ([`references/process.md`](references/process.md)).
-- **Unattended mode is ON** when the arguments contain `--unattended`, `CATALYST_UNATTENDED=1` is set, the run is a pipeline phase (`$CATALYST_TICKET` set with no interactive user), or the invoking prompt says the session is unattended. Then skip every confirmation gate, act on the handoff's recorded next step, and **never end the turn on a question** ([`references/process.md`](references/process.md) → "Unattended mode").
+- **Read the handoff document completely** (no `limit`/`offset`) yourself, and every research or plan document it references, before proposing anything. Sub-agents verify the codebase state it describes, never read the handoff itself.
+- **Unattended mode is ON** when the arguments contain `--unattended`, `CATALYST_UNATTENDED=1` is set, the run is a pipeline phase (`$CATALYST_TICKET` set with no interactive user), or the invoking prompt says the session is unattended. Then skip every confirmation gate, act on the handoff's recorded next step, and **never end the turn on a question** ([`references/process.md`](references/process.md), "Unattended mode").
 - **Otherwise, get user confirmation** before acting on the analysis, and again before starting implementation.
-- **A missing handoff file is not lost work.** The channel/ticket thread is authoritative; recover from there rather than re-doing landed work ([`references/discovery.md`](references/discovery.md)).
+- **A missing handoff file is not lost work.** The channel or ticket thread is authoritative: recover from it rather than redo landed work ([`references/discovery.md`](references/discovery.md)).
 
-## CLI tools
+## Ticket context
 
-To fetch ticket context from Linear (e.g. a ticket referenced in the handoff), use the Linearis CLI — run `linearis issues usage` or see the `linearis` skill for exact syntax. Do not guess commands. **Phase-container guard:** skip every `linearis` call when `CATALYST_PHASE` is set (a phase container holds no Linear credential; the runner owns the ticket write-back) or when `command -v linearis` fails (the CLI is not installed); say so in one line and continue.
+On a cloud account, run `catalyst query issue <ID>` (the Cloud pack's `catalyst-linear` skill); off the cloud, use the Linearis CLI (syntax in the `linearis-cli` skill). Skip every `linearis` call when `CATALYST_PHASE` is set (a phase container holds no Linear credential; the runner owns the ticket write-back) or when `command -v linearis` fails, and say so in one line.
