@@ -1,0 +1,6 @@
+Revision history for #74:
+
+rev 2 (content) 2026-09-29 15:44 UTC
+rev 1 (initial) 2026-09-29 15:44 UTC
+
+<!-- mergify-revision-data: {"schema_version":1,"pull_number":74,"entries":[{"number":1,"change_type":"initial","old_sha":null,"new_sha":"91cec1e39d799ccbecd70ec149554babf7f20c60","timestamp_iso":"2026-09-29T15:44:07Z","reason":"","replay_sha":null,"compare_url":null},{"number":2,"change_type":"content","old_sha":"91cec1e39d799ccbecd70ec149554babf7f20c60","new_sha":"127288db51a60004d690ea425975781cbed39047","timestamp_iso":"2026-09-29T15:44:07Z","reason":"","replay_sha":null,"compare_url":"https://github.com/coalesce-labs/catalyst-dev-skills/compare/91cec1e39d799ccbecd70ec149554babf7f20c60...127288db51a60004d690ea425975781cbed39047"}]} -->
