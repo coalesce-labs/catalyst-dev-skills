@@ -57,7 +57,7 @@ The human is looking at the **last message they wrote**, not the top of the thre
 - **On reply** — `linear-reply.mjs` removes the eyes automatically when the reply posts (`--keep-eyes`
   to leave it).
 
-⚠️ **Linear returns comments newest-first.** Sort explicitly before choosing "the latest human comment". Both helpers do; anything you write yourself must too — acking the oldest message is an easy mistake. Only the human's own comments count — `ASK_HUMAN_ID`, defaulting to this tenant's `catalyst.human.linearUserId` (there is no person-shaped fallback; an unconfigured tenant refuses loudly); the decision trigger's replies carry a `user` field too and will fool a naive check.
+⚠️ **Linear returns comments newest-first.** Sort explicitly before choosing "the latest human comment". Both helpers do; anything you write yourself must too — acking the oldest message is an easy mistake. Only the human's own comments count — `ASK_HUMAN_ID`, defaulting to this cloud account's `catalyst.human.linearUserId` (there is no person-shaped fallback; an unconfigured cloud account refuses loudly); the decision trigger's replies carry a `user` field too and will fool a naive check.
 
 ## What a reply says
 
@@ -76,7 +76,7 @@ Before starting work on a scope: set the assignee on the tracking ticket **and**
 ## Reads and writes
 
 - **Reads → the local replica behind a freshness gate on the `-wal` mtime**, never the Linear API. The
-  `.db` mtime lags under WAL mode, so gating on it reads a live replica as stale. See the `linearis` skill.
+  `.db` mtime lags under WAL mode, so gating on it reads a live replica as stale. See the `linearis-cli` skill.
 - **Writes → `linearis` / the cloud proxy.** When the proxy gate is on, every host write rides the proxy.
 
 | proxy route | status |

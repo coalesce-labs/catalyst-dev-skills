@@ -1,10 +1,10 @@
 # Reading Linear — full detail
 
-Deep detail behind the always-loaded rule in `SKILL.md` → "Reading Linear". Read this when you need the freshness-gate internals, raw SQL syntax, schema discovery, or the deprecated wrapper.
+Deep detail behind `SKILL.md` → "Reading Linear", for the off-cloud operator path: the raw helper's freshness-gate internals, raw SQL syntax and schema discovery. On a cloud account, `catalyst query …` covers ticket reads, lists, search, projects and cycles, and `catalyst replica sql "<select>"` runs ad-hoc SQL with the gate built in.
 
 ## Why direct SQL, not bare `linearis`
 
-Bare `linearis` reads always hit the rate-limited Linear API. Where several machines share one workspace's API quota, that burns budget and 429s everyone. The replica (`~/.config/catalyst-cloud/replica.db`, a SQLite mirror kept current by the change-feed writer that `catalyst replica start` runs, if your tenant runs a local replica) is a sub-ms local copy that already has the answer — reading it is what makes "every client reads the replica" actually true. It holds every issue field plus labels, relations, projects, cycles, users, and PR/review state.
+Bare `linearis` reads always hit the rate-limited Linear API. Where several machines share one workspace's API quota, that burns budget and 429s everyone. The replica (`~/.config/catalyst-cloud/replica.db`, a SQLite mirror kept current by the change-feed writer that `catalyst replica start` runs, if your cloud account runs a local replica) is a sub-ms local copy that already has the answer — reading it is what makes "every client reads the replica" actually true. It holds every issue field plus labels, relations, projects, cycles, users, and PR/review state.
 
 ## The freshness gate, copy-paste (portable macOS/Linux)
 
@@ -49,13 +49,6 @@ sqlite3 -json "$DB" "
 
 > `AND removed_at IS NULL` is REQUIRED: a tombstoned (removed) issue must read as a MISS → fall back to live Linear, never as a stale hit.
 
-## Still needs linearis
+## Gaps the replica does not mirror
 
-No issue-shaped replica form exists yet for these:
-
-- **Non-issue domains:** `cycles` / `projects` / `milestones` / `initiatives` list & read — use `linearis` (see `SKILL.md` → Core Operations). Simple `cycles`/`projects` lookups can use those replica tables, but the linearis commands are the full path.
-- **Genuinely unmirrored gaps:** cross-team-unsynced parent/child, plus a few unselected fields (`relation.id`, `cycle.name`, `state.id`, `team.key`; `children` is always `[]`). These are **closeable gaps, not permanent carve-outs** — file/track them; don't route around the replica by habit.
-
-## `catalyst-linear` wrapper command — DEPRECATED
-
-The `catalyst-linear read|list|search` wrapper command (not the Cloud pack skill of the same name) is **superseded by direct SQL** for agent/skill reads and kept only as a fail-open compatibility shim. Prefer direct SQL. (`list`/`search` are `linearis` passthrough with no replica benefit, and the wrapper's additive `_meta` field and duplicate-flag collapsing break bare-`linearis` jq pipelines.)
+A few fields are not mirrored: cross-team-unsynced parent/child, `relation.id`, `cycle.name`, `state.id` and `team.key` are unselected, and `children` is always `[]`. Read those live, and file the gap.

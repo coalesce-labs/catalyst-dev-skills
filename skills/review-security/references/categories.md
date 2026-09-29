@@ -41,7 +41,7 @@ Derived from the audit prompt in `anthropics/claude-code-security-review` (MIT �
 
 Even if something is only exploitable from the local network, it can still be a HIGH severity issue.
 
-**Catalyst-specific surfaces** worth the same scrutiny when the diff touches them: a tenant boundary (a query, cache key or Durable Object lookup that could read another tenant's rows), a credential checkout or envelope-encryption path, a webhook handler's signature check, a prompt block that interpolates tenant-controlled text into runner-authored instructions, a shell command built from a path or branch name, and a GitHub Actions workflow that runs on `pull_request_target` or interpolates an event field into `run:`.
+**Catalyst-specific surfaces** worth the same scrutiny when the diff touches them: a cloud account boundary (a query, cache key or Durable Object lookup that could read another cloud account's rows), a credential checkout or envelope-encryption path, a webhook handler's signature check, a prompt block that interpolates text a cloud account controls into runner-authored instructions, a shell command built from a path or branch name, and a GitHub Actions workflow that runs on `pull_request_target` or interpolates an event field into `run:`.
 
 ## Exclusions — do not report
 
@@ -55,6 +55,6 @@ Even if something is only exploitable from the local network, it can still be a 
 
 ## Severity
 
-- **HIGH** — directly exploitable: RCE, data breach, authentication bypass, cross-tenant read or write.
+- **HIGH** — directly exploitable: RCE, data breach, authentication bypass, a read or write across cloud accounts.
 - **MEDIUM** — requires specific conditions to exploit but has significant impact.
 - **LOW** — defense-in-depth or lower-impact. Recorded as informational only; never fails the step.

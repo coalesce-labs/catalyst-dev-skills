@@ -1,6 +1,6 @@
 ---
-# CTL-2306: files this skill carries as generated copies of one source in plugins/dev.
-# Edit the source, never a copy; `bun scripts/packaging/cli.mjs vendor --write` refreshes them
-# (render --write does it too) and packaging-gate.yml fails on drift.
+# Files this skill carries as generated copies of one source in `agents/` or `vendor-src/`.
+# Edit the source, never a copy; `node scripts/vendor.mjs --write` refreshes them
+# and CI (`node scripts/vendor.mjs --check`) fails on drift.
 files:
   - scripts/compound/validate-learnings.sh

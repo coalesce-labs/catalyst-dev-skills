@@ -60,4 +60,4 @@ Use this skill after the `morning-briefing` skill has produced today's briefing.
 
 ## Pointers
 
-`morning-briefing` (produces the input) · `linearis` · `steward` (the dispatch model this skill routes to; its `references/dispatch.md` says what a ticket-worker session is).
+`morning-briefing` (produces the input) · `linearis-cli` · `steward` (the dispatch model this skill routes to; its `references/dispatch.md` says what a ticket-worker session is).

@@ -30,7 +30,7 @@ Each subsequent call detects new commits since the last update, appends changes 
 **PR**: #123 - {title}
 **URL**: {url}
 **Verification**: {X}/{Y} automated checks passed
-**Linear**: {ticket} updated
+**Ticket**: {ticket} (stays where it is until the PR merges)
 
 Manual verification steps remaining:
 - [ ] Test feature in staging
@@ -66,10 +66,9 @@ Uses `.catalyst/config.json`:
 {
   "catalyst": {
     "project": { "ticketPrefix": "PROJ" },
-    "linear": { "teamKey": "PROJ", "stateMap": { "inReview": "In Review" } },
+    "linear": { "teamKey": "PROJ" },
     "pr": { "testCommand": "make test", "lintCommand": "make lint", "buildCommand": "make build" }
   }
 }
 ```
 
-State names come from `stateMap` with sensible defaults; see `.catalyst/config.json` for all keys.

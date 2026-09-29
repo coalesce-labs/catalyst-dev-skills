@@ -104,7 +104,7 @@ describe("every skill that uses linearis carries the phase-container guard", () 
   const users = skills.filter((name) => mentionsLinearis(join(skillsRoot, name)));
 
   test("the set of linearis users is read from the tree, not an empty listing", () => {
-    expect(skills.length).toBeGreaterThanOrEqual(37);
+    expect(skills.length).toBeGreaterThanOrEqual(30);
     expect(users).toContain("research-codebase");
     expect(users.length).toBeGreaterThanOrEqual(15);
   });

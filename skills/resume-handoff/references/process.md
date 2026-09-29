@@ -3,7 +3,7 @@
 ## Step 1: Read and analyze
 
 1. **Read the handoff document completely** (the Read tool, no `limit`/`offset`) and extract: the Resume contract (stopped at, next step, re-arm, open questions with their defaults, autonomy), task(s) and status, recent changes, learnings, artifacts, action items/next steps, other notes.
-2. **Spawn parallel research tasks to verify current state** (do NOT use sub-agents for the handoff itself — only for this verification):
+2. **Spawn parallel research tasks to verify current state** (sub-agents verify; you read the handoff yourself):
 
    ```
    Task 1 - Verify recent changes:
@@ -48,13 +48,11 @@ Use TodoWrite: convert the handoff's action items into todos, add anything newly
 
 Start the first approved task (unattended: the first todo); reference the handoff's learnings and patterns throughout; update todos as work completes; consider writing a new handoff when the session ends (the `create-handoff` skill, with `--unattended` when this run is unattended).
 
-## Guidelines throughout
+## Throughout
 
-- **Be thorough**: read the whole handoff first, verify every claimed change, check for regressions, read every referenced artifact.
-- **Be interactive when someone is watching**: present findings before acting, get buy-in, allow course corrections.
-- **Be decisive when no one is**: in unattended mode a question in your final message is a stall, because nobody will read it until the next reset. Decide, record the decision in one line, and keep going.
-- **Leverage the handoff's learnings**: apply its documented patterns, avoid repeating its mistakes, build on what it already solved.
-- **Never assume handoff state matches current state** — verify file references, breaking changes, and pattern validity before acting on any of it.
+- When someone is watching, present findings before acting and let them correct the course.
+- When no one is, decide: a question in your final message is a stall, because nobody reads it until the next reset. Record the decision in one line and keep going.
+- Apply the handoff's learnings: reuse its patterns and avoid its recorded mistakes.
 
 ## Unattended mode
 

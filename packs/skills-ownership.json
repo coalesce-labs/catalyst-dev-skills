@@ -2,9 +2,9 @@
   "comment": [
     "Where every skill in this bundle installs. CTC-2558.",
     "These skills are a person's own tools, not a repository's: they install to the home scope",
-    "(npx skills … -g) and never into a project directory. A skill in skills/ that is not listed",
+    "(npx skills \u2026 -g) and never into a project directory. A skill in skills/ that is not listed",
     "here fails `bun run test:guards`; add it rather than letting it ship unowned.",
-    "Hand-maintained on purpose — there is no --write mode, because a generated entry would mean",
+    "Hand-maintained on purpose \u2014 there is no --write mode, because a generated entry would mean",
     "a new skill could never be caught as unowned."
   ],
   "version": 1,
@@ -21,11 +21,6 @@
     {
       "dir": "ask",
       "name": "ask",
-      "scope": "home"
-    },
-    {
-      "dir": "ask-triage",
-      "name": "ask-triage",
       "scope": "home"
     },
     {
@@ -96,11 +91,6 @@
     {
       "dir": "iterate-plan",
       "name": "iterate-plan",
-      "scope": "home"
-    },
-    {
-      "dir": "linear",
-      "name": "linear",
       "scope": "home"
     },
     {

@@ -3,8 +3,8 @@
 #
 # The rule: a skill never depends on state persisted between runs (a run's
 # container is disposable, and a Codex/OpenCode session has no Claude-only hook
-# to write such state). The five skills that auto-discover a prior document
-# (create-plan, iterate-plan, validate-plan, implement-plan, resume-handoff) take
+# to write such state). The four skills that auto-discover a prior document
+# (create-plan, validate-plan, implement-plan, resume-handoff) take
 # explicit input instead: the ticket from the argument or $CATALYST_TICKET, and
 # the newest document for THAT ticket found on disk within the run.
 #
@@ -32,12 +32,11 @@ END_MARK='explicit-input discovery: end'
 
 # skill|variable|thoughts kind
 READERS="create-plan|RECENT_RESEARCH|research
-iterate-plan|RECENT_PLAN|plans
 validate-plan|RECENT_PLAN|plans
 implement-plan|RECENT_PLAN|plans
 resume-handoff|RECENT_HANDOFF|handoffs"
 
-for skill in create-plan iterate-plan validate-plan implement-plan resume-handoff create-handoff create-pr; do
+for skill in create-plan validate-plan implement-plan resume-handoff create-handoff create-pr; do
   [ -f "${SKILLS_DIR}/${skill}/SKILL.md" ] || { echo "FATAL: subject not found: ${skill}/SKILL.md" >&2; exit 1; }
 done
 
@@ -179,7 +178,7 @@ done <<READERS_EOF
 $READERS
 READERS_EOF
 # `[].every()` is true: a loop that never ran must not print a green summary.
-[ "$ITERATIONS" -eq 5 ] || fail "the reader loop covered all five skills" "ran ${ITERATIONS} iteration(s)"
+[ "$ITERATIONS" -eq 4 ] || fail "the reader loop covered all four skills" "ran ${ITERATIONS} iteration(s)"
 
 echo ""
 echo "PASS: $PASS  FAIL: $FAIL"

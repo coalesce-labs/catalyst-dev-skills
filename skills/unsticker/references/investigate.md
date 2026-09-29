@@ -4,7 +4,7 @@ Investigate the subject, not the ask's wording. The ask was written by a generat
 
 ## Tools and budgets
 
-- Linear: the local replica by SQL through the `linearis` skill's reading rule. Tables that matter: `issues` (state name in `state`, full JSON in `raw`), `comments`, `relations` (lags up to 5 minutes; re-read one live if a decision depends on it), `issue_labels`/`labels`. Always filter `removed_at IS NULL`.
+- Linear: the local replica by SQL through the `linearis-cli` skill's reading rule. Tables that matter: `issues` (state name in `state`, full JSON in `raw`), `comments`, `relations` (lags up to 5 minutes; re-read one live if a decision depends on it), `issue_labels`/`labels`. Always filter `removed_at IS NULL`.
 - GitHub: `gh pr view <n> --json state,isDraft,mergeable,mergeStateStatus,headRefOid,labels,statusCheckRollup,comments,reviews`, and the review threads through `gh api graphql` (`reviewThreads { isResolved isOutdated path line comments { body author } }`). The GitHub quota is shared; make single reads, never a polling loop.
 - Catalyst mirror (when an admin bearer is available): `GET /admin/relay-ledger?account=<tenant>&ticket=<id>` for phase, park, hold and head agreement; `GET /admin/board-health?account=<tenant>` for alive or stuck; `GET /admin/work-eligibility?account=<tenant>&team=<key>` only for why a ticket is excluded. A validate report is the `validation.md` artifact for the attempt the ledger names; its closing JSON block holds the verdicts.
 - Code: read the files the finding names, at the PR head, before trusting a summary of them.

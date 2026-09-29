@@ -1,6 +1,6 @@
 {
   "name": "catalyst-dev-skills",
-  "version": "14.2.0",
+  "version": "15.0.0",
   "private": true,
   "description": "The catalyst-dev skills as an npx-installable pack for Claude Code, Codex and OpenCode.",
   "license": "MIT",

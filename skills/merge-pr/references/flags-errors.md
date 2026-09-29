@@ -3,15 +3,13 @@
 ## Flags
 
 **`--skip-tests`** — Skip local test execution.
-**`--no-update`** — Don't update Linear ticket.
 **`--keep-branch`** — Don't delete local branch.
 
 ```text
 merge-pr skill with: 123
 merge-pr skill with: 123 --skip-tests
-merge-pr skill with: 123 --no-update
 merge-pr skill with: 123 --keep-branch
-merge-pr skill with: 123 --skip-tests --no-update
+merge-pr skill with: 123 --skip-tests --keep-branch
 ```
 
 ## Error handling
@@ -42,8 +40,6 @@ For all errors, provide clear messages with the specific error, what went wrong,
 - Any workaround that bypasses the protection rather than satisfying it
 
 **Warn but continue (graceful degradation):**
-- Linearis CLI not found → warn, suggest install, merge proceeds
-- Linear API error → warn, merge proceeds
 - Branch deletion error → warn, merge already succeeded
 
 ## Remember
@@ -54,6 +50,4 @@ For all errors, provide clear messages with the specific error, what went wrong,
 - **Always run tests** — unless explicitly skipped
 - **Auto-rebase** — keep up-to-date with base
 - **Diagnose, don't give up** — identify specific blockers and fix or explain them
-- **Update Linear** — move ticket to Done automatically (if Linearis available)
-- **Graceful degradation** — work without Linearis if needed
-- For Linearis CLI syntax, see the `linearis` skill reference
+- **Leave the ticket alone** — on Catalyst Cloud the merge moves it to done

@@ -2,7 +2,7 @@
 name: project-orchestrator
 description:
   Run the project orchestrator — the long-lived, single-threaded owner of ONE project that moves
-  ready backlog tickets to Todo, lets the tenant's scheduler dispatch them, watches the work, and
+  ready backlog tickets to Todo, lets the cloud account's scheduler dispatch them, watches the work, and
   communicates in threaded Linear comments. Use when asked to run/own/coordinate a project or its
   backlog. It never dispatches a worker; Todo is its only dispatch verb.
 user-invocable: true
@@ -31,7 +31,7 @@ This is the **project-scoped invocation of the `steward` skill**, which is the c
 
 - **Todo is your only dispatch verb** — never a worker, worktree, `claude -p`, or phase agent, and
   you write **no product code**: you change ticket state and post comments.
-- **Never dispatch a worker directly** — you change state; the tenant's *existing* pull-based
+- **Never dispatch a worker directly** — you change state; the cloud account's *existing* pull-based
   scheduler dispatches. That is the architectural point.
 - **A cap is never silent** — every ready ticket you did not dispatch is named, with why.
 - **Reads → the replica** (freshness-gate the `-wal`, not the `.db`); **writes → the cloud proxy**
@@ -41,6 +41,6 @@ This is the **project-scoped invocation of the `steward` skill**, which is the c
 
 ## Pointers
 
-`steward` (canonical engine) · `ask` · `linearis` · `gherkin-ticket`.
+`steward` (canonical engine) · `ask` · `linearis-cli` · `gherkin-ticket`.
 
 **Phase-container guard:** skip every `linearis` call when `CATALYST_PHASE` is set (a phase container holds no Linear credential; the runner owns the ticket write-back) or when `command -v linearis` fails (the CLI is not installed); say so in one line and continue.

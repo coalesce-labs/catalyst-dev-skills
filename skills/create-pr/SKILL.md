@@ -1,54 +1,36 @@
 ---
 name: create-pr
 description:
-  "Create pull request with automatic Linear integration. **ALWAYS use when** the user says 'create
-  a PR', 'open a pull request', 'ship this', 'ready for review', or wants to push changes and create
-  a GitHub PR. Handles commit, rebase, push, PR creation, description generation, and Linear ticket
-  update."
+  "Create a pull request and carry it to a clean merge state. Use when the user says 'create a PR',
+  'open a pull request', 'ship this' or 'ready for review', or wants changes pushed as a GitHub PR.
+  Handles commit, rebase, push, PR creation, the description, and monitoring CI and reviews."
 disable-model-invocation: false
-allowed-tools: Bash(linearis *), Bash(git *), Bash(gh *), Read, Task
+allowed-tools: Bash, Read, Task
 version: 1.0.0
 ---
 
 # Create Pull Request
 
-Orchestrates the complete PR creation flow: commit → rebase → push → create → describe → link Linear ticket.
+The flow is commit → rebase → push → create → describe → monitor.
 
 **Paths.** Commands below name files inside this skill's own directory as `${CLAUDE_SKILL_DIR}/…`. Claude Code fills that in. On any other harness, set CLAUDE_SKILL_DIR to the absolute directory that contains this SKILL.md before running them. If you cannot, stop and report `skill_dir_unresolved`.
 
 ## Prerequisites
 
 ```bash
-# Thoughts must exist for this skill's documents. The full host setup check belongs to the
-# Cloud pack's catalyst-setup skill, not to a skill that must run anywhere.
-[[ -e thoughts/shared ]] || echo "⚠️ thoughts/shared is missing in $(pwd) — run \`humanlayer thoughts init\`; if the prompt names an output path, write there" >&2
+# Thoughts must exist for this skill's documents. That is the only host check here: the skill runs anywhere.
+[[ -e thoughts/shared ]] || echo "⚠️ thoughts/shared is missing in $(pwd) — run \`humanlayer thoughts init\` in the repo root, or create the worktree with the create-worktree skill, which does it; if the prompt names an output path, write there" >&2
 ```
 
-## No Claude attribution
+## Rules
 
-The PR is authored solely by the git user. Never add "Generated with Claude Code", "Co-Authored-By: Claude", or any AI-assistance reference to its title or body.
+- **Author:** the git user alone. The PR title and body carry no "Generated with Claude Code", "Co-Authored-By: Claude" or other AI-assistance reference.
+- **Ticket:** opening a PR moves nothing; the ticket stays where it is until the PR merges.
+- **Phase-container guard:** this skill makes no `linearis` call; if you are asked for one, skip it when `CATALYST_PHASE` is set (a phase container holds no Linear credential) or when `command -v linearis` fails (the CLI is not installed); say so in one line and continue.
 
-## Process overview
+## Process
 
-1. **Preflight** — uncommitted changes, not on main/master, detect base branch, rebase if behind, check for an existing PR, extract the ticket from the branch name. See [preflight.md](references/preflight.md).
-2. **Title, push, create, link Linear** — title prefers the first commit subject via `git log --no-merges` and `draft_pr_title` (the `<type>(<scope>): <ticket>` convention); the no-commit fallback runs `tr '-' ' '` on the branch slug. Push goes through `draft_pr_push_verify` (`git fetch`-verified, `--force-with-lease` retry). The PR body gets the Linear sibling-skip guard via `linear-pr-skip.sh`'s `linear_sibling_skip_block_from_branch` — siblings are referenced by **PR number**, never a bare token; full rationale: the describe-pr skill's `linear-sibling-guard` reference. Then run the `describe-pr` skill and update Linear (skip the transition under `CATALYST_PHASE`). See [push-and-create.md](references/push-and-create.md).
-3. **Monitor to a clean merge state** — CI, automated reviewers, blocker resolution; this is NOT optional. See [monitoring-loop.md](references/monitoring-loop.md).
-4. **Report the real outcome, not just "PR created."** See [outcomes-and-errors.md](references/outcomes-and-errors.md), which also covers error handling, examples, and integration with the `commit`, `describe-pr` and `merge-pr` skills.
-
-## Configuration
-
-Uses `.catalyst/config.json` (`linear.teamKey`, `linear.stateMap.inReview`). State names have sensible defaults — the `linearis` skill's single-source `stateMap` transition table is the canonical list; not restated here.
-
-## Load on demand
-
-| Situation | Reference |
-|---|---|
-| Uncommitted changes, branch/base checks, existing-PR prompt, ticket extraction | [preflight.md](references/preflight.md) |
-| Title generation, guarded push, PR creation + sibling-skip guard, Linear link | [push-and-create.md](references/push-and-create.md) |
-| Event-driven CI/reviewer wait, blocker diagnosis loop, re-poll criteria | [monitoring-loop.md](references/monitoring-loop.md) |
-| Final-state reports, error handling, worked examples, command integration | [outcomes-and-errors.md](references/outcomes-and-errors.md) |
-
-## Remember
-
-- **Never stop at "PR created"** — monitor through to a clean or genuinely human-blocked state.
-- For Linearis CLI syntax, see the `linearis` skill reference. **Phase-container guard:** skip every `linearis` call when `CATALYST_PHASE` is set (a phase container holds no Linear credential; the runner owns the ticket write-back) or when `command -v linearis` fails (the CLI is not installed); say so in one line and continue.
+1. **Preflight.** Handle uncommitted changes, refuse main/master, detect the base branch, rebase if behind, check for an existing PR, and extract the ticket from the branch name with `.catalyst/config.json`'s `linear.teamKey`. See [preflight.md](references/preflight.md).
+2. **Title, push, create.** The title prefers the first commit subject (`git log --no-merges`, `draft_pr_title`, the `<type>(<scope>): <ticket>` convention); with no commit, it runs `tr '-' ' '` on the branch slug. Push through `draft_pr_push_verify` (`git fetch`-verified, `--force-with-lease` retry). The PR body gets the Linear sibling-skip guard from `linear-pr-skip.sh`'s `linear_sibling_skip_block_from_branch`, which references sibling tickets by **PR number**, never a bare token (the describe-pr skill's `linear-sibling-guard` reference explains why). Then run the `describe-pr` skill. See [push-and-create.md](references/push-and-create.md).
+3. **Monitor to a clean merge state:** CI, automated reviewers and blocker resolution. This step is required; "PR created" is not the end. Stop only at a clean or genuinely human-blocked state. See [monitoring-loop.md](references/monitoring-loop.md).
+4. **Report the real outcome.** See [outcomes-and-errors.md](references/outcomes-and-errors.md) for the final-state reports, error handling, examples, and how this fits with the `commit`, `describe-pr` and `merge-pr` skills.

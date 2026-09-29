@@ -1,83 +1,61 @@
 ---
 name: ticket-compound
 description:
-  Compound-engineering capture + curation for a finished ticket — the engineering feedback loop.
-  Harvests the Friction sections that phase agents left in their artifacts plus the git diff, writes a
-  structured entry to the shared learnings store (thoughts/shared/learnings/), prunes/amends stale
-  notes there autonomously, captures new domain vocabulary to thoughts/shared/CONCEPTS.md, and PROPOSES (for
-  human approval) any ADR change. Non-blocking — runs after a ticket ships or fails, never on the
-  critical path. **Trigger:** invoke once merge-pr's post-merge deploy-verification
-  resolves a terminal sentinel for the ticket's merge — the same signal
-  `compound-estimate` and `ticket-retro` use, see
-  the `compound-estimate` skill's `references/trigger.md`. Also use when the user says "compound this ticket",
-  "capture learnings", "what did we learn", or names a ticket to compound
+  Compound-engineering capture for a finished ticket. Turns the phase agents' Friction sections and
+  the git diff into one entry in the shared learnings store (thoughts/shared/learnings/), curates
+  stale notes there, adds new vocabulary to thoughts/shared/CONCEPTS.md, and proposes ADR changes
+  for human approval. **Trigger:** invoke once merge-pr's post-merge deploy-verification resolves a
+  terminal sentinel for the ticket's merge, the signal `compound-estimate` and `ticket-retro` share
+  (see the `compound-estimate` skill's `references/trigger.md`). Also use when the user says
+  "compound this ticket", "capture learnings", "what did we learn", or names a ticket to compound
   (<TICKET> [mode:headless]).
 disable-model-invocation: false
 user-invocable: true
 allowed-tools: Read, Write, Edit, Bash, Grep, Glob, Task, AskUserQuestion
 ---
 
-# ticket-compound — engineering compound loop
+# ticket-compound
 
-Capture what a ticket taught us into the **shared** store (`thoughts/` + ADRs), so future agents on any machine make better decisions. Read `reference.md` (this dir) for the learnings-store schema before writing anything.
+Capture what a ticket taught into the shared store (`thoughts/` and ADRs), so future agents on any machine decide better. Read `reference.md` (this dir) for the learnings-store schema before writing anything. Failed and abandoned tickets count too: what didn't work is high-signal. Estimation numbers belong to `compound-estimate`, and the cross-ticket view to `ticket-retro`; the automatic call site is the `merge-pr` skill's compound closing ritual (its `references/post-merge.md`).
 
 **Two authority levels (hard rule):**
-- **Autonomous** — write/append/update/delete in `thoughts/shared/learnings/` and
-  `thoughts/shared/CONCEPTS.md`, and prune stale notes in `thoughts/shared/{research,plans}/`.
-- **Propose only (APPROVE-gated)** — any change to `docs/adrs.md`. Never edit an ADR directly; queue
-  it for the morning ritual to approve.
+- **Autonomous:** write, update or delete in `thoughts/shared/learnings/` and `thoughts/shared/CONCEPTS.md`, and prune stale notes in `thoughts/shared/{research,plans}/`.
+- **Propose only (APPROVE-gated):** any change to `docs/adrs.md`, queued for the morning ritual.
 
 **Paths.** Commands below name files inside this skill's own directory as `${CLAUDE_SKILL_DIR}/…`. Claude Code fills that in. On any other harness, set CLAUDE_SKILL_DIR to the absolute directory that contains this SKILL.md before running them. If you cannot, stop and report `skill_dir_unresolved`.
 
-## Invocation
+## Invocation: `ticket-compound skill with: <TICKET> [mode:headless]`
 
-```text
-ticket-compound skill with: <TICKET> [mode:headless]
-```
+- `<TICKET>`: the Linear key (e.g. `ENG-123`); when omitted, detect it from the branch or `CATALYST_TICKET`.
+- `mode:headless`: apply every unambiguous autonomous action silently, mark ambiguous learnings `status: stale`, never wait on a prompt, and end with the sentinel line. The morning ritual and the post-merge closing ritual use it; the default is interactive.
 
-- `<TICKET>` — Linear key (e.g. `ENG-123`). If omitted, detect from the branch / `CATALYST_TICKET`.
-- `mode:headless` — non-interactive: apply all unambiguous autonomous actions silently, mark
-  ambiguous learnings `status: stale`, never block on a prompt, end with the sentinel line. This is what the morning ritual and the post-merge closing ritual use. Default is interactive.
+## Step 1: Gather raw signal (you read; nobody else writes)
 
-## Step 1 — Gather raw signal (the orchestrator reads; do NOT delegate writes)
+1. **Friction:** `thoughts/shared/friction/<TICKET>.md` (the per-phase friction log, primary source), every `## Friction` / `friction:` block in `thoughts/shared/{research,plans}/*<TICKET>*.md`, and any worker signal files at `~/catalyst/workers/<TICKET>/*.json`.
+2. **The diff:** `git log --oneline origin/main..HEAD` and `git diff --stat origin/main..HEAD` (or the merged SHA once the PR has merged).
+3. **The ticket** (title, description, final state, estimate): on a cloud account, `catalyst query issue <ID>` (the Cloud pack's `catalyst-linear` skill); an operator off the cloud reads the replica by direct SQL, per the `linearis-cli` skill's "Reading Linear" section. **Phase-container guard:** skip every `linearis` call when `CATALYST_PHASE` is set (a phase container holds no Linear credential; the runner owns the ticket write-back) or when `command -v linearis` fails (the CLI is not installed); say so in one line and continue.
+4. **Event trail** (optional): the ticket's lines in `<events dir>/YYYY-MM.jsonl`, where the events dir is `CATALYST_EVENTS_DIR`, else `paths.events` in `~/.config/catalyst/paths.json`, else `~/.local/state/catalyst/events`. Older history may still sit in `~/catalyst/events` until housekeeping migrates it.
 
-For `<TICKET>`, collect:
-1. **Friction** — every `## Friction` / `friction:` block the phase agents left in their artifacts:
-   `thoughts/shared/{research,plans}/*<TICKET>*.md` and any worker signal files your runner leaves at `~/catalyst/workers/<TICKET>/*.json`.
-   - `thoughts/shared/friction/<TICKET>.md` — the dedicated per-phase friction log (primary friction source).
-2. **The diff** — `git log --oneline origin/main..HEAD` and `git diff --stat origin/main..HEAD`
-   (or the merged SHA, once the PR has merged).
-3. **Ticket** — read via direct SQL against the replica (title, description, final state, estimate); see the `linearis` skill's "Reading Linear" section. **Phase-container guard:** skip every `linearis` call when `CATALYST_PHASE` is set (a phase container holds no Linear credential; the runner owns the ticket write-back) or when `command -v linearis` fails (the CLI is not installed); say so in one line and continue.
-4. **Event trail** (optional) — the ticket's lines in `<events dir>/YYYY-MM.jsonl`, where the events dir is `CATALYST_EVENTS_DIR`, else `paths.events` in `~/.config/catalyst/paths.json`, else `~/.local/state/catalyst/events`. Until housekeeping has migrated it, older history may still be in `~/catalyst/events`.
+## Step 2: Three text-only subagents, in parallel
 
-Capture learnings from **failed/abandoned** tickets too — the dead-ends are high-signal ("what didn't work" is a first-class section).
+Each returns text, and you make the single write in Step 3, so no two writers race:
 
-## Step 2 — Three TEXT-ONLY sub-agents (parallel; they return text, never write files)
+- **Context Analyzer:** from the diff, ticket and friction, pick the track (bug or knowledge), `problem_type`, `category` (subdir), `component`, `severity` and a filename slug. Returns the frontmatter skeleton, valid per `reference.md`.
+- **Solution Extractor:** writes the entry body in the track's section order from `reference.md`, grounding every claim in the diff or friction.
+- **Related-Learnings Finder:** `rg -li "<keywords>" thoughts/shared/learnings/**/*.md`, reads the hits' frontmatter, and scores overlap on problem, root cause, component, files and prevention. Returns HIGH (4–5), MODERATE (2–3) or LOW (0–1) with the matched paths.
 
-Run them as subagents, all at once. Each returns text to you; **you** do the single write in Step 3 (avoids partial-write races):
+## Step 3: Write one learnings entry
 
-- **Context Analyzer** — from the diff + ticket + friction, pick the track (bug vs knowledge),
-  `problem_type`, `category` (subdir), `component`, `severity`, and a filename slug. Returns the frontmatter skeleton (validate against `reference.md`).
-- **Solution Extractor** — write the entry body per the track's template (bug: Problem/Symptoms/What
-  Didn't Work/Solution/Why This Works/Prevention; knowledge: Context/Guidance/Why This Matters/When to Apply/Examples). Ground every claim in the diff/friction — no invention.
-- **Related-Learnings Finder** — `rg -li "<keywords>" thoughts/shared/learnings/**/*.md`, read the
-  frontmatter of hits, and score overlap (problem, root cause, component, files, prevention). Returns HIGH (4–5) / MODERATE (2–3) / LOW (0–1) plus the matched paths.
-
-## Step 3 — Assemble + write ONE learnings entry (overlap routing)
-
-- **HIGH overlap** → update the existing entry in place (merge new detail, set `last_updated:`),
-  rather than creating a near-duplicate. This is the anti-bloat rule.
-- **MODERATE/LOW** → create `thoughts/shared/learnings/<category>/<slug>.md`.
-
-Then validate frontmatter (fail loud on the YAML traps in `reference.md`):
+On HIGH overlap, merge the new detail into the existing entry and set `last_updated:`. On MODERATE or LOW, create `thoughts/shared/learnings/<category>/<slug>.md`. Then validate the frontmatter, which fails loud on the YAML traps in `reference.md`:
 
 ```bash
 bash "${CLAUDE_SKILL_DIR}/scripts/compound/validate-learnings.sh" "<written-path>"
 ```
 
-## Step 4 — Curate the store (five outcomes, autonomous in thoughts/)
+## Step 4: Curate the store
 
-For the related entries the Finder surfaced, classify and act — **autonomously** (this is the `thoughts/` layer):
+Classify each related entry the Finder surfaced, and each stale note in `thoughts/shared/{research,plans}/` this ticket contradicted, then act:
+
 | Outcome | When | Action |
 |---|---|---|
 | Keep | accurate, refs valid | none |
@@ -86,47 +64,17 @@ For the related entries the Finder surfaced, classify and act — **autonomously
 | Replace | core guidance now misleading | write successor, delete old |
 | Delete | implementation gone AND domain gone AND no inbound links | remove (git history preserves) |
 
-Same five-outcome pass applies to stale `thoughts/shared/{research,plans}/` notes this ticket contradicted (the "off-track context that got us redirected"). In `mode:headless`, only act on unambiguous cases; mark the rest `status: stale` + `stale_reason`.
+In `mode:headless`, act only on unambiguous cases; mark the rest `status: stale` with a `stale_reason`.
 
-## Step 5 — Vocabulary → CONCEPTS.md (autonomous)
+## Step 5: Vocabulary
 
-Scan the diff + friction for Catalyst domain terms not yet in `thoughts/shared/CONCEPTS.md` (e.g. "reclaim", "revive-budget", "orphan", "signal ownership"). Append concise definitions. Create the file if absent.
+Append a concise definition for each Catalyst domain term in the diff or friction that `thoughts/shared/CONCEPTS.md` lacks (e.g. "reclaim", "revive-budget", "orphan"). Create the file if absent.
 
-## Step 6 — ADR changes → PROPOSE, never apply
+## Steps 6–7: ADR proposals and discoverability
 
-If a learning rises to a standing rule (something *every* agent must always do/avoid), do NOT edit `docs/adrs.md`. Append a proposal to the approval queue:
+6. When a learning rises to a standing rule every agent must follow, leave `docs/adrs.md` alone and queue a proposal in the format `references/closing.md` gives.
+7. Confirm `CLAUDE.md` tells agents the learnings store exists, its shape, and when to grep it. If not, propose (interactive) or apply (headless) the pointer in `references/closing.md`, never the learnings themselves.
 
-```
-thoughts/shared/compound/pending/<TICKET>.md
-```
+## Step 8: Report
 
-Each proposal: the target ADR (new / amend `ADR-NNN` / supersede `ADR-NNN`), the exact proposed text, and a one-line rationale + evidence (ticket + learning path). The morning ritual surfaces these; a human approves via `briefing-followup`'s `action-compound` handler, which is the only thing that writes `docs/adrs.md`.
-
-## Step 7 — Discoverability check (pointer only)
-
-Confirm `CLAUDE.md` teaches agents that the learnings store exists, its shape, and when to grep it. If not, propose (interactive) / apply (headless) a **minimal pointer** — never the learnings themselves:
-
-```
-thoughts/shared/learnings/ — past problem→solution entries (grep by component/tags/problem_type).
-Search before implementing or debugging in a known area. Curated by the ticket-compound skill.
-```
-
-## Step 8 — Report
-
-- **Interactive:** summarize entry written/updated, curation actions, CONCEPTS additions, and any
-  queued ADR proposals (with the approval command).
-- **Headless:** structured block ending with the grep-able sentinel:
-
-```
-✓ ticket-compound complete (headless)
-ticket: ENG-123
-entry: thoughts/shared/learnings/runtime-errors/worker-marked-dead-on-first-commit.md (created)
-curated: 1 updated, 0 deleted ; concepts: +2 ; adr-proposals: 1 (pending approval)
-ticket-compound complete
-```
-
-## Out of scope (this slice)
-- The estimation loop (separate slice — `compound-estimate` owns estimation numbers).
-- `ticket-retro` (the cross-ticket view — separate slice).
-
-The automatic trigger is the `merge-pr` skill's compound closing ritual (its `references/post-merge.md`), which invokes this skill once merge-pr's deploy verification resolves a terminal sentinel — see the `compound-estimate` skill's `references/trigger.md` for the full contract.
+Interactive: report the entry written or updated, the curation actions, CONCEPTS additions, and any queued ADR proposals with the approval command. Headless: print the structured block in `references/closing.md`, ending with the sentinel line.

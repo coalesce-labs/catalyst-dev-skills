@@ -47,7 +47,7 @@ Use this skill to produce today's briefing locally and fan it out to Slack DM, S
 
 ## Invariants
 
-- **Single-ticket Linear reads go through the replica, gated by cloud-detection.** List/search calls (this skill's normal shape — an activity window, not one ticket) have no replica form yet and correctly stay on `linearis` directly, per the `linearis` skill's "Reading Linear" contract — that is not a shortcut. **Phase-container guard:** skip every `linearis` call when `CATALYST_PHASE` is set (a phase container holds no Linear credential; the runner owns the ticket write-back) or when `command -v linearis` fails (the CLI is not installed); say so in one line and continue.
+- **Linear reads go through `catalyst query` when the machine is connected to a cloud account**: `catalyst query issue <ID>` for one ticket, `catalyst query issues --team K --state S` and `catalyst query search <terms>` for this skill's usual list and search shape. Off the cloud, `linearis` is the path for lists and searches, per the `linearis-cli` skill. **Phase-container guard:** skip every `linearis` call when `CATALYST_PHASE` is set (a phase container holds no Linear credential; the runner owns the ticket write-back) or when `command -v linearis` fails (the CLI is not installed); say so in one line and continue.
 - **"Suggest dispatch candidates" names candidates for a ticket-worker session** (the dispatch verb the `steward` skill's `references/dispatch.md` describes), never a background-dispatch daemon.
 - Every gather/fan-out helper degrades to an empty or skipped result rather than failing the whole run — the briefing always lands locally.
 
@@ -59,4 +59,4 @@ Pending compound-engineering ADR proposals (`thoughts/shared/compound/pending/*.
 
 ## Pointers
 
-`briefing-followup` (consumes this skill's output) · `linearis` · `steward` (the dispatch model "suggest dispatch candidates" points at) · `ticket-retro`.
+`briefing-followup` (consumes this skill's output) · `linearis-cli` · `steward` (the dispatch model "suggest dispatch candidates" points at) · `ticket-retro`.

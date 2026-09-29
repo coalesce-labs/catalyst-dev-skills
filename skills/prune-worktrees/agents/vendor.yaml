@@ -1,5 +1,5 @@
 ---
-# CTC-3644: the machine paths resolver, one source in vendor-src. Edit the source, never a copy;
+# The machine paths resolver, one source in `vendor-src/`. Edit the source, never a copy;
 # `node scripts/vendor.mjs --write` refreshes it and CI fails on drift.
 files:
   - scripts/lib/paths/index.js

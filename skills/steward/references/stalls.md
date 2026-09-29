@@ -47,7 +47,7 @@ There is no per-ticket human-block label to strip: a system-level failure is ONE
 **A steward comment is not a mutation.** Steward comments are posted by the app actor, and a human-provenance gate ignores them, so a comment saying "this is resolved" leaves the ask OPEN and the work it `blocks` still held. You must issue the state change directly.
 
 - **A false-fire ASK** → close it the way the `ask` SOP closes any ask: answer in-thread, then move the
-  ticket to Done with `linearis`. Reads go through the freshness-gated replica helper, never a bare `linearis issues read` (see the `linearis` skill's "Reading Linear" section).
+  ticket to Done with `linearis`. Reads go through the freshness-gated replica helper, never a bare `linearis issues read` (see the `linearis-cli` skill's "Reading Linear" section).
 - **A false-fire SYSTEM alert** → you do not retract it by hand. Whatever raised it clears it on the
   edge; if it is stuck raised, that is a bug in the alerting worth a ticket, not a per-ticket label to clear.
 

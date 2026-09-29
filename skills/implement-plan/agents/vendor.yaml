@@ -1,5 +1,5 @@
 ---
-# Files this skill carries as generated copies of one source.
+# Files this skill carries as generated copies of one source in `agents/` or `vendor-src/`.
 # Edit the source, never a copy; `node scripts/vendor.mjs --write` refreshes them
 # and CI (`node scripts/vendor.mjs --check`) fails on drift.
 files:

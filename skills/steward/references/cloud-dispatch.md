@@ -1,14 +1,14 @@
-# Dispatch on a CLOUD tenant — you move the card, the cloud runs the phase
+# Dispatch on a CLOUD account — you move the card, the cloud runs the phase
 
-`references/dispatch.md` describes the **local** shape: you launch a ticket-worker session yourself, on this machine. On a Catalyst Cloud tenant that shape is wrong in its first sentence — the phases run in the tenant's runner containers, dispatched by the tenant's own scheduler. **Read this file instead of `dispatch.md` whenever cloud-detection says you are on a cloud tenant** (`assets/references/cloud-detection.md` — a fresh replica *and* a `.catalyst/config.json` marker; both, or you are not).
+`references/dispatch.md` describes the **local** shape: you launch a ticket-worker session yourself, on this machine. On a Catalyst Cloud account that shape is wrong in its first sentence — the phases run in the cloud account's runner containers, dispatched by its own scheduler. **Read this file instead of `dispatch.md` whenever cloud-detection says you are on a cloud account** (`assets/references/cloud-detection.md` — a fresh replica *and* a `.catalyst/config.json` marker; both, or you are not).
 
-The difference matters because the two failure modes are opposite. Launch a local session on a cloud tenant and you get two workers on one ticket, racing on the same branch. Wait for a local session on a cloud tenant and you wait forever for a session nobody started.
+The difference matters because the two failure modes are opposite. Launch a local session on a cloud account and you get two workers on one ticket, racing on the same branch. Wait for a local session on a cloud account and you wait forever for a session nobody started.
 
 ## The dispatch verb: move the card to Todo, through the write proxy
 
-Your dispatch is a **state move**, not a launch. The tenant's scheduler picks up eligible cards in its Todo state and claims them into a runner container; there is nothing for you to spawn and no PID for you to watch.
+Your dispatch is a **state move**, not a launch. The cloud account's scheduler picks up eligible cards in its Todo state and claims them into a runner container; there is nothing for you to spawn and no PID for you to watch.
 
-Write it through the cloud **write proxy**, never with a personal Linear credential — a proxied write carries the tenant's app actor, which is what keeps your dispatch from reading as the human typing (the `ask` skill's `references/threading.md` on why that matters; the `ask` skill carries the client, `linear-write-proxy.mjs`):
+Write it through the cloud **write proxy**, never with a personal Linear credential — a proxied write carries the cloud account's app actor, which is what keeps your dispatch from reading as the human typing (the `ask` skill's `references/threading.md` on why that matters; the `ask` skill carries the client, `linear-write-proxy.mjs`):
 
 ```
 POST /api/v1/agent/issue-state   {issueId, stateId, hostId}
@@ -16,14 +16,14 @@ POST /api/v1/agent/issue-state   {issueId, stateId, hostId}
 
 Two things that route deliberately does **not** do for you:
 
-- **It does not resolve a state NAME.** It forwards a `stateId` and nothing else. You resolve the id from this tenant's own `catalyst.linear.stateMap` (`.catalyst/config.json` → the `todo` entry) against the team's workflow states — the replica's `workflow_states` table is the lookup. A name you guessed is how a dispatch lands in another team's Todo.
+- **It does not resolve a state NAME.** It forwards a `stateId` and nothing else. You resolve the id from this cloud account's own `catalyst.linear.stateMap` (`.catalyst/config.json` → the `todo` entry) against the team's workflow states — the replica's `workflow_states` table is the lookup. A name you guessed is how a dispatch lands in another team's Todo.
 - **It does not tell you the card was eligible.** The scheduler applies its own gates after your move — ask-shape, scope overlap, a park, a hold. A `succeeded` write is proof the card moved, never proof that work started.
 
-⛔ **Do not launch a ticket-worker session on a cloud tenant**, and do not open a worktree to "just check something" on a ticket the cloud is running. The container has the branch; your checkout does not.
+⛔ **Do not launch a ticket-worker session on a cloud account**, and do not open a worktree to "just check something" on a ticket the cloud is running. The container has the branch; your checkout does not.
 
 ## Phase-completion evidence: read the record, not a session's word
 
-There is no worker report here — no session reports to you at all. The evidence is what the tenant wrote down, and you read all of it from the **replica**, gated for freshness the same way every other read is:
+There is no worker report here — no session reports to you at all. The evidence is what the cloud account wrote down, and you read all of it from the **replica**, gated for freshness the same way every other read is:
 
 | what you are asking | where the answer is |
 | -- | -- |
@@ -48,7 +48,7 @@ Two misreadings to avoid:
 
 | this host | dispatch verb | evidence |
 | -- | -- | -- |
-| cloud tenant (fresh replica + `.catalyst` marker) | move the card to Todo via the write proxy — **this file** | ledger rows + artifact projections, read from the replica |
+| cloud account (fresh replica + `.catalyst` marker) | move the card to Todo via the write proxy — **this file** | ledger rows + artifact projections, read from the replica |
 | no cloud mirror | launch a ticket-worker session — `references/dispatch.md` | the worker's report, confirmed against the artifact it cites |
 
 When you cannot tell which you are on, you have not run cloud-detection yet. Run it; do not pick by feel.

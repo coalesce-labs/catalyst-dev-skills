@@ -6,11 +6,12 @@
 // The pack is published: anyone installs it with `npx skills`, into Claude Code, Codex, OpenCode or
 // Cursor. So every Markdown file an installer receives (skills/**/*.md) and the install docs follow
 // four rules:
-//   1. A skill is named bare (`linear`), never through a plugin prefix (`catalyst-dev:linear`, `catalyst-cloud:ask`).
+//   1. A skill is named bare (`ask`), never through a plugin prefix (`catalyst-dev:ask`, `catalyst-cloud:catalyst-linear`).
 //   2. No person is named: "the owner", "an admin", "the person".
 //   3. No provenance: ticket ids, ADR numbers, dated history. The rule stays; how it came about goes.
 //   4. Only what an installer has: the two published packs, the `catalyst` CLI (never the retired
 //      `catalyst-skills` name), public repos and docs.
+//   5. A person's account is "your cloud account", never a "tenant".
 // Dates are checked in prose only; a code block may show an example timestamp.
 
 import { readdirSync, readFileSync, statSync } from "node:fs";
@@ -34,7 +35,12 @@ export const RULES = [
     why: "reference only the published packs and public repos",
     re: /coalesce-labs\/(catalyst-cloud(?!-skills)|thoughts)\b|\bLantern\b|\bexecution-core\b/,
   },
+  // People and their accounts are never "tenants". Identifiers keep their names, so inline code and
+  // link targets are left out of this check: `tenantId`, `/v1/tenant/...`, `tenant-0`.
+  { id: "tenant-word", why: "say your cloud account or the cloud account", re: /\btenants?\b/i, proseOnly: true, identifiersExempt: true },
 ];
+
+const withoutIdentifiers = (line) => line.replace(/`[^`]*`/g, "").replace(/\]\([^)]*\)/g, "]");
 
 function listMarkdown(dir) {
   return readdirSync(dir).flatMap((entry) => {
@@ -56,7 +62,7 @@ export function findings(file, text) {
     if (/^\s*(```|~~~)/.test(line)) fenced = !fenced;
     for (const rule of RULES) {
       if (rule.proseOnly && fenced) continue;
-      if (rule.re.test(line)) out.push({ file, line: i + 1, rule: rule.id, text: line.trim().slice(0, 160) });
+      if (rule.re.test(rule.identifiersExempt ? withoutIdentifiers(line) : line)) out.push({ file, line: i + 1, rule: rule.id, text: line.trim().slice(0, 160) });
     }
   });
   return out;

@@ -3,7 +3,7 @@
 > ⛔ **Assign the stage name, then check it — never inline `$(state …)` into the query.** A command substitution used as an *argument* does not propagate its exit status, so a refused slot leaves `linearis` running with an empty `--status` and the named refusal becomes an empty result set. `VAR=$(state slot) || exit 1` DOES propagate: the assignment's status is the substitution's. `state() { bash "${CLAUDE_SKILL_DIR}/scripts/linear-transition.sh" --print-state --transition "$1" --team "$TEAM"; }`
 
 
-Full CRUD and comment-thread commands behind `SKILL.md` → "Core Operations". Run `linearis usage` / `linearis <domain> usage` for the authoritative, always-current flag list — prefer it to memorizing.
+Full CRUD and comment-thread commands behind `SKILL.md` → "Core Operations". They serve the operator exceptions (relations, editing a ticket after it exists, cycle and milestone writes, assignment) and a Linear workspace with no cloud account. On a cloud account, search with `catalyst query search <terms>`, create with `catalyst write create`, move a card on request with `catalyst write state --slot`, label with `catalyst write label`, and comment with `catalyst write comment`. Run `linearis usage` / `linearis <domain> usage` for the authoritative, always-current flag list — prefer it to memorizing.
 
 ## Search tickets
 

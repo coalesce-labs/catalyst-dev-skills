@@ -12,14 +12,14 @@ grep -rlE 'zod|valibot|joi|yup|ajv|DOMPurify|sanitize|escape[A-Z]|parameteriz|pr
 grep -rnE 'requireAuth|withAuth|authorize\(|assertTenant|tenantId|verifySignature|timingSafeEqual' --include='*.ts' --include='*.py' . 2>/dev/null | head -30
 ```
 
-Read the README / AGENTS.md security notes if they exist, and the modules the changed files import from. The output of this phase is a short list: the established secure patterns (how input is validated, how queries are built, how auth is checked, how secrets are read) and the threat model (who is untrusted: a tenant, a webhook sender, a PR author, a file on disk).
+Read the README / AGENTS.md security notes if they exist, and the modules the changed files import from. The output of this phase is a short list: the established secure patterns (how input is validated, how queries are built, how auth is checked, how secrets are read) and the threat model (who is untrusted: a cloud account, a webhook sender, a PR author, a file on disk).
 
 ## Phase 2 — Comparative analysis
 
 Set the diff against those patterns:
 
 - a new query, command, template or file path built by string concatenation where the codebase uses parameters or a builder;
-- a handler that skips the auth or tenant check its siblings perform;
+- a handler that skips the auth or cloud-account check its siblings perform;
 - a sanitizer or signature check removed, bypassed or made optional;
 - a new attack surface: a new endpoint, a new file read/write, a new subprocess, a new deserializer, a new place where remote text reaches a template, a shell, or the DOM.
 
@@ -27,7 +27,7 @@ Each deviation is a candidate for Phase 3, not yet a finding.
 
 ## Phase 3 — Vulnerability assessment
 
-For each changed file: trace data flow from every untrusted input (request params, headers, webhook bodies, file contents, environment the tenant controls, branch and path names, Linear ticket text) to every sensitive operation (a query, a subprocess, a file path, a redirect, an HTML sink, a crypto call, a log line). Look for privilege boundaries crossed unsafely, injection points, unsafe deserialization, and the categories in `categories.md`. Where the sink is in code the diff did not change, the finding still cites the changed line that feeds it.
+For each changed file: trace data flow from every untrusted input (request params, headers, webhook bodies, file contents, environment a cloud account controls, branch and path names, Linear ticket text) to every sensitive operation (a query, a subprocess, a file path, a redirect, an HTML sink, a crypto call, a log line). Look for privilege boundaries crossed unsafely, injection points, unsafe deserialization, and the categories in `categories.md`. Where the sink is in code the diff did not change, the finding still cites the changed line that feeds it.
 
 ## Confirm each candidate yourself
 

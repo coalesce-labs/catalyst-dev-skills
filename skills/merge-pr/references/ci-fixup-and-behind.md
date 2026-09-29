@@ -44,7 +44,7 @@ done
 [[ -z "$MERGE_COMMIT_SHA" ]] && echo "merge-pr: merge_commit_sha still empty after ${RETRIES} attempts for pr#${PR_NUMBER}" >&2
 ```
 
-Use this whenever a step (a Linear comment, a follow-on step) needs the actual squash SHA rather than `git rev-parse HEAD` from a checkout that may not have fetched the merge yet.
+Use this whenever a step (a follow-on step such as deploy verification) needs the actual squash SHA rather than `git rev-parse HEAD` from a checkout that may not have fetched the merge yet.
 
 ## Why REST, never GraphQL, for mergeable state
 

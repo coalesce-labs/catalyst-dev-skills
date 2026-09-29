@@ -1,76 +1,40 @@
 ---
 name: create-worktree
 description:
-  "Create a git worktree for parallel work and optionally launch implementation session. **ALWAYS
-  use when** the user says 'create a worktree', 'work in parallel', 'start a worktree for', or needs
-  to work on multiple features simultaneously without switching branches."
+  "Create a git worktree for parallel work, and optionally launch an implementation session in it.
+  Use when the user says 'create a worktree', 'work in parallel' or 'start a worktree for', or needs
+  to work on several features at once without switching branches."
 disable-model-invocation: false
 allowed-tools: Bash, Read
 version: 1.0.0
 ---
 
-## Configuration Note
-
-This command uses ticket references like `PROJ-123`. Replace `PROJ` with your Linear team's ticket prefix:
-
-- Read from `.catalyst/config.json` if available
-- Otherwise use a generic format like `TICKET-XXX`
-- Examples: `ENG-123`, `FEAT-456`, `BUG-789`
-
-You are tasked with creating a git worktree for parallel development work.
+# Create worktree
 
 **Paths.** Commands below name files inside this skill's own directory as `${CLAUDE_SKILL_DIR}/…`. Claude Code fills that in. On any other harness, set CLAUDE_SKILL_DIR to the absolute directory that contains this SKILL.md before running them. If you cannot, stop and report `skill_dir_unresolved`.
 
+Ticket ids look like `PROJ-123`: take the prefix from `.catalyst/config.json`, else write `TICKET-XXX`.
+
 ## Process
 
-When this command is invoked:
+1. **Gather** the worktree name (e.g. `PROJ-123`, `feature-name`), the base branch (default: the current branch), and an optional implementation plan path.
 
-1. **Gather required information**:
-   - Worktree name (e.g., PROJ-123, feature-name)
-   - Base branch (default: current branch)
-   - Optional: Path to implementation plan
+2. **Confirm** the details with the user before creating anything.
 
-2. **Confirm with user**: Present the worktree details and get confirmation before creating.
-
-3. **Create the worktree**: Use the create-worktree.sh script:
+3. **Create the worktree:**
 
    ```bash
    "${CLAUDE_SKILL_DIR}/scripts/create-worktree.sh" <worktree_name> [base_branch] [--no-from-remote] [--skip-fetch]
    ```
 
-   The script automatically:
-   - Reads `catalyst.worktree.setup` from config for project-specific setup
-   - Copies `.claude/` and `.catalyst/` directories
-   - Falls back to auto-detected setup if no config (dependency install + thoughts init)
+   The script copies `.claude/` and `.catalyst/`, then runs `catalyst.worktree.setup` from config, or falls back to a dependency install plus thoughts init. It chooses where the worktree and its thoughts go; to explain or change either, read [`references/setup-and-layout.md`](references/setup-and-layout.md).
 
-   **Resume-from-remote (default-on).** When a NEW branch is being created and `origin/<worktree_name>` already exists (e.g. a pushed draft PR's commits), the worktree is seeded from that remote tip instead of being cut fresh off the base branch — so a re-dispatch or a cross-host reclaim rebuilds on the pushed work rather than orphaning it under a fresh branch. This is automatic; the script prints a `🌱 Resuming from origin/<name>` banner when it fires. An existing **local** branch always wins over the remote (no auto-merge); the resume applies only when there is no local branch yet.
+   **Resume from remote (on by default).** When a new branch is created and `origin/<worktree_name>` exists (e.g. a pushed draft PR), the worktree starts from that remote tip, so a re-dispatch or cross-host reclaim builds on the pushed work. The script prints `🌱 Resuming from origin/<name>` when it does this. An existing local branch always wins over the remote, with no auto-merge.
 
-   To opt out and force a fresh branch off the base (ignore any matching origin branch), pass **`--no-from-remote`**. To suppress all origin fetches entirely (offline), pass **`--skip-fetch`** (which also disables the resume). Confirm with the user which they want before overriding the default when a matching origin branch may carry stale or already-merged history.
+   `--no-from-remote` forces a fresh branch off the base. `--skip-fetch` suppresses every origin fetch (offline), which also disables the resume. When a matching origin branch may carry stale or already-merged history, ask the user which they want before overriding the default.
 
-4. **Project setup** (handled by script based on config):
+4. **Optionally launch an implementation session.** If a plan path was given, ask whether to launch Claude in the worktree. `claude -w` takes a name and creates a new worktree, so `cd` into the one you created instead. Capture stderr to a file for post-mortem, and pass `--dangerously-skip-permissions` because there is no TTY:
 
-   If `catalyst.worktree.setup` is defined in config, those commands run in order. Otherwise, the script auto-detects: dependency install (`bun/npm`) + thoughts init.
-
-   **Where thoughts go.** The script looks for a declared thoughts repo: `CATALYST_THOUGHTS_REPO`, then `paths.thoughtsRepo` in `~/.config/catalyst/paths.json`, then `<repoRoot>/<owner>/thoughts` when that is a checkout. When it finds one, thoughts init points there even without the HumanLayer CLI, and `${PROFILE}` is the HumanLayer profile whose repo it is. If no profile points there, `catalyst-<owner>` is added. With nothing declared, the HumanLayer config decides. `${DIRECTORY}` is `catalyst.thoughts.directory`, else the origin's repo name.
-
-   Example config for full control:
-
-   ```json
-   {
-     "catalyst": {
-       "worktree": {
-         "setup": [
-           "humanlayer thoughts init --directory ${DIRECTORY} --profile ${PROFILE}",
-           "humanlayer thoughts sync",
-           "bun install"
-         ]
-       }
-     }
-   }
-   ```
-
-5. **Optional: Launch implementation session**: If a plan file path was provided, ask if the user
-   wants to launch Claude in the worktree. Note: `claude -w` takes a _name_ and creates a new worktree — so `cd` into the already-created worktree instead, capture stderr to a real file for post-mortem debugging, and use `--dangerously-skip-permissions` since there's no TTY.
    ```bash
    (
      cd "<worktree_path>" || exit 1
@@ -81,40 +45,4 @@ When this command is invoked:
    ) > "<worktree_path>/worker-stream.jsonl" 2> "<worktree_path>/worker-stderr.log" &
    ```
 
-## Worktree Location Convention
-
-Worktree base directory is resolved in this order:
-
-1. `--worktree-dir <path>` (explicit override)
-2. `catalyst.orchestration.worktreeDir` from config
-3. `<worktrees root>/<owner>/<repo>/`, where the root is `CATALYST_WORKTREES_DIR`, else `paths.worktrees` in `~/.config/catalyst/paths.json`, else `~/catalyst/wt`. The owner comes from the origin URL, so two clones that share a repo name (`acme/app`, `other-org/app`) never share a folder, and the layout matches repos at `<repoRoot>/<owner>/<repo>`. Without a parseable origin, the key is `catalyst.projectKey`, else the repo name.
-
-A worktree that already exists under an old key (`<root>/<projectKey>/` or `<root>/<repo>/`) and belongs to this repository is used where it is, so a revive never starts a second tree. A relative or unreadable root refuses (exit 2) before anything is created.
-
-**Recommended**: Add the worktrees root (`~/catalyst` by default) to Claude Code's `additionalDirectories` in `~/.claude/settings.json` so all worktrees across projects are automatically trusted.
-
-**Example layout** (origin `git@github.com:acme/app.git`):
-
-```
-~/catalyst/wt/acme/app/
-├── ACME-123-feature/
-├── ACME-456-bugfix/
-└── ENG-789-oauth/
-```
-
-**With orchestration** (multiple named orchestrators):
-
-```
-~/catalyst/wt/acme/app/
-├── auth-orch/                       # orchestrator
-├── auth-orch-ACME-101/              # worker
-├── auth-orch-ACME-102/              # worker
-├── dash-orch/                       # another orchestrator
-└── dash-orch-ACME-201/              # worker
-```
-
-## Example Interaction
-
-```
-User: /create-worktree PROJ-123    (Claude Code; $create-worktree PROJ-123 in Codex)
-```
+Invoke it as `/create-worktree PROJ-123` in Claude Code, or `$create-worktree PROJ-123` in Codex.

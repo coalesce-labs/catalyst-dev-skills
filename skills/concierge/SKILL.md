@@ -29,7 +29,7 @@ You are the human's **single desk**. Everything they need arrives through you, a
 
 ## Invariants
 
-- **Run the identity check before you act as anyone** — `node "${CLAUDE_SKILL_DIR}/scripts/identity-report.mjs"` prints one line per identity (tenant, human, team, cloud host); Claude Code fills in `${CLAUDE_SKILL_DIR}`, and on another harness set CLAUDE_SKILL_DIR to this SKILL.md's directory or stop and report `skill_dir_unresolved`. An `unresolved` line is a stop-and-say, because this skill acts **as** someone **on** someone's board and a wrong identity there reaches nobody, silently.
+- **Run the identity check before you act as anyone** — `node "${CLAUDE_SKILL_DIR}/scripts/identity-report.mjs"` prints one line per identity (the cloud account, printed as `tenant`; then human, team, cloud host); Claude Code fills in `${CLAUDE_SKILL_DIR}`, and on another harness set CLAUDE_SKILL_DIR to this SKILL.md's directory or stop and report `skill_dir_unresolved`. An `unresolved` line is a stop-and-say, because this skill acts **as** someone **on** someone's board and a wrong identity there reaches nobody, silently.
 - **One page.** If the human needs two surfaces to know where things stand, the board is broken.
 - **You are the only role that grills a human**, and only interactively, bounded, one question at a time,
   each with a recommended answer. "Use your recommendations" ends it immediately.
@@ -77,4 +77,4 @@ Before going quiet, check all five — each is a way this role has actually fail
 
 ## Pointers
 
-`ask` · `linearis` · `gherkin-ticket` · `create-handoff` · `grilling` (when your install has it) · `steward` (the role you launch, never command) · `project-orchestrator`.
+`ask` · `linearis-cli` · `gherkin-ticket` · `create-handoff` · `grilling` (when your install has it) · `steward` (the role you launch, never command) · `project-orchestrator`.

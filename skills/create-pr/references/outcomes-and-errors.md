@@ -10,7 +10,7 @@
 PR: #{number} - {title}
 URL: {url}
 Base: {base_branch}
-Ticket: {ticket} (moved to "In Review")
+Ticket: {ticket} (stays where it is until the PR merges)
 
 Status:
   ✅ CI checks passed
@@ -43,10 +43,6 @@ Still blocking:
 
 **GitHub CLI not configured:** `gh auth login`, then `gh repo set-default`.
 
-**Linearis CLI not found:** warn, PR still created successfully; `npm install -g linearis` + `export LINEAR_API_TOKEN=...` to fix.
-
-**Linear ticket not found:** warn, PR still created successfully; update manually or check the ticket ID.
-
 ## Examples
 
 **Branch `ENG-123-implement-pr-lifecycle`:**
@@ -56,7 +52,6 @@ Extracting ticket: ENG-123
 Generated title: "ENG-123: Implement pr lifecycle"
 Creating PR... ✅ PR #2 created
 Running the describe-pr skill...
-Updating Linear ticket ENG-123 → In Review
 ✅ Complete!
 ```
 
@@ -66,7 +61,7 @@ Updating Linear ticket ENG-123 → In Review
 No ticket found in branch name
 Generated title: "Feature add validation"
 Creating PR... ✅ PR #3 created
-Running the describe-pr skill... ⚠️  No Linear ticket to update
+Running the describe-pr skill...
 ✅ Complete!
 ```
 
@@ -81,6 +76,5 @@ Running the describe-pr skill... ⚠️  No Linear ticket to update
 - **Never stop at "PR created"** — poll (event-driven, 3-min minimum wait) checking CI, reviews, and PR state; address comments, fix CI failures, confirm clean merge state.
 - **"PR created with auto-merge" is NOT done** — poll until MERGED or genuinely human-blocked.
 - Automated reviewer comments are yours to address, not the human's.
-- Minimize prompts — only ask when a PR already exists. Auto-rebase, auto-link Linear, auto-describe.
-- Fail fast on conflicts/errors; degrade gracefully if Linearis isn't installed.
-- For Linearis CLI syntax, see the `linearis` skill reference.
+- Minimize prompts — only ask when a PR already exists. Auto-rebase, auto-describe.
+- Fail fast on conflicts/errors.

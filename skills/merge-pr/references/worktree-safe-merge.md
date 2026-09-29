@@ -1,6 +1,6 @@
 # Steps 7–11a — Execute Squash Merge and Cleanup
 
-_Covers ticket extraction, merge summary, squash merge, checkout-free remote-ref delete, Linear update, and worktree-safe local cleanup. All the checkout-free and worktree guards live here._
+_Covers ticket extraction, merge summary, squash merge, checkout-free remote-ref delete, and worktree-safe local cleanup. All the checkout-free and worktree guards live here._
 
 ## Step 7 — Extract ticket reference
 
@@ -19,14 +19,10 @@ Print a summary (PR number, title, from/to branch, commit count, file count, mer
 
 ## Step 9 — Execute squash merge
 
-Read and follow [queue-merge.md](queue-merge.md) for the full Step 9
-logic, including the opt-in merge queue: in a repository that sets `catalyst.pr.queueLabel`, an
-eligible PR (no `hold:hand-steps`, no `handStepPaths` match) gets that label applied and this session
-stops — no `gh pr merge` — because the queue owns that merge and the queue bot's merge is the
-terminal signal your coordinator watches for. Hand-step PRs and every repository without a queue
-label hand-merge unchanged. The logic is re-entrant: revisiting a PR the queue already merged skips
-straight to the REST-confirm
-retry below, so Step 9b onward (cleanup, Linear Done, deploy verify, compound close) still runs.
+Read and follow [squash-merge.md](squash-merge.md) for the full Step 9
+logic. It never applies a merge-queue label. The logic is re-entrant: revisiting a PR someone else
+already merged skips straight to the REST-confirm retry, so Step 9b onward (cleanup, deploy verify,
+compound close) still runs.
 
 By the end of that step, `head_ref`, `head_repo`, and `merge_sha` are set exactly as before.
 
@@ -57,17 +53,9 @@ elif [[ "$merged_ok" != "true" ]]; then
 fi
 ```
 
-## Step 10 — Update Linear ticket
+## Step 10 — Leave the ticket to the merge
 
-```bash
-# Use the shared transition helper. Reads stateMap from .catalyst/config.json,
-# is idempotent, and silently skips when the linearis CLI is not installed.
-"${CLAUDE_SKILL_DIR}/scripts/linear-transition.sh" \
-  --ticket "$ticket_id" --transition done --config .catalyst/config.json
-
-# Then add a comment with PR number, merge commit, and base branch.
-# Use `linearis comments usage` for exact syntax. Skip silently if CLI missing.
-```
+Write nothing to the ticket. On Catalyst Cloud the merged-PR trigger moves it to done, and Linear's GitHub integration links the PR by branch name or title. A person who asks for a move uses `catalyst write state <ID> --slot done` (the Cloud pack's `catalyst-linear` skill), or, off the cloud, the operator-only `linearis-cli` skill.
 
 ## Step 11 — Delete local branch and update base
 

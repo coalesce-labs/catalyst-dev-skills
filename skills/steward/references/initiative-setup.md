@@ -4,7 +4,7 @@ The human says what they want, in one sentence, wherever they already are. Every
 
 ## 1. Clarify — grill, and bound it
 
-Before the first dispatch on a **new** scope, run a clarification interview: the `grilling` skill if your install has it, otherwise the same contract by hand.
+Before the first dispatch on a **new** scope, run a clarification interview: a grilling skill if your install has one, otherwise the same contract by hand.
 
 The contract:
 

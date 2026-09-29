@@ -14,7 +14,7 @@ The first line under the title, always:
 > Last updated: <America/Chicago timestamp> by <steward/scope>
 ```
 
-Then, exactly these five headings. `<human>` is **this tenant's** human, read from `catalyst.human.name` in `.catalyst/config.json` — never a name you remember from another workspace. When the tenant has named no human, the heading reads `## Needs from the human`, which is correct everywhere and reads as deliberate rather than as a placeholder left behind. `statusDocHumanHeading()` in this skill's `scripts/lib/tenant-identity.mjs` renders exactly this.
+Then, exactly these five headings. `<human>` is **this cloud account's** human, read from `catalyst.human.name` in `.catalyst/config.json` — never a name you remember from another workspace. When the cloud account has named no human, the heading reads `## Needs from the human`, which is correct everywhere and reads as deliberate rather than as a placeholder left behind. `statusDocHumanHeading()` in this skill's `scripts/lib/tenant-identity.mjs` renders exactly this.
 
 ```markdown
 ## Goal right now

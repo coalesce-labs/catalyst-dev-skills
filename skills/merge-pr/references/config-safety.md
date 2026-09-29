@@ -17,26 +17,18 @@ Full schema:
 {
   "catalyst": {
     "project": { "ticketPrefix": "PROJ" },
-    "linear": {
-      "teamKey": "PROJ",
-      "stateMap": { "done": "Done" }
-    },
+    "linear": { "teamKey": "PROJ" },
     "pr": {
       "defaultMergeStrategy": "squash",
       "deleteRemoteBranch": true,
       "deleteLocalBranch": true,
-      "updateLinearOnMerge": true,
       "requireApproval": false,
       "requireCI": false,
-      "testCommand": "make test",
-      "queueLabel": "queue:ready",
-      "handStepPaths": "^(db/schema/|.*migrations/)"
+      "testCommand": "make test"
     }
   }
 }
 ```
-
-State names are read from `stateMap` with sensible defaults. `queueLabel` opts the repository into a label-driven merge queue: the skill applies the label and stops instead of merging, and `handStepPaths` (an extended regex) names the paths that queue excludes, which stay hand-merged. Both are optional; without `queueLabel` the skill merges as usual.
 
 ## Safety features
 
@@ -68,9 +60,4 @@ State names are read from `stateMap` with sensible defaults. `queueLabel` opts t
 - Squash merge
 - Delete remote branch (checkout-free)
 - Delete local branch (when not in a linked worktree)
-- Update Linear to Done (if Linearis available)
 - Pull latest base branch
-
-**Graceful degradation:**
-- If Linearis not installed, warn but continue
-- Merge succeeds regardless of Linear integration
