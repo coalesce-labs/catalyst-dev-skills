@@ -1,6 +1,6 @@
 # Modes: draft, from a thoughts doc, rewrite, link prerequisites
 
-**Phase-container guard:** skip every `linearis` call when `CATALYST_PHASE` is set (a phase container holds no Linear credential; the runner owns the ticket write-back) or when `command -v linearis` fails (the CLI is not installed); say so in one line and continue. Linearis syntax lives in the operator-only `linearis-cli` skill.
+**Phase-container guard:** skip every `linearis` call when `CATALYST_PHASE` is set (a phase container holds no Linear credential; the runner owns the ticket write-back) or when `command -v linearis` fails (the CLI is not installed); say so in one line and continue. Off the cloud, an operator uses the Linearis CLI directly (`linearis <domain> usage` prints its syntax).
 
 ## DRAFT (new ticket)
 
@@ -56,6 +56,6 @@ to the person so they add the `blocked by` link in Linear. An operator machine l
 once the ticket exists:
 
 ```bash
-# Operator only, after the ticket exists (see the linearis-cli skill for syntax):
+# Operator only, after the ticket exists (`linearis issues usage` prints the syntax):
 linearis issues update <NEW-TICKET> --blocked-by <PREREQ-TICKET>
 ```

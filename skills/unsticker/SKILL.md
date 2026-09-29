@@ -14,7 +14,7 @@ An ask ticket exists to get one human decision. Many asks do not need one: the w
 
 ## 1. Read the ask
 
-Read the ask's title, description, labels, state, comments (oldest first) and relations. Read Linear through the `linearis-cli` skill's reading rule (the local replica first, never a bare `issues read`). Note what the ask blocks. That is the subject, the work that is actually stuck.
+Read the ask's title, description, labels, state, comments (oldest first) and relations. Read Linear from the local replica first, and never with a bare `issues read` the replica could serve. Note what the ask blocks. That is the subject, the work that is actually stuck.
 
 Skip every `linearis` call when `CATALYST_PHASE` is set (a phase container has no Linear credential and the runner owns the write-back) or when `command -v linearis` fails; say so in one line and continue from the inputs you were given.
 
@@ -47,7 +47,7 @@ Also give it a `pattern` from the closed tag table in classify.md (`other` if no
 
 Follow [`references/act.md`](references/act.md). `mechanical`: do the smallest thing that gets the work moving, or hand it to the owning seat with the exact steps, then answer or close the ask with the evidence. `decidable`: propose only. Post the option, the reasoning and "the human can overrule", and change nothing. `human`: post one short recommendation with its evidence and take no action.
 
-Never merge by hand, publish, delete data, touch another seat's active branch or worktree, or write a human's `DECIDED:` line. Every comment an agent posts starts with `[bookkeeping]`, except a decision answer, which follows the `ask` skill's reply form.
+Never merge by hand, publish, delete data, touch another seat's active branch or worktree, or write a human's `DECIDED:` line. Every comment an agent posts starts with `[bookkeeping]`, except a decision answer, which is posted as the app actor ([`references/act.md`](references/act.md), "Posting").
 
 ## 6. Emit the record
 

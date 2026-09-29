@@ -53,7 +53,7 @@ Push back with technical reasoning, never defensiveness. If you pushed back and 
 Wherever the upstream skill says "stop and ask your human partner", raise an ask and do **not** start another round:
 
 - **Cloud round** (`$CATALYST_ARTIFACT_DIR` is set, in a validate or remediate phase): write `$CATALYST_ARTIFACT_DIR/decisions.json` as `{"decisions":[{"key":"<stable kebab slug>","owner":"human","title":"<the question in one line>","context":"<why, what you tried, what you would need>","options":["…","…"],"default_if_silent":"<what happens if nobody answers>","fleet_cannot_settle":"<why agents may not decide this themselves>","also_blocks":["TEAM-123"]}]}`. `owner` is always `"human"`, at most two entries are read, and the same question must produce the same `key` in a later round so it attaches to the existing ask.
-- **Local session:** use the `ask` skill and follow it.
+- **Local session:** raise the decision from your own session through the Cloud pack's `what-needs-me` skill.
 
 If agents may make the decision themselves, make it and raise nothing.
 

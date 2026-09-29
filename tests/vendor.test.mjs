@@ -238,7 +238,78 @@ describe("this repository", () => {
     expect(spawnSync("node", [script, "--bogus"], { encoding: "utf8" }).status).toBe(2);
   });
 
-  test("every file under vendor-src/ is listed by at least one skill (no orphaned source)", () => {
+  // vendor-src/ is also the single source the operators' private pack vendors from. These files
+  // are carried only by its skills (ask, steward, concierge, linearis-cli, the briefings), so no
+  // skill here lists them; they stay because that pack copies them from here.
+  const OPERATOR_PACK_SOURCES = [
+    "references/cloud-detection.md",
+    "scripts/ask-triage.sh",
+    "scripts/ask.mjs",
+    "scripts/briefing-followup/action-adr.sh",
+    "scripts/briefing-followup/action-compound.sh",
+    "scripts/briefing-followup/action-email.sh",
+    "scripts/briefing-followup/action-orchestrate.sh",
+    "scripts/briefing-followup/action-schedule.sh",
+    "scripts/briefing-followup/action-ticket.sh",
+    "scripts/briefing-followup/parse-briefing.sh",
+    "scripts/briefing-followup/record-resolution.sh",
+    "scripts/briefing-followup/writeback.sh",
+    "scripts/briefing-frontmatter-lib.sh",
+    "scripts/execution-core/config-schema.mjs",
+    "scripts/execution-core/config.mjs",
+    "scripts/execution-core/entitlement-event.mjs",
+    "scripts/execution-core/entitlement-roster.mjs",
+    "scripts/execution-core/lib/canonical-event.mjs",
+    "scripts/execution-core/lib/catalyst-resource.mjs",
+    "scripts/execution-core/lib/host-identity.mjs",
+    "scripts/execution-core/lib/node-class.mjs",
+    "scripts/execution-core/linear-write-budget.mjs",
+    "scripts/execution-core/linear-write-proxy.mjs",
+    "scripts/execution-core/replica-comment-read.mjs",
+    "scripts/execution-core/replica-freshness.mjs",
+    "scripts/human-blocked.sh",
+    "scripts/identity-report.mjs",
+    "scripts/lib/ask-copy.mjs",
+    "scripts/lib/board-vocabulary.mjs",
+    "scripts/lib/cloud-facts.mjs",
+    "scripts/lib/comment-body-arg.mjs",
+    "scripts/lib/deployment-mode.mjs",
+    "scripts/lib/entitlement.mjs",
+    "scripts/lib/github-feed-mode.mjs",
+    "scripts/lib/linear-identity.sh",
+    "scripts/lib/linear-write-path.mjs",
+    "scripts/lib/plugin-dirs.sh",
+    "scripts/lib/secret-contract.mjs",
+    "scripts/lib/task-type.sh",
+    "scripts/lib/tenant-contract.default.json",
+    "scripts/lib/tenant-identity.mjs",
+    "scripts/linear-ack.mjs",
+    "scripts/linear-reply.mjs",
+    "scripts/linear-transition.sh",
+    "scripts/morning-briefing/adr-drift.sh",
+    "scripts/morning-briefing/fanout-loom-script.sh",
+    "scripts/morning-briefing/fanout-notion.sh",
+    "scripts/morning-briefing/fanout-slack-channel.sh",
+    "scripts/morning-briefing/fanout-slack-dm.sh",
+    "scripts/morning-briefing/gather-calendar.sh",
+    "scripts/morning-briefing/gather-drive.sh",
+    "scripts/morning-briefing/gather-github.sh",
+    "scripts/morning-briefing/gather-granola.sh",
+    "scripts/morning-briefing/gather-linear.sh",
+    "scripts/morning-briefing/output-path.sh",
+    "scripts/morning-briefing/render.sh",
+    "scripts/morning-briefing/sanitize.sh",
+    "scripts/morning-briefing/validate-frontmatter.sh",
+    "scripts/morning-briefing/write-output-status.sh",
+    "scripts/resolve-linear-ids.sh",
+    "templates/briefing-frontmatter.schema.json",
+  ];
+
+  test("every operator-pack source still exists (drop an entry when its file goes)", () => {
+    expect(OPERATOR_PACK_SOURCES.filter((s) => !existsSync(join(repoRoot, "vendor-src", s)))).toEqual([]);
+  });
+
+  test("every file under vendor-src/ is listed by at least one skill or the operator pack (no orphaned source)", () => {
     const listed = new Set();
     for (const entry of spawnSync("find", [join(repoRoot, "skills"), "-path", "*/agents/vendor.yaml"], { encoding: "utf8" }).stdout.trim().split("\n")) {
       for (const f of parseVendorYaml(readFileSync(entry, "utf8"), entry).files) listed.add(f);
@@ -248,6 +319,7 @@ describe("this repository", () => {
       .split("\n")
       .map((p) => p.slice(join(repoRoot, "vendor-src").length + 1));
     expect(sources.length).toBeGreaterThan(0);
-    expect(sources.filter((s) => !listed.has(s))).toEqual([]);
+    const operator = new Set(OPERATOR_PACK_SOURCES);
+    expect(sources.filter((s) => !listed.has(s) && !operator.has(s))).toEqual([]);
   });
 });

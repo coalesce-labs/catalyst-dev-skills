@@ -6,7 +6,7 @@
 // moves it to the PR slot) and when its pull request merges; opening a PR moves nothing. Off the
 // cloud, the ticket stays where it is until the merge. So research, planning, implementation and
 // the PR skills write no state and post no PR-link comment. A person who asks for a move uses the
-// `catalyst` CLI's slot verb, or the operator-only linearis-cli skill.
+// `catalyst` CLI's slot verb; off the cloud, an operator uses the Linearis CLI directly.
 
 import { describe, test, expect } from "bun:test";
 import { readdirSync, readFileSync, statSync, existsSync } from "node:fs";

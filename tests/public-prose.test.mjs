@@ -91,7 +91,7 @@ describe("SKILL.md frontmatter follows the Agent Skills specification", () => {
   };
 
   test("the pack has skills to check", () => {
-    expect(skills.length).toBeGreaterThan(30);
+    expect(skills.length).toBeGreaterThanOrEqual(28);
   });
 
   test("every name is lowercase-hyphenated, at most 64 characters, and matches its directory", () => {
