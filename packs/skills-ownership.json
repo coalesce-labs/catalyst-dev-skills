@@ -19,21 +19,6 @@
       "scope": "home"
     },
     {
-      "dir": "ask",
-      "name": "ask",
-      "scope": "home"
-    },
-    {
-      "dir": "briefing-followup",
-      "name": "briefing-followup",
-      "scope": "home"
-    },
-    {
-      "dir": "catalyst-sop",
-      "name": "catalyst-sop",
-      "scope": "home"
-    },
-    {
       "dir": "commit",
       "name": "commit",
       "scope": "home"
@@ -41,11 +26,6 @@
     {
       "dir": "compound-estimate",
       "name": "compound-estimate",
-      "scope": "home"
-    },
-    {
-      "dir": "concierge",
-      "name": "concierge",
       "scope": "home"
     },
     {
@@ -94,23 +74,8 @@
       "scope": "home"
     },
     {
-      "dir": "linearis-cli",
-      "name": "linearis-cli",
-      "scope": "home"
-    },
-    {
       "dir": "merge-pr",
       "name": "merge-pr",
-      "scope": "home"
-    },
-    {
-      "dir": "morning-briefing",
-      "name": "morning-briefing",
-      "scope": "home"
-    },
-    {
-      "dir": "project-orchestrator",
-      "name": "project-orchestrator",
       "scope": "home"
     },
     {
@@ -151,11 +116,6 @@
     {
       "dir": "scan-reward-hacking",
       "name": "scan-reward-hacking",
-      "scope": "home"
-    },
-    {
-      "dir": "steward",
-      "name": "steward",
       "scope": "home"
     },
     {

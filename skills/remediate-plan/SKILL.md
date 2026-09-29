@@ -41,11 +41,11 @@ With neither, run the `validate-plan` skill in this session first. [references/s
 
 **One repair round per validate report.** The pipeline rechecks the repair once, then moves the ticket to PR and files what remains as follow-ups. Locally, stop after two remediation rounds and report. If the dispatch prompt says this round is past the cap, repair nothing: file each remaining finding as a follow-up, record it in `adjudication.json`, and stop.
 
-**Escalate instead of looping** (reference rule 12): when a finding recurs after a fix aimed at it, needs an architecture, contract or migration change, contradicts the plan or an ADR, or cannot be verified, raise an ask (`$CATALYST_ARTIFACT_DIR/decisions.json` in a cloud round, the `ask` skill locally) and end the round there.
+**Escalate instead of looping** (reference rule 12): when a finding recurs after a fix aimed at it, needs an architecture, contract or migration change, contradicts the plan or an ADR, or cannot be verified, raise an ask (`$CATALYST_ARTIFACT_DIR/decisions.json` in a cloud round; locally, from your own session through the Cloud pack's `what-needs-me` skill) and end the round there.
 
 ## Phase-completion evidence
 
-Report in the shape a coordinator can check (the `steward` skill's `references/dispatch.md`, "Phase-completion evidence"): the fix commit in `git log`, the gate's real exit code, the re-run validate-plan verdict (local only), and the classification table itself:
+Report in a shape your coordinator can check: the fix commit in `git log`, the gate's real exit code, the re-run validate-plan verdict (local only), and the classification table itself:
 
 | Finding | Report step (FAIL/PASS) | Class   | Action     | Evidence                                                        |
 | ------- | ----------------------- | ------- | ---------- | --------------------------------------------------------------- |

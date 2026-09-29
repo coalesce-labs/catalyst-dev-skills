@@ -23,8 +23,6 @@ RESUME="${SKILLS_DIR}/resume-handoff/SKILL.md"
 RESUME_PROCESS="${SKILLS_DIR}/resume-handoff/references/process.md"
 RESUME_SCENARIOS="${SKILLS_DIR}/resume-handoff/references/scenarios.md"
 RESUME_DISCOVERY="${SKILLS_DIR}/resume-handoff/references/discovery.md"
-STEWARD_RESUME="${SKILLS_DIR}/steward/references/resume.md"
-CONCIERGE_RESUME="${SKILLS_DIR}/concierge/references/resume.md"
 HELPER="${REPO_ROOT}/vendor-src/scripts/lib/handoff-durability.sh"
 
 PASS=0
@@ -36,7 +34,7 @@ fail() { FAIL=$((FAIL+1)); printf '  FAIL: %s\n    %s\n' "$1" "${2:-}"; }
 # returns zero matches, which reads exactly like "the assertion failed" — but
 # a renamed/moved skill is a different problem and must not be reported as a
 # content defect.
-for f in "$CREATE" "$RESUME" "$RESUME_PROCESS" "$RESUME_SCENARIOS" "$RESUME_DISCOVERY" "$STEWARD_RESUME" "$CONCIERGE_RESUME" "$HELPER"; do
+for f in "$CREATE" "$RESUME" "$RESUME_PROCESS" "$RESUME_SCENARIOS" "$RESUME_DISCOVERY" "$HELPER"; do
   [ -f "$f" ] || { echo "FATAL: subject not found: $f" >&2; exit 1; }
 done
 
@@ -142,14 +140,6 @@ fi
 assert_grep "$RESUME" '(channel is authoritative|channel.{0,20}authoritative)' \
   "resume-handoff documents the channel-authoritative fallback"
 
-# ── Phase 3: the recovery rule is published, not lore ───────────────────────
-echo ""
-echo "steward + concierge resume references (publish the fallback rule)"
-assert_grep "$STEWARD_RESUME" '(channel is authoritative|channel.{0,20}authoritative)' \
-  "steward/references/resume.md publishes the channel-authoritative rule"
-assert_grep "$CONCIERGE_RESUME" '(channel is authoritative|channel.{0,20}authoritative)' \
-  "concierge/references/resume.md publishes the channel-authoritative rule"
-
 # ── CTC-3128 / CTC-3129: a handoff can be resumed with nobody watching ───────
 # An automated context reset resumed from a handoff and then stopped to ask a
 # human what to do, because resume-handoff required confirmation twice and the
@@ -207,8 +197,8 @@ assert_grep "$RESUME_PROCESS" 'verify.*(running|alive).*before.*re-arm' \
   "process.md checks for a live background task before re-arming it"
 assert_grep "$RESUME_PROCESS" 'most reversible option' \
   "process.md falls back to the most reversible option"
-assert_grep "$RESUME_PROCESS" 'the `ask` skill' \
-  "process.md routes a human-only decision through the ask SOP"
+assert_grep "$RESUME_PROCESS" '`what-needs-me` skill' \
+  "process.md routes a human-only decision through the Cloud pack's what-needs-me"
 assert_grep "$RESUME_PROCESS" 'irreversible outward action' \
   "process.md stops only before an unauthorized irreversible outward action"
 assert_grep "$RESUME_PROCESS" 'Never end the turn on a question' \

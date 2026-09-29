@@ -11,7 +11,7 @@
 
 import { describe, test, expect } from "bun:test";
 import { spawnSync } from "node:child_process";
-import { mkdtempSync, mkdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { existsSync, mkdtempSync, mkdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -54,7 +54,8 @@ export function zshSpecialUses(source) {
 
 function shellFiles() {
   const r = spawnSync("git", ["ls-files", "*.sh"], { cwd: repoRoot, encoding: "utf8" });
-  return r.stdout.split("\n").filter(Boolean);
+  // A tracked file deleted in the working tree is not a shell source any more.
+  return r.stdout.split("\n").filter(Boolean).filter((f) => existsSync(join(repoRoot, f)));
 }
 
 describe("zshSpecialUses", () => {

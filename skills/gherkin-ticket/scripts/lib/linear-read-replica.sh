@@ -1,11 +1,10 @@
 #!/usr/bin/env bash
-# linear-read-replica.sh — CTL-1397: direct-SQLite Linear read helper for scripts.
+# linear-read-replica.sh — direct-SQLite Linear read helper for scripts, off the cloud.
 #
-# The read rule (single source: the `linearis-cli` skill, "Reading
-# Linear"): Linear READS → the local Catalyst Cloud replica by direct SQL; WRITES
-# → always `linearis`. This helper is the scripted form of that rule — it replaces
-# the deprecated `catalyst-linear read` CLI wrapper for the handful of bash scripts
-# that parse a single ticket's fields.
+# An operator's read rule off the cloud: a Linear READ goes to the local Catalyst Cloud replica by
+# direct SQL when it is fresh, else to `linearis`. A machine connected to a cloud account reads
+# through the catalyst CLI instead (catalyst-cloud-read.sh). This helper is the scripted form of the
+# off-cloud rule, for the bash scripts that parse a single ticket's fields.
 #
 # `linear_read_ticket <ID>` echoes the ticket JSON in the SAME shape `linearis
 # issues read` / `catalyst-linear read` return (state.name, estimate, url,
