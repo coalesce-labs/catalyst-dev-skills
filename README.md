@@ -2,7 +2,7 @@
 
 The Catalyst development workflow as agent skills: research → plan → implement → validate → ship, plus the Linear, pull-request and coordination skills around it. Each skill is a directory under [`skills/`](skills) with a `SKILL.md` and everything it runs, so the same files work in Claude Code, Codex and OpenCode.
 
-This is the supported source for development skills on a workstation or in a Catalyst Cloud runner image. The `coalesce-labs/catalyst` repository is deprecated as a local runtime; its `catalyst-dev@catalyst` plugin is a separate, older copy. Use this repository for new installs. For tenant setup and operation, also install [`coalesce-labs/catalyst-cloud-skills`](https://github.com/coalesce-labs/catalyst-cloud-skills).
+This repository is the development pack, the supported source for development skills. The `catalyst-dev@catalyst` plugin in the `coalesce-labs/catalyst` repository is a separate, older copy and is deprecated; use this repository for new installs. For tenant setup and operation, also install the Cloud pack, [`coalesce-labs/catalyst-cloud-skills`](https://github.com/coalesce-labs/catalyst-cloud-skills).
 
 ## Install
 
@@ -15,7 +15,7 @@ the inspection rule is below.
 npx skills@latest add coalesce-labs/catalyst-dev-skills --all -g
 ```
 
-It installs all 36 skills for each agent it detects (Claude Code, Codex, OpenCode, Cursor and the rest). These skills are yours, not a repository's: `-g` installs into your home directory, and a project-scoped install is not a supported shape (CTC-2558). If a project has an older skill install, inspect its lock file and each agent's skill path before removing anything. Remove only copies proven to come from the deprecated `coalesce-labs/catalyst` repository or project-scoped copies of this pack that you intend to replace. Keep unrelated and uncertain copies.
+It installs all 36 skills for each agent it detects (Claude Code, Codex, OpenCode, Cursor and the rest). These skills are yours, not a repository's: `-g` installs into your home directory, and a project-scoped install is not a supported shape. If a project has an older skill install, inspect its lock file and each agent's skill path before removing anything. Remove only copies proven to come from the deprecated `coalesce-labs/catalyst` repository or project-scoped copies of this pack that you intend to replace. Keep unrelated and uncertain copies.
 
 The add command replaces existing same-named skill directories and links. Before either first install or refresh on an existing machine, read `$XDG_STATE_HOME/skills/.skill-lock.json` when `XDG_STATE_HOME` is set, or `~/.agents/.skill-lock.json` otherwise. Check every same-named agent path. Proceed only when each destination is absent or a verified, unmodified copy of this pack or its link. A lock entry alone does not prove every path is safe. Leave independent, changed, or uncertain copies in place and resolve the conflict before running the command. Do not schedule the raw command as an unattended refresh. Once destinations are verified, refresh the pack, including newly added skills, with:
 
@@ -23,7 +23,7 @@ The add command replaces existing same-named skill directories and links. Before
 npx skills@latest add coalesce-labs/catalyst-dev-skills --all -g
 ```
 
-**Operator skills.** `concierge` and `linearis-cli` coordinate Coalesce Labs' own fleet and use a personal Linearis credential, so they are marked internal and a default install leaves them out. An operator installs them by name: `npx skills@latest add coalesce-labs/catalyst-dev-skills --skill concierge --skill linearis-cli -g`. `npx skills update -g` keeps an installed copy current. Tenant ticket work (reading, commenting, moving, labelling and creating tickets) belongs to [`coalesce-labs/catalyst-cloud-skills`](https://github.com/coalesce-labs/catalyst-cloud-skills), whose writes go through the tenant's route as the Catalyst app actor. A machine that installed an earlier default roster keeps both. On a machine that is not an operator's, remove them with `npx skills@latest remove concierge linearis-cli -g`, after checking each path by the same rule as a refresh: only a verified copy of this pack goes.
+**Operator skills.** `concierge` and `linearis-cli` are for the pack's operators: they coordinate the operator's own board across sessions and use a personal Linearis credential, so they are marked internal and a default install leaves them out. The installer shows and installs internal skills only when `INSTALL_INTERNAL_SKILLS=1` is set, so an operator installs them by name with it: `INSTALL_INTERNAL_SKILLS=1 npx skills@latest add coalesce-labs/catalyst-dev-skills --skill concierge --skill linearis-cli -g`. `npx skills update -g` keeps an installed copy current. Tenant ticket work (reading, commenting, moving, labelling and creating tickets) belongs to [`coalesce-labs/catalyst-cloud-skills`](https://github.com/coalesce-labs/catalyst-cloud-skills), whose writes go through the tenant's route as the Catalyst app actor. A machine that installed an earlier default roster keeps both. On a machine that is not an operator's, remove them with `npx skills@latest remove concierge linearis-cli -g`, after checking each path by the same rule as a refresh: only a verified copy of this pack goes.
 
 <details><summary><strong>One agent at a time</strong></summary>
 
@@ -36,9 +36,9 @@ npx skills@latest add coalesce-labs/catalyst-dev-skills -a claude-code -g
 Without `--all` the installer asks which skills to take and which agents to install them on. `--skill <name>` takes one skill.
 </details>
 
-The installed folder takes the skill's frontmatter `name`, which is the directory name for every skill except `skills/linearis`, which installs as `linearis-cli`. The Claude Code plugin carries every skill, the two operator skills included, because the Catalyst Cloud runner image bakes the plugin and expects both.
+The installed folder takes the skill's frontmatter `name`, which is always its directory name.
 
-The `npx skills` install reads this repository's `skills/` tree; it does not publish an npm package. The cloud runner's `claude --plugin-dir` load reads that same tree. A Git commit identifies the exact skills in either rail. `package.json` records the development pack's release version, and CI checks that `.claude-plugin/plugin.json` has the same number. This version is independent of `catalyst-cloud-skills` and of the deprecated `catalyst` plugin.
+The `npx skills` install reads this repository's `skills/` tree; it does not publish an npm package, so a Git commit identifies the exact skills installed. `package.json` records the development pack's release version, and CI checks that `.claude-plugin/plugin.json` has the same number. This version is independent of the Cloud pack's and of the deprecated `catalyst` plugin's.
 
 ## What's inside
 
@@ -61,7 +61,7 @@ The `npx skills` install reads this repository's `skills/` tree; it does not pub
 - `prune-worktrees`: reclaim disk from finished worktrees, fail-closed; the installer's housekeeping job runs it.
 
 **Linear and coordination**
-- `linear`: ticket workflow on a Catalyst Cloud tenant (create from a thoughts doc, comment, move, search), through the Cloud pack's `catalyst-skills` CLI as the tenant's app actor.
+- `linear`: ticket workflow on a Catalyst Cloud tenant (create from a thoughts doc, comment, move, search), through the Cloud pack's `catalyst` CLI (`@catalyst-cloud/cli`) as the tenant's app actor.
 - `ask`: raise a decision for a human as a ticket and close it when answered.
 - `unsticker`: investigate one open ask, move it when the stall is mechanical, and record the verdict with its reasoning. In a Catalyst Cloud `triage` container it only reads and writes its record. `ask-triage` is its old name, kept as an alias.
 - `steward`, `project-orchestrator`: long-running owners of a project and of a project's ready backlog.
@@ -82,10 +82,10 @@ The `npx skills` install reads this repository's `skills/` tree; it does not pub
 
 **Layout.**
 - `skills/<name>/`: one skill. `SKILL.md` is the common path; `references/` holds detail read on demand; `scripts/` and `assets/` hold what the skill runs.
-- `agents/`: the plugin's research subagents (`catalyst-dev:codebase-locator` and the rest), which Claude Code loads from the plugin root; [`docs/agents.md`](docs/agents.md) describes them. Every `agents/*.md` must be an agent file, because Claude Code loads each one as a subagent. It is also the one source of the subagent prompts skills carry under `assets/agents/`.
+- `agents/`: the research subagents (`codebase-locator` and the rest); [`docs/agents.md`](docs/agents.md) describes them. It is the one source of the subagent prompts skills carry under `assets/agents/`. Every `agents/*.md` must be an agent file, because Claude Code loads each one as a subagent when it loads the repository root as a plugin.
 - `vendor-src/`: the single source of every other file two or more skills share (`scripts/…`, `references/…`, `templates/…`).
-- `.claude-plugin/`: the Claude Code plugin manifest (`catalyst-dev`) that the cloud runner loads, plus a marketplace listing that is no longer an install rail. The repository root is the plugin root, which the Catalyst Cloud runner image bakes as its catalyst-dev bundle.
-- `scripts/estimate/reference-class-corpus.json`: the estimation corpus the runner reads from the plugin root.
+- `.claude-plugin/`: the Claude Code plugin manifest (`catalyst-dev`), which lets Claude Code load the repository root as a plugin directory, plus a marketplace listing that is not an install rail.
+- `scripts/estimate/reference-class-corpus.json`: the estimation corpus, read from the repository root.
 
 **Shared files are vendored, never edited in place.** A skill lists what it needs in `agents/vendor.yaml`. Edit the file under `vendor-src/` (or `agents/` for a subagent prompt), then regenerate the copies:
 
@@ -98,18 +98,16 @@ node scripts/vendor.mjs --check   # CI: fails when a copy differs from its sourc
 - each skill runs from its own directory (`skill-self-containment`, `skill-dir-isolation`), with no `${CLAUDE_PLUGIN_ROOT}`, sibling-skill or `${CLAUDE_SKILL_DIR}/../` path;
 - the skill shape holds: an 80-line `SKILL.md` and 150-line references, each one linked;
 - every skill that mentions `linearis` documents the phase-container skip (`linearis-guard`);
-- every `catalyst-dev:<name>` a skill uses is a skill or a plugin subagent in `agents/` (`plugin-agents`);
+- every subagent a skill names is a skill or an agent in `agents/` (`plugin-agents`);
 - the workflow-input, handoff, review-skill and Linear-write contracts hold, and the vendored replica reader finds `~/.config/catalyst-cloud/replica.db`.
 
 CI also runs:
 - `test:guards` (`scripts/check-skill-scope.mjs` + `tests/skill-scope.test.mjs`), which fails when a skill is unowned by `packs/skills-ownership.json`, when this checkout carries a repository-scoped install, or when a documented install command has lost `-g`;
 - `scripts/install-smoke.sh`, which installs the repository with `skills@1.5.26` into a scratch HOME and checks all three harness paths;
-- `scripts/install-scope-smoke.sh`, which runs the documented install command for real with `cwd` and `$HOME` as two different directories and proves the repository directory stays empty (CTC-2558);
-- a skill-name collision check against `catalyst-cloud-skills` and `catalyst-pm-skills`;
+- `scripts/install-scope-smoke.sh`, which runs the documented install command for real with `cwd` and `$HOME` as two different directories and proves the repository directory stays empty;
+- a skill-name collision check against the Cloud pack and the other Catalyst skill packs;
 - gitleaks;
 - `scripts/scan-internal.sh`, which refuses internal hosts, paths and tokens in this public repository.
-
-These skills moved here from `coalesce-labs/catalyst` (`plugins/dev`); history before the move lives there.
 
 ## License
 

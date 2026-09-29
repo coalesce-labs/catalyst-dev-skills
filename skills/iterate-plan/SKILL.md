@@ -15,11 +15,10 @@ You are tasked with updating an existing implementation plan based on user feedb
 ## Prerequisites
 
 ```bash
-# Thoughts must exist for this skill's documents. CTL-2306: the full host setup check (daemon,
-# registry, house rules) belongs to the setup-catalyst skill, not to a skill that must run anywhere.
-[[ -e thoughts/shared ]] || echo "⚠️ thoughts/shared is missing in $(pwd) — run \`humanlayer thoughts init\` or the setup-catalyst skill; if the prompt names an output path, write there" >&2
+# Thoughts must exist for this skill's documents. That is the only host check here: the skill runs anywhere.
+[[ -e thoughts/shared ]] || echo "⚠️ thoughts/shared is missing in $(pwd) — run \`humanlayer thoughts init\`; if the prompt names an output path, write there" >&2
 
-# CTL-2306 explicit-input discovery: begin
+# explicit-input discovery: begin
 # Find the plan to update on disk for the ticket this run was given: $CATALYST_TICKET under a
 # phase, else a ticket named in the skill's argument text (Claude Code substitutes the token in
 # the heredoc below; another harness leaves it literal, which names no ticket). Nothing is
@@ -39,7 +38,7 @@ if [[ -n "$TICKET_ID" ]]; then
 elif [[ -z "${CATALYST_PHASE:-}" ]]; then
   RECENT_PLAN=$(find -H thoughts/shared/plans -type f -name '*.md' -exec ls -t {} + 2>/dev/null | head -1)
 fi
-# CTL-2306 explicit-input discovery: end
+# explicit-input discovery: end
 if [[ -n "$RECENT_PLAN" ]]; then
   echo "📋 Found plan: $RECENT_PLAN"
 else
@@ -84,7 +83,7 @@ If the changes require new technical understanding:
    - **codebase-analyzer** to understand current implementation
    - **codebase-pattern-finder** to find similar patterns
 
-   Each agent's instructions ship with this skill as `${CLAUDE_SKILL_DIR}/assets/agents/<name>.md` (for example `${CLAUDE_SKILL_DIR}/assets/agents/codebase-locator.md`). With the catalyst-dev Claude Code plugin, spawn them as `catalyst-dev:<name>`. On any other harness, spawn a general-purpose subagent with that file's instructions plus your request, or do the task inline if the harness has no subagents.
+   Each agent's instructions ship with this skill as `${CLAUDE_SKILL_DIR}/assets/agents/<name>.md` (for example `${CLAUDE_SKILL_DIR}/assets/agents/codebase-locator.md`). To use one, run a subagent with the instructions in that file plus your request, or do the task inline if the harness has no subagents.
 
 2. Wait for ALL agents to complete before modifying the plan
 

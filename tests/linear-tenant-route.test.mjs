@@ -1,11 +1,11 @@
 // linear-tenant-route.test.mjs — the tenant-facing `linear` skill reads and writes a tenant's tickets
-// only through the Catalyst Cloud CLI. CTC-3202.
+// only through the Catalyst Cloud CLI (`catalyst`, package @catalyst-cloud/cli).
 //
 // Run: bun test tests/linear-tenant-route.test.mjs
 //
 // A tenant operator who follows `linear` must never be asked for a Linearis command, a personal
 // Linear token, or a direct call to Linear's API: those write as the person, skip the tenant's write
-// route, and spend the shared API quota. Every write goes through `catalyst-skills write …`, which
+// route, and spend the shared API quota. Every write goes through `catalyst write …`, which
 // posts to the tenant route as the Catalyst app actor. The operator-only skills (`linearis`,
 // `concierge`) keep their Linearis path and are hidden from a default install instead.
 //
@@ -72,14 +72,16 @@ describe("the linear skill routes tenant ticket work through the Cloud CLI", () 
     expect(offenders(skillDir)).toEqual([]);
   });
 
-  test("every write it teaches is a catalyst-skills write verb", () => {
+  test("every write it teaches is a catalyst write verb", () => {
     const text = listFiles(skillDir)
       .map((f) => readFileSync(f, "utf8"))
       .join("\n");
     for (const verb of ["comment", "state", "label", "create"]) {
-      expect(text).toContain(`catalyst-skills write ${verb}`);
+      expect(text).toContain(`catalyst write ${verb}`);
     }
-    expect(text).toContain("catalyst-skills query issue");
+    expect(text).toContain("catalyst query issue");
+    expect(text).not.toContain("catalyst-skills");
+    expect(text).toContain("npx -p @catalyst-cloud/cli catalyst");
   });
 
   test("it points tenant ticket work at the Cloud pack", () => {

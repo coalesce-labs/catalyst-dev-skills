@@ -2,24 +2,24 @@
 
 ## Why foreground-only
 
-A relay worker is one Claude Code session running `/relay-ticket <TICKET>`. It has no daemon, no broker, and no way to spawn a wait that keeps running after the session's turn ends: a subagent cannot self-sustain a background wait loop — dispatching one and asking it to "wait and report back" produces a subagent that goes idle without ever reporting; and backgrounding the wait itself (`claude --bg` on a sub-shell, `&` inside the gate script) can exit print mode entirely, stranding uncommitted work with nothing watching it.
+A merge session is one agent session. It has no background process and no way to spawn a wait that keeps running after the session's turn ends: a subagent cannot self-sustain a background wait loop — dispatching one and asking it to "wait and report back" produces a subagent that goes idle without ever reporting; and backgrounding the wait itself (`claude --bg` on a sub-shell, `&` inside the gate script) can exit print mode entirely, stranding uncommitted work with nothing watching it.
 
-So bounded-poll runs **in the calling turn**, as an ordinary blocking Bash call. The session is "busy waiting" for real wall-clock time, which is why the two constraints below (bounded, sparse) both matter — an unbounded or tight version of this loop is just the old problem with a REST client instead of a broker.
+So bounded-poll runs **in the calling turn**, as an ordinary blocking Bash call. The session is "busy waiting" for real wall-clock time, which is why the two constraints below (bounded, sparse) both matter — an unbounded or tight version of this loop just trades an event subscription for a REST client that never stops.
 
 ## The two presets
 
-Both use one-shot `gh api` REST calls (never `gh pr view --json` / `gh pr checks --json` — those are GraphQL and cost more per call). Pick the interval to match how fast the thing you're waiting on typically resolves, and always state the interval and ceiling you used in the phase's report.
+Both use one-shot `gh api` REST calls (never `gh pr view --json` / `gh pr checks --json` — those are GraphQL and cost more per call). Pick the interval to match how fast the thing you're waiting on typically resolves, and always state the interval and ceiling you used in your report.
 
 | Preset | Interval | Iterations | Ceiling (wall-clock) | REST calls | Use for |
 |---|---|---|---|---|---|
 | **CI** | 30 s | 30 | 15 min | 30 | CI checks, most of which resolve in minutes |
 | **merge/review** | 5 min | 24 | 2 h | 24 | human review or merge approval, which can sit for a while |
 
-Both are well inside GitHub's per-token REST budget (5,000 req/hr) even with several relay workers running concurrently on the same laptop — the CI preset is ~120 req/hr *if* it ran continuously, but it doesn't: it stops at 30 calls and 15 minutes, full stop.
+Both are well inside GitHub's per-token REST budget (5,000 req/hr) even with several sessions running concurrently on the same machine — the CI preset is ~120 req/hr *if* it ran continuously, but it doesn't: it stops at 30 calls and 15 minutes, full stop.
 
 ## The loop
 
-A `gh api` call can fail for reasons that have nothing to do with the PR's state — auth, network, rate limiting, a deleted repo. Collapsing that failure into the same `OPEN` bucket as "the PR genuinely isn't merged yet" hides the failure from the caller and from anyone reading the phase's report; the loop below keeps them distinct.
+A `gh api` call can fail for reasons that have nothing to do with the PR's state — auth, network, rate limiting, a deleted repo. Collapsing that failure into the same `OPEN` bucket as "the PR genuinely isn't merged yet" hides the failure from the caller and from anyone reading the report; the loop below keeps them distinct.
 
 ```bash
 bounded_poll_pr_state() {
@@ -60,9 +60,9 @@ Swap the `gh api .../pulls/{n}` predicate for whatever REST call answers the que
 
 ## The failure mode when the ceiling is hit
 
-This is the part that differs most from the old daemon design, which could extend a wait from 3 minutes to 2 hours mid-flight once diagnostics ruled out infrastructure trouble. bounded-poll has no such extension: hitting the ceiling is not an error to retry around, it is the phase's answer.
+Hitting the ceiling is not an error to retry around, it is the answer for this run. There is no mid-flight extension.
 
 - Exit non-zero and print `PENDING` or `ERROR` (never a bare success-looking string) on stdout — never exit 0 with an ambiguous result, and never let an API failure read the same as "not merged yet."
-- The calling `/relay-ticket` phase treats `PENDING`/`ERROR` as "this phase is not done yet," reports that plainly in its RELAY REPORT (state, what was waited on, the interval/ceiling used, and whether the ceiling was hit by timeout or by a persistent API error), and ends the turn. It does not loop again inside the same session.
-- The **coordinator** reading that report decides whether to re-dispatch the same phase later. That redispatch is a fresh session, not a resumed wait — bounded-poll never assumes continuity across invocations.
-- If you need a longer effective wait than one ceiling allows, that is the coordinator re-dispatching bounded-poll again later, not a bigger `MAX_ITERATIONS`.
+- The calling session treats `PENDING`/`ERROR` as "not done yet," reports that plainly (state, what was waited on, the interval/ceiling used, and whether the ceiling was hit by timeout or by a persistent API error), and ends the turn. It does not loop again inside the same session.
+- Whoever reads that report (the person, or your coordinator) decides whether to run the step again later. That rerun is a fresh session, not a resumed wait — bounded-poll never assumes continuity across invocations.
+- If you need a longer effective wait than one ceiling allows, that is a later rerun, not a bigger `MAX_ITERATIONS`.

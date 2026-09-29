@@ -18,7 +18,7 @@ For each open ask:
 
 The board's *needs-you* cell is the **title plus the one-word options** — `A / B`, `yes / no`. If the human has to open the ticket to learn what they are choosing between, the board has not done its job.
 
-⚠️ **A raiser's "I cannot enforce this" is a RISK, not a decision.** Measured: CTC-726 said *"I have no merge gate"*. That is a fact about the world for the human to weigh — it goes on the row as a risk under the scope. Turning it into an ask asks the human to decide something nobody can implement.
+⚠️ **A raiser's "I cannot enforce this" is a RISK, not a decision.** A raiser saying *"I have no merge gate"* is stating a fact about the world for the human to weigh — it goes on the row as a risk under the scope. Turning it into an ask asks the human to decide something nobody can implement.
 
 ## What you never do
 

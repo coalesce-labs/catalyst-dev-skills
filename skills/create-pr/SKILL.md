@@ -19,9 +19,9 @@ Orchestrates the complete PR creation flow: commit → rebase → push → creat
 ## Prerequisites
 
 ```bash
-# Thoughts must exist for this skill's documents. CTL-2306: the full host setup check (daemon,
-# registry, house rules) belongs to the setup-catalyst skill, not to a skill that must run anywhere.
-[[ -e thoughts/shared ]] || echo "⚠️ thoughts/shared is missing in $(pwd) — run \`humanlayer thoughts init\` or the setup-catalyst skill; if the prompt names an output path, write there" >&2
+# Thoughts must exist for this skill's documents. The full host setup check belongs to the
+# Cloud pack's catalyst-setup skill, not to a skill that must run anywhere.
+[[ -e thoughts/shared ]] || echo "⚠️ thoughts/shared is missing in $(pwd) — run \`humanlayer thoughts init\`; if the prompt names an output path, write there" >&2
 ```
 
 ## No Claude attribution
@@ -31,9 +31,9 @@ The PR is authored solely by the git user. Never add "Generated with Claude Code
 ## Process overview
 
 1. **Preflight** — uncommitted changes, not on main/master, detect base branch, rebase if behind, check for an existing PR, extract the ticket from the branch name. See [preflight.md](references/preflight.md).
-2. **Title, push, create, link Linear** — title prefers the first commit subject via `git log --no-merges` and `draft_pr_title` (the `<type>(<scope>): <ticket>` convention, CTL-783); the no-commit fallback runs `tr '-' ' '` on the branch slug. Push goes through `draft_pr_push_verify` (`git fetch`-verified, `--force-with-lease` retry, CTL-1051). The PR body gets the CTL-623/633 sibling-skip guard via `linear-pr-skip.sh`'s `linear_sibling_skip_block_from_branch` — siblings are referenced by **PR number**, never a bare token; full rationale: the describe-pr skill's `linear-sibling-guard` reference. Then auto-call `/describe-pr` and update Linear (skip the transition under `CATALYST_PHASE`). See [push-and-create.md](references/push-and-create.md).
+2. **Title, push, create, link Linear** — title prefers the first commit subject via `git log --no-merges` and `draft_pr_title` (the `<type>(<scope>): <ticket>` convention); the no-commit fallback runs `tr '-' ' '` on the branch slug. Push goes through `draft_pr_push_verify` (`git fetch`-verified, `--force-with-lease` retry). The PR body gets the Linear sibling-skip guard via `linear-pr-skip.sh`'s `linear_sibling_skip_block_from_branch` — siblings are referenced by **PR number**, never a bare token; full rationale: the describe-pr skill's `linear-sibling-guard` reference. Then run the `describe-pr` skill and update Linear (skip the transition under `CATALYST_PHASE`). See [push-and-create.md](references/push-and-create.md).
 3. **Monitor to a clean merge state** — CI, automated reviewers, blocker resolution; this is NOT optional. See [monitoring-loop.md](references/monitoring-loop.md).
-4. **Report the real outcome, not just "PR created."** See [outcomes-and-errors.md](references/outcomes-and-errors.md), which also covers error handling, examples, and integration with `/commit`/`/describe-pr`/`/merge-pr`.
+4. **Report the real outcome, not just "PR created."** See [outcomes-and-errors.md](references/outcomes-and-errors.md), which also covers error handling, examples, and integration with the `commit`, `describe-pr` and `merge-pr` skills.
 
 ## Configuration
 

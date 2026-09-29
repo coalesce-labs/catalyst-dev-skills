@@ -4,7 +4,7 @@ description:
   "Create detailed implementation plans through an interactive process. **ALWAYS use when** the user
   says 'plan this', 'create a plan', 'let's plan the implementation', 'design the approach', or
   wants a structured TDD implementation plan before writing code. Works best after
-  /research-codebase."
+  the research-codebase skill."
 disable-model-invocation: false
 allowed-tools: Read, Write, Grep, Glob, Task, TodoWrite, Bash, mcp__serena__activate_project,
   mcp__serena__list_memories, mcp__serena__read_memory, mcp__serena__get_symbols_overview,
@@ -24,11 +24,10 @@ Replace `PROJ` in ticket references with your Linear team's prefix from `.cataly
 ## Prerequisites
 
 ```bash
-# Thoughts must exist for this skill's documents. CTL-2306: the full host setup check (daemon,
-# registry, house rules) belongs to the setup-catalyst skill, not to a skill that must run anywhere.
-[[ -e thoughts/shared ]] || echo "⚠️ thoughts/shared is missing in $(pwd) — run \`humanlayer thoughts init\` or the setup-catalyst skill; if the prompt names an output path, write there" >&2
+# Thoughts must exist for this skill's documents. That is the only host check here: the skill runs anywhere.
+[[ -e thoughts/shared ]] || echo "⚠️ thoughts/shared is missing in $(pwd) — run \`humanlayer thoughts init\`; if the prompt names an output path, write there" >&2
 
-# CTL-2306 explicit-input discovery: begin
+# explicit-input discovery: begin
 # Find the research to plan from on disk for the ticket this run was given: $CATALYST_TICKET under a
 # phase, else a ticket named in the skill's argument text (Claude Code substitutes the token in
 # the heredoc below; another harness leaves it literal, which names no ticket). Nothing is
@@ -48,7 +47,7 @@ if [[ -n "$TICKET_ID" ]]; then
 elif [[ -z "${CATALYST_PHASE:-}" ]]; then
   RECENT_RESEARCH=$(find -H thoughts/shared/research -type f -name '*.md' -exec ls -t {} + 2>/dev/null | head -1)
 fi
-# CTL-2306 explicit-input discovery: end
+# explicit-input discovery: end
 if [[ -n "$RECENT_RESEARCH" ]]; then
   echo "📋 Found research: $RECENT_RESEARCH"
 else
@@ -100,7 +99,7 @@ Auto-discovery has already run in Prerequisites above. Check its output and foll
 
 2. **Extract ticket and update Linear state**:
 
-   If a ticket is detected (from the research document's `source_ticket` frontmatter, from the command argument, or from context), update ticket status to `stateMap.planning` from config using Linearis CLI (run `linearis issues usage` for syntax). If Linearis CLI is not available, skip silently and continue planning. **Phase-container guard:** skip every `linearis` call when `CATALYST_PHASE` is set (a phase container holds no Linear credential; the runner owns the ticket write-back) or when `command -v linearis` fails (the CLI is not installed); say so in one line and continue.
+   If a ticket is detected (from the research document's `source_ticket` frontmatter, from the command argument, or from context), update ticket status to `stateMap.planning` from config using Linearis CLI (run `linearis issues usage` for syntax). If Linearis CLI is not available, skip silently and continue planning. **Phase-container guard:** skip every `linearis` call when `CATALYST_PHASE` is set (an automated run's container holds no Linear credential; its runner owns the ticket write-back) or when `command -v linearis` fails (the CLI is not installed); say so in one line and continue.
 
 3. **Gather context using research sub-agents** — use the same agent palette and orientation process as the `research-codebase` skill (that skill is the single source of truth for how codebase research works). For planning, focus agents on the specific ticket/task scope rather than broad exploration:
    - **codebase-locator** — find all files related to the ticket/task
@@ -140,7 +139,7 @@ After getting initial clarifications:
    **For historical context:**
    - **thoughts-locator** / **thoughts-analyzer** — find past research, plans, decisions
 
-   Each agent's instructions ship with this skill as `${CLAUDE_SKILL_DIR}/assets/agents/<name>.md` (for example `${CLAUDE_SKILL_DIR}/assets/agents/codebase-locator.md`). With the catalyst-dev Claude Code plugin, spawn them as `catalyst-dev:<name>`. On any other harness, spawn a general-purpose subagent with that file's instructions plus your request, or do the task inline if the harness has no subagents.
+   Each agent's instructions ship with this skill as `${CLAUDE_SKILL_DIR}/assets/agents/<name>.md` (for example `${CLAUDE_SKILL_DIR}/assets/agents/codebase-locator.md`). To use one, run a subagent with the instructions in that file plus your request, or do the task inline if the harness has no subagents.
 
 4. **Wait for ALL sub-tasks to complete** before proceeding
 
@@ -172,8 +171,8 @@ After structure approval:
    - NEVER write to `thoughts/searchable/` (read-only search index)
 
 2. **Write the plan** to `thoughts/shared/plans/YYYY-MM-DD-PROJ-XXXX-description.md`
-   - With ticket: `2025-01-08-PROJ-123-parent-child-tracking.md`
-   - Without ticket: `2025-01-08-improve-error-handling.md`
+   - With ticket: `YYYY-MM-DD-PROJ-123-parent-child-tracking.md`
+   - Without ticket: `YYYY-MM-DD-improve-error-handling.md`
 
 3. **Use this template structure** (frontmatter comes BEFORE the heading):
 
@@ -388,10 +387,10 @@ Research patterns → data model → **tests for** backend logic → backend log
 
 ## Linear Integration
 
-State names (`stateMap.*`) come from `.catalyst/config.json`. The canonical transition table is in the operator-only `linearis` skill, which a default install leaves out; without the Linearis CLI (every tenant machine) the transition is skipped, and on a tenant the card moves with the `linear` skill's `catalyst-skills write state` or with the phase runner.
+State names (`stateMap.*`) come from `.catalyst/config.json`. The canonical transition table is in the operator-only `linearis-cli` skill, which a default install leaves out; without the Linearis CLI (every tenant machine) the transition is skipped, and on a Catalyst Cloud tenant the card moves with the `linear` skill's `catalyst write state` or with the automated run's coordinator.
 
 If a ticket is detected (from research document's `source_ticket` frontmatter, command argument, or context):
 
 - **At planning start** (Step 1): Update ticket status to `stateMap.planning` from config using Linearis CLI (run `linearis issues usage` for syntax).
-- **After plan saved**: Add a comment with the plan path — this is an agent-authored comment, so post it through the app actor (`linear-reply.mjs --as <role>`, or the `linear-comment-post.sh` helper), never bare `linearis issues discuss`/`reply` (those post as the human — see the `linearis` skill's "Comment on a ticket" section).
+- **After plan saved**: Add a comment with the plan path — this is an agent-authored comment, so post it through the app actor: `catalyst write comment <ID>` (the `linear` skill) on a Catalyst Cloud tenant, or `linear-reply.mjs --as <role>` from the operator `linearis-cli` skill. Never use bare `linearis issues discuss`/`reply`: those post as the person who owns the token.
 - If the tooling is not available, skip silently and continue planning

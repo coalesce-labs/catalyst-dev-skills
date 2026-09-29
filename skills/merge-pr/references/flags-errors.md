@@ -25,7 +25,7 @@ For all errors, provide clear messages with the specific error, what went wrong,
 
 **Diagnose and attempt to fix (Step 6 blocker loop):**
 - CI checks failing → analyze failure, attempt code fix, re-push, re-poll
-- Unresolved threads → run `/review-comments`, resolve threads
+- Unresolved threads → run the `review-comments` skill, resolve threads
 - Branch behind → rebase and push
 - Draft PR → mark as ready
 - Changes requested → check if addressed, suggest re-request review

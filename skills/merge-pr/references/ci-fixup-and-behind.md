@@ -1,6 +1,6 @@
 # CI fix-up and BEHIND-rebase — deeper know-how
 
-Relocated from the retired `phase-monitor-merge` daemon phase-agent (CTL-2223), with the `catalyst-events wait-for` / signal-file / broker plumbing stripped. [`blocker-loop.md`](blocker-loop.md) already covers the reactive wait and the top-level blocker table (BEHIND/DIRTY/UNSTABLE/…); this file adds the specific techniques that table doesn't spell out.
+[`blocker-loop.md`](blocker-loop.md) already covers the reactive wait and the top-level blocker table (BEHIND/DIRTY/UNSTABLE/…); this file adds the specific techniques that table doesn't spell out.
 
 ## BEHIND: rebase with hooks disabled on the push
 
@@ -29,7 +29,7 @@ When an automated reviewer (Codex, claude-code-review) leaves unresolved threads
 
 ## `merge_commit_sha` can be empty right after a squash merge
 
-GitHub can return `merge_commit_sha: null` for a few seconds after `gh pr merge --squash` confirms `.merged == true`, while it's still computing the commit. Retry with a bounded, portable loop — **do not use `seq`**: stock macOS (the primary fleet host) ships no `seq` binary unless GNU coreutils is installed, so `$(seq 1 N)` silently expands to nothing and a `for i in $(seq 1 N)` loop runs zero times, leaving the SHA permanently unread on every successful merge.
+GitHub can return `merge_commit_sha: null` for a few seconds after `gh pr merge --squash` confirms `.merged == true`, while it's still computing the commit. Retry with a bounded, portable loop — **do not use `seq`**: stock macOS ships no `seq` binary unless GNU coreutils is installed, so `$(seq 1 N)` silently expands to nothing and a `for i in $(seq 1 N)` loop runs zero times, leaving the SHA permanently unread on every successful merge.
 
 ```bash
 RETRIES="${RETRIES:-5}"
@@ -44,7 +44,7 @@ done
 [[ -z "$MERGE_COMMIT_SHA" ]] && echo "merge-pr: merge_commit_sha still empty after ${RETRIES} attempts for pr#${PR_NUMBER}" >&2
 ```
 
-Use this whenever a step (a Linear comment, a follow-on relay-ticket phase) needs the actual squash SHA rather than `git rev-parse HEAD` from a checkout that may not have fetched the merge yet.
+Use this whenever a step (a Linear comment, a follow-on step) needs the actual squash SHA rather than `git rev-parse HEAD` from a checkout that may not have fetched the merge yet.
 
 ## Why REST, never GraphQL, for mergeable state
 

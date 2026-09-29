@@ -20,9 +20,9 @@ ADR files use standard YAML frontmatter at the top of the file:
 
 ```yaml
 ---
-adr_id: ADR-005
+adr_id: ADR-NNN
 title: Configurable Worktree Convention
-date: 2026-04-15
+date: 2025-01-08
 code_assertions:
   - pattern: "WORKTREE_BASE_DIR"
     expectation: found
@@ -32,7 +32,7 @@ code_assertions:
     description: "no hardcoded worktree paths remain"
 ---
 
-# ADR-005: Configurable Worktree Convention
+# ADR-NNN: Configurable Worktree Convention
 
 ...
 ```
@@ -60,11 +60,11 @@ Each assertion produces at most one drift record per detector run.
 {
   "decisions": [
     {
-      "id": "adr-drift-0005-worktree-1",
+      "id": "adr-drift-worktree-convention-1",
       "type": "adr_drift",
-      "summary": "ADR 0005-worktree drift (code_ahead_of_adr): no hardcoded worktree paths remain",
+      "summary": "ADR worktree-convention drift (code_ahead_of_adr): no hardcoded worktree paths remain",
       "status": "open",
-      "adr": "/abs/path/docs/adrs/0005-worktree.md",
+      "adr": "/abs/path/docs/adrs/worktree-convention.md",
       "drift_status": "code_ahead_of_adr",
       "pattern": "/Users/[a-z]+/code-repos/.*/wt"
     }
@@ -83,7 +83,7 @@ The ADRs directory is resolved in this order:
 3. Default: `docs/adrs/`
 
 If the resolved directory does not exist, the detector emits
-`{"decisions": []}` and exits 0 — single-file ADR layouts (e.g. catalyst's own
+`{"decisions": []}` and exits 0 — single-file ADR layouts (e.g. a lone
 `docs/adrs.md`) intentionally fall here.
 
 Example `.catalyst/config.json` fragment:
@@ -100,11 +100,9 @@ Example `.catalyst/config.json` fragment:
 
 Repositories that keep ADRs in a single file (e.g. `docs/adrs.md` with many `## ADR-NNN:` sections) cannot use the structured path because YAML frontmatter is by definition a file-level header. The detector treats single-file layouts as informational/legacy and produces zero structured drift records for them. To opt into structured drift detection, migrate to a directory of per-ADR files.
 
-## `--deep-adr-check` (LLM-driven path) — future work
+## `--deep-adr-check` (LLM-driven path) — not yet wired
 
-The parent plan ([[2026-05-16-catalyst-phase-agent-architecture]] §Initiative 2 Phase 4) describes a second, LLM-driven path that samples each ADR alongside a code stat (file count, top imports) and asks the LLM whether the ADR's decision still describes how the code works. This path is gated behind a `--deep-adr-check` flag so it can be run weekly rather than daily (cost amortization).
-
-For this MVP, the flag is parsed but emits a stderr note and does no LLM work. Wiring the LLM path is a follow-up.
+`--deep-adr-check` is reserved for a second, LLM-driven path that samples each ADR alongside a code stat (file count, top imports) and asks the LLM whether the ADR's decision still describes how the code works, run weekly rather than daily to amortize cost. Today the flag is parsed, emits a stderr note, and does no LLM work.
 
 ## Invocation
 
@@ -118,6 +116,6 @@ From a morning-briefing run, Step 3 of the skill calls the detector and merges t
 
 ## Testing
 
-The catalyst repository's adr-drift detector test (`adr-drift-detector.test.sh`) exercises the detector against isolated fixture projects covering: missing directory, passing assertions, both drift directions, ADRs without frontmatter, multiple assertions in one ADR, schema conformance, malformed YAML tolerance, and config-driven directory resolution.
+The detector's test in the catalyst repository (github.com/coalesce-labs/catalyst), `adr-drift-detector.test.sh`, exercises the detector against isolated fixture projects covering: missing directory, passing assertions, both drift directions, ADRs without frontmatter, multiple assertions in one ADR, schema conformance, malformed YAML tolerance, and config-driven directory resolution.
 
 Run it from a catalyst checkout.

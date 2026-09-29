@@ -11,16 +11,16 @@ Investigate the subject, not the ask's wording. The ask was written by a generat
 
 ## By shape
 
-### Unblock asks ("Unblock CTC-X — holding N tickets", label `ask/unblock`)
+### Unblock asks ("Unblock ENG-123 — holding N tickets", label `ask/unblock`)
 
 Filed when a human-owned ticket sits in a stage the relay cannot enter from (usually PR) while it blocks others. The generator recommends "resubmit to Todo", which throws away finished work whenever a PR exists.
 
-1. Find the subject's PRs by ticket id in title and branch (`gh pr list --search "CTC-X" --state all`).
+1. Find the subject's PRs by ticket id in title and branch (`gh pr list --search "ENG-123" --state all`).
 2. For each open PR: conflicts (merge main to see them), failing checks and whether each is real, a flake, or already fixed on main (compare against main's latest run of the same check), review state at head (an automated review requested but not answered at the current head is a common stall), unresolved threads, `hold` labels and who placed them (a hold may be a deliberate merge window owned by another seat).
 3. Who is working it: the newest PR and ticket comments, seat names in them, and whether that seat is alive.
 4. Whether the tickets it holds are really blocked (stacked branches mean the edge is real).
 
-### Validate-hold asks ("CTC-X: validate keeps failing — re-plan, accept, or fix by hand?")
+### Validate-hold asks ("ENG-123: validate keeps failing — re-plan, accept, or fix by hand?")
 
 1. Read the validate report for the held attempt. Name each failing finding with file and line.
 2. Decide per finding: real and new in the branch's own diff, main drift (the branch is far behind and the finding is in main's files), a flake, or grader noise.
@@ -30,7 +30,7 @@ Filed when a human-owned ticket sits in a stage the relay cannot enter from (usu
 
 Usual answers: continue when the findings are real and small. Prefer `POST /admin/validate-unhold`: it queues one repair round at the same head carrying the held finding. If it refuses (`remediate_parked_or_capped`, `no_branch_to_remediate`), rewind to implement instead, which keeps the plan but carries no finding. Accept with a follow-up ticket when the finding is out of scope. Retry unchanged at validate when the cause was outside the branch. Re-plan only when the plan itself is wrong. Check whether an earlier "continue" was applied as a rewind to validate: that grants no repair round, so its findings come back later looking new.
 
-### Decision asks raised by a remediate round ("--- raised by --- CTC-X/remediate round N")
+### Decision asks raised by a remediate round ("--- raised by --- ENG-123/remediate round N")
 
 1. Is the subject still open, and does its PR still need this answer? A later round, a merge, or a cancel can make it moot.
 2. Search `docs/adr/`, the subject's plan, and newer comments for a recorded decision that already settles it. A code and docs contradiction is often an unfinished rollout, not an open question.

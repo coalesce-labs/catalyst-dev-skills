@@ -21,16 +21,13 @@ You create:
 - a **tracking ticket** for the scope
 - a **`Status — <project>` stub** — the stub only; the steward fills it
 - a **board row**
-- the launched **`steward/<slug>`** (via the supervisor's manifest, `role-supervisor`) —
-  pass **`--scope-keys <projectId>`** (the Linear project id `create` just returned) when you
-  install it, e.g.
-  `role-supervisor/install.sh --role steward/<slug> --scope "<name>" --scope-keys "<projectId>" …`.
-  ⭐ **This is the one line that lets an instrument page the steward, not the human**: it writes
-  `manifest.scopeKeys`, which `escalation-router.resolveSteward` keys off to route a stalled item in
-  this project to its steward (`instrument → steward → concierge → human-as-ask`). Omit it and every
-  stalled item in the project falls straight through to the concierge.
+- the launched **`steward/<slug>`**, registered with your supervisor together with its **scope key**
+  (the Linear project id `create` just returned).
+  ⭐ **The scope key is what lets an instrument page the steward, not the human**: the router keys off
+  it to route a stalled item in this project to its steward (`instrument → steward → concierge →
+  human-as-ask`). Omit it and every stalled item in the project falls straight through to the concierge.
 
-The steward then fills the status doc, plans, and dispatches. ⛔ **Do not pre-dispatch its tickets.** Launching a `/relay-ticket <TICKET>` session is the steward's verb (the `steward` skill's `references/dispatch.md`); doing it for them makes you a second orchestrator and the scope now has two owners, which is the failure mode the role names are chosen to prevent.
+The steward then fills the status doc, plans, and dispatches. ⛔ **Do not pre-dispatch its tickets.** Launching a ticket-worker session is the steward's verb (the `steward` skill's `references/dispatch.md`); doing it for them makes you a second orchestrator and the scope now has two owners, which is the failure mode the role names are chosen to prevent.
 
 ## 3. Confirm in-thread
 

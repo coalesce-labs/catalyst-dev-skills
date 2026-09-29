@@ -1,18 +1,16 @@
 #!/usr/bin/env bash
-# workflow-inputs.test.sh — CTL-2306 Phase 1: skills find their input explicitly.
+# workflow-inputs.test.sh — skills find their input explicitly.
 #
-# WHY: the five skills that auto-discover a prior document (create-plan,
-# iterate-plan, validate-plan, implement-plan, resume-handoff) used to read
-# `.catalyst/.workflow-context.json`, a file written by a Claude-only hook and
-# carried between runs. Ryan's rule (2026-09-13): a skill must never depend on
-# state persisted between runs — a phase container is disposable and a
-# Codex/OpenCode session never ran the hook. The replacement is explicit input:
-# the ticket from the argument or the relay contract ($CATALYST_TICKET), and the
-# newest document for THAT ticket found on disk within the run.
+# The rule: a skill never depends on state persisted between runs (a run's
+# container is disposable, and a Codex/OpenCode session has no Claude-only hook
+# to write such state). The five skills that auto-discover a prior document
+# (create-plan, iterate-plan, validate-plan, implement-plan, resume-handoff) take
+# explicit input instead: the ticket from the argument or $CATALYST_TICKET, and
+# the newest document for THAT ticket found on disk within the run.
 #
 # Two halves:
-#   1. Shape: no skill names workflow-context any more.
-#   2. Behaviour: each skill's discovery block (between the CTL-2306 markers) is
+#   1. Shape: no skill names workflow-context.
+#   2. Behaviour: each skill's discovery block (between the discovery markers) is
 #      EXTRACTED and RUN against a scratch thoughts tree, under bash and zsh
 #      (the agent's Bash tool runs zsh on macOS).
 #
@@ -28,8 +26,9 @@ FAIL=0
 ok()   { PASS=$((PASS+1)); printf '  PASS: %s\n' "$1"; }
 fail() { FAIL=$((FAIL+1)); printf '  FAIL: %s\n    %s\n' "$1" "${2:-}"; }
 
-BEGIN_MARK='# CTL-2306 explicit-input discovery: begin'
-END_MARK='# CTL-2306 explicit-input discovery: end'
+# Matched as substrings, so a marker line may carry a prefix.
+BEGIN_MARK='explicit-input discovery: begin'
+END_MARK='explicit-input discovery: end'
 
 # skill|variable|thoughts kind
 READERS="create-plan|RECENT_RESEARCH|research
@@ -42,7 +41,7 @@ for skill in create-plan iterate-plan validate-plan implement-plan resume-handof
   [ -f "${SKILLS_DIR}/${skill}/SKILL.md" ] || { echo "FATAL: subject not found: ${skill}/SKILL.md" >&2; exit 1; }
 done
 
-echo "explicit workflow inputs (CTL-2306)"
+echo "explicit workflow inputs"
 
 # ── 1. Shape ─────────────────────────────────────────────────────────────────
 echo ""
@@ -55,9 +54,9 @@ else
 fi
 hits="$(grep -rlF 'workflow-context' "$SKILLS_DIR" --include='*.md' 2>/dev/null | sed "s|^${SKILLS_DIR}/||" | sort)"
 if [ -z "$hits" ]; then
-  ok "no SKILL.md or reference under plugins/dev/skills names workflow-context"
+  ok "no SKILL.md or reference under skills/ names workflow-context"
 else
-  fail "no SKILL.md or reference under plugins/dev/skills names workflow-context" "still named in: $(printf '%s' "$hits" | tr '\n' ' ')"
+  fail "no SKILL.md or reference under skills/ names workflow-context" "still named in: $(printf '%s' "$hits" | tr '\n' ' ')"
 fi
 
 # ── 2. Behaviour ─────────────────────────────────────────────────────────────
@@ -127,10 +126,10 @@ while IFS='|' read -r skill var kind; do
   block_file="${SCRATCH}/${skill}.block.sh"
   extract_block "$skill" > "$block_file"
   if [ ! -s "$block_file" ]; then
-    fail "${skill}: has a CTL-2306 explicit-input discovery block" "no lines between the markers in ${skill}/SKILL.md"
+    fail "${skill}: has an explicit-input discovery block" "no lines between the markers in ${skill}/SKILL.md"
     continue
   fi
-  ok "${skill}: has a CTL-2306 explicit-input discovery block"
+  ok "${skill}: has an explicit-input discovery block"
 
   tree="${SCRATCH}/tree-${skill}"
   make_tree "$tree" "$kind"
@@ -160,8 +159,8 @@ while IFS='|' read -r skill var kind; do
       *) fail "${skill} [${sh}]: interactive with no ticket offers the newest doc on disk" "got '${got}'" ;;
     esac
 
-    # Codex review on #4132: `/catalyst-dev:<skill> ABC-1` reaches the skill as
-    # $ARGUMENTS text, not a TICKET_ID env var.
+    # `/<skill> ABC-1` in Claude Code reaches the skill as $ARGUMENTS text,
+    # not a TICKET_ID env var.
     claude_substitute "$block_file" "ABC-1" "${block_file}.args"
     got="$(run_block "$sh" "$tree" "${block_file}.args" "$var")"
     case "$got" in

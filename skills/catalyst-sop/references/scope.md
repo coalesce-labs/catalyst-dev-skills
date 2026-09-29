@@ -5,17 +5,17 @@
 1. **Never-attempted acceptance criteria** — the classic signal, below.
 2. **A repeat occurrence on the same subject, after a re-plan that verifiably moved the ledger frontier.** A ticket that genuinely went back to `plan`, was re-planned, and returned to the same hold is a scope problem, not a planning problem.
 
-⛔ **First, rule out the lever.** A "re-plan" performed as a Linear state write is a **no-op on the ladder** — the ticket re-validates a byte-identical head and re-holds itself, which looks identical to a scope failure from the board. The 2026-09-17 batch is exactly this: 16 asks closed by state write, ten regenerating a fresh hold within 90 minutes on unchanged heads. **That population is evidence for `replan.md`, not for this page.** Descoping a ticket that was never actually retried deletes acceptance criteria to work around a broken lever.
+⛔ **First, rule out the lever.** A "re-plan" performed as a Linear state write is a **no-op on the ladder** — the ticket re-validates a byte-identical head and re-holds itself, which looks identical to a scope failure from the board. **A population of asks closed by state write is evidence for `replan.md`, not for this page.** Descoping a ticket that was never actually retried deletes acceptance criteria to work around a broken lever.
 
-The check is one read: did the frontier move (`catalyst-skills explain`, `/admin/relay-ledger-explain`, or the rewind route's own `reset` body)? If not, go to `replan.md` and pull the lever. Only a repeat **after** a confirmed rewind belongs here.
+The check is one read: did the frontier move (`catalyst explain <ticket>`, `/admin/relay-ledger-explain`, or the rewind route's own `reset` body)? If not, go to `replan.md` and pull the lever. Only a repeat **after** a confirmed rewind belongs here.
 
-⚠️ **This reflex is not a new counter.** The product already holds a non-converging review for a human at **four** cycles (CTC-1724, `docs/adr/20260906T112500-a-non-converging-review-holds-for-a-human.md`), with `grace_base` release semantics so a human's release buys a fresh budget without erasing `total_holds`. This page's second-occurrence reflex sits **below** that threshold and feeds the same judgement earlier and by hand — it must never be described as a competing threshold, and you must never invent a different number. (Its mode flag `review-convergence-hold` safe-defaults to `shadow`, so on a shadow tenant the hold observes and the reflex below is the only thing operating.)
+⚠️ **This reflex is not a new counter.** The product already holds a non-converging review for a human at **four** cycles, with `grace_base` release semantics so a human's release buys a fresh budget without erasing `total_holds`. This page's second-occurrence reflex sits **below** that threshold and feeds the same judgement earlier and by hand — it must never be described as a competing threshold, and you must never invent a different number. (Its mode flag `review-convergence-hold` safe-defaults to `shadow`, so on a shadow tenant the hold observes and the reflex below is the only thing operating.)
 
 ## The signal: never-attempted is not broken
 
 ⛔ **A never-attempted acceptance criterion is a SCOPE signal, not a repair signal.**
 
-**Measured — CTC-2568:** validate failed plan-conformance with **6 of 9 approved acceptance criteria unmet — never built, not broken**. Two remediate rounds ran with that finding in hand and resolved **0/0/0**, because remediation repairs what is broken and cannot implement what was never attempted. Those rounds were spent, not wasted-by-accident: the loop was doing exactly what it is built to do, against the wrong class of finding.
+**Worked example:** validate fails plan-conformance with **6 of 9 approved acceptance criteria unmet — never built, not broken**. Two remediate rounds run with that finding in hand and resolve nothing, because remediation repairs what is broken and cannot implement what was never attempted. The loop is doing exactly what it is built to do, against the wrong class of finding.
 
 So classify before you route:
 
@@ -30,7 +30,7 @@ So classify before you route:
 
 ## What an agent may decide on its own
 
-⚠️ **PROPOSED, PENDING RYAN.** This is question 4 in the review packet. Until he answers, the conservative reading applies: **split freely, descope never.**
+⚠️ **Proposed, pending the owner's decision.** Until the owner rules on it, the conservative reading applies: **split freely, descope never.**
 
 Proposed division:
 
@@ -41,7 +41,7 @@ Proposed division:
 | **descope** — decide the unattempted ACs will not be built at all | ⚠️ **a human decision — an ask** | it changes what the product does. That is gate 5's genuine product call |
 | **accept + follow-up** — merge what exists and file the remainder | **the agent, when the remainder is filed and linked before the merge** | this is the hold ask's option B; the follow-up ticket is what makes it not a descope |
 
-**The line:** a split or a follow-up **preserves** the acceptance criteria somewhere the board can see. A descope **deletes** them. Preserving is yours; deleting is Ryan's.
+**The line:** a split or a follow-up **preserves** the acceptance criteria somewhere the board can see. A descope **deletes** them. Preserving is yours; deleting is the owner's.
 
 ## Doing it
 

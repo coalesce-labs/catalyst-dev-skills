@@ -4,7 +4,7 @@ description:
   Interactive walk-through of today's morning briefing. Loads the briefing markdown at
   thoughts/briefings/YYYY-MM-DD.md (built by morning-briefing), parses its decisions block, and
   walks the user through each open decision — approve / reject / defer, schedule a calendar
-  entry, file a Linear ticket, launch a relay-ticket session, draft an email, resolve ADR drift,
+  entry, file a Linear ticket, launch a ticket-worker session, draft an email, resolve ADR drift,
   or apply/edit/defer/reject a compound-engineering ADR proposal — then writes resolutions back
   to the briefing markdown. Use after the morning-briefing skill has produced today's
   briefing, or whenever the user says "walk the briefing" / "follow up on the briefing".
@@ -47,7 +47,7 @@ Use this skill after the `morning-briefing` skill has produced today's briefing.
 
 ## Invariants
 
-- **Dispatching work means launching `/relay-ticket <TICKET>`** — never the legacy orchestrator or any retired background-dispatch path (CTL-2218). See `references/actions.md`.
+- **Dispatching work means launching a ticket-worker session** — never a background-dispatch daemon. See `references/actions.md`.
 - **`action-compound.sh --mode apply|edit` is the only writer of `docs/adrs.md`** — the `ticket-compound` curator only ever proposes.
 - Every action handler soft-skips cleanly (`{"status":"skipped","reason":"..."}`) rather than failing the whole walk-through; a soft-skip is still logged.
 - Reads of a single Linear ticket go through the replica-gated helper, never a bare `linearis issues read` (cloud-detection reference). **Phase-container guard:** skip every `linearis` call when `CATALYST_PHASE` is set (a phase container holds no Linear credential; the runner owns the ticket write-back) or when `command -v linearis` fails (the CLI is not installed); say so in one line and continue.
@@ -60,4 +60,4 @@ Use this skill after the `morning-briefing` skill has produced today's briefing.
 
 ## Pointers
 
-`catalyst-dev:morning-briefing` (produces the input) · `catalyst-dev:linearis` · `relay-ticket` (the session this skill's dispatch action launches) · `steward` (the dispatch model this skill routes to).
+`morning-briefing` (produces the input) · `linearis` · `steward` (the dispatch model this skill routes to; its `references/dispatch.md` says what a ticket-worker session is).

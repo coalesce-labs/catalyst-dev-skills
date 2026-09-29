@@ -8,14 +8,13 @@ description:
 
 # Ask / decision tickets — SOP (Catalyst-wide)
 
-> Rules v3 (Ryan, 2026-08-15 → 08-17). Applies to every Catalyst-managed Linear project and every agent,
-> Claude or Codex. Full plugin verb: **CTL-1922**.
+> Applies to every Catalyst-managed Linear project and every agent, whatever harness it runs in.
 
 **Paths.** Commands below name files inside this skill's own directory as `${CLAUDE_SKILL_DIR}/…`. Claude Code fills that in. On any other harness, set CLAUDE_SKILL_DIR to the absolute directory that contains this SKILL.md before running them. If you cannot, stop and report `skill_dir_unresolved`.
 
 ## 0. Setup check (first, every session)
 
-`node "${CLAUDE_SKILL_DIR}/scripts/identity-report.mjs"` — one line per identity (tenant, human, team, cloud host), CTL-2300. An `unresolved` line is a stop-and-say: this skill files a decision **for** a human **on** a team, and an unresolved identity there is an ask that reaches nobody while looking filed.
+`node "${CLAUDE_SKILL_DIR}/scripts/identity-report.mjs"` — one line per identity (tenant, human, team, cloud host). An `unresolved` line is a stop-and-say: this skill files a decision **for** a human **on** a team, and an unresolved identity there is an ask that reaches nobody while looking filed.
 
 ## 1. What an ask ticket is
 
@@ -23,7 +22,7 @@ A ticket that exists ONLY to obtain one human decision or action. It is **not** 
 
 ## 2. Creating one (the raising agent)
 
-**Then use the verb** — it builds the body, files the ticket, reads it BACK out of Linear, and proves the decision trigger can parse the options AND that every `--blocks` relation landed. It exits **2** rather than leaving you an ask that can never be answered, or that answers into the void:
+**Use the verb** — it builds the body, files the ticket, reads it BACK out of Linear, and proves the decision trigger can parse the options AND that every `--blocks` relation landed. It exits **2** rather than leaving you an ask that can never be answered, or that answers into the void:
 
 ```bash
 TEAM="$(jq -r '.catalyst.linear.teamKey' .catalyst/config.json)"   # or omit --team entirely; the verb resolves it
@@ -32,13 +31,13 @@ node "${CLAUDE_SKILL_DIR}/scripts/ask.mjs" create \
   --title "ASK: <one line>" \
   --why "<what it unblocks>" \
   --option "<option A>" --option "<option B>" \
-  --default "<what happens if silent>" --blocks CTL-NNNN
+  --default "<what happens if silent>" --blocks ENG-123
 #   --dry-run   print the body and the parsed options without writing
 ```
 
-Write the why to the three rules in [`references/creating.md`](references/creating.md) → "Writing the why": only the human's real steps, each named exactly, and what each option does.
+Write the why to the rules in [`references/creating.md`](references/creating.md) → "Writing the why": only the human's real steps, each named exactly, and what each option does.
 
-⛔ **`--option` (≥2), `--default` and `--blocks` are REQUIRED** (CTL-2157) — the verb refuses without them. `--blocks` is the load-bearing one: an ask that blocks nothing answers into the void (§3).
+⛔ **`--option` (≥2), `--default` and `--blocks` are REQUIRED** — the verb refuses without them. `--blocks` is the load-bearing one: an ask that blocks nothing answers into the void (§3).
 
 Why a verb rather than a documented snippet, field-by-field detail, the raw `linearis` form, and the exact body grammar: **[`references/creating.md`](references/creating.md)**.
 
@@ -46,7 +45,7 @@ Why a verb rather than a documented snippet, field-by-field detail, the raw `lin
 
 A comment on the ticket — top-level or a threaded reply — reaches the monitor. One word is enough ("A", "yes", "flip now"). Deciding by moving state without a comment is only seen on the next sweep.
 
-**The comment also WAKES the work** (CTL-2157): the daemon fans it out along the ask's `blocks` relations and unparks each agent waiting on them. Only a human's comment does this.
+**The comment also WAKES the work**: the cloud fans it out along the ask's `blocks` relations and unparks each agent waiting on them. Only a human's comment does this.
 
 ## 4. Replying (any agent) — the form
 
@@ -55,7 +54,7 @@ A comment on the ticket — top-level or a threaded reply — reaches the monito
 what a reply must contain. Read it before your first reply.
 
 ```bash
-direnv exec . node "${CLAUDE_SKILL_DIR}/scripts/linear-reply.mjs" CTL-NNNN --as <ROLE> --body-file <path>
+direnv exec . node "${CLAUDE_SKILL_DIR}/scripts/linear-reply.mjs" ENG-123 --as <ROLE> --body-file <path>
 ```
 
 ## 5. Closing (the raising agent)
@@ -63,8 +62,8 @@ direnv exec . node "${CLAUDE_SKILL_DIR}/scripts/linear-reply.mjs" CTL-NNNN --as 
 When the answer satisfies the ask, **verify that it does** (e.g. the token really carries the permission), then:
 
 ```bash
-node "${CLAUDE_SKILL_DIR}/scripts/ask.mjs" accept CTL-NNNN --as <ROLE> --body "accepted — …"
-#   --body-file <path>  for anything longer than a one-line body; --body REFUSES a path (CTL-2204)
+node "${CLAUDE_SKILL_DIR}/scripts/ask.mjs" accept ENG-123 --as <ROLE> --body "accepted — …"
+#   --body-file <path>  for anything longer than a one-line body; --body REFUSES a path
 ```
 
 It replies in-thread as the app actor and moves the ticket to Done. The two deliberate refusals, the manual equivalent, and the defect case: **[`references/closing.md`](references/closing.md)**.
@@ -73,7 +72,7 @@ It replies in-thread as the app actor and moves the ticket to Done. The two deli
 
 - **Reporting to the human:** rank by blast radius (work held × priority), not age — [`references/triage.md`](references/triage.md), `scripts/ask-triage.sh`.
 - Ask view **My decisions — what needs me** (a decided item leaves it); the board is a summary, not the record.
-- Related skills: `catalyst-dev:linearis`, `catalyst-dev:create-handoff`, `catalyst-dev:steward`.
+- Related skills: `linearis`, `create-handoff`, `steward`.
 - **Phase-container guard:** skip every `linearis` call when `CATALYST_PHASE` is set (a phase container holds no Linear credential; the runner owns the ticket write-back) or when `command -v linearis` fails (the CLI is not installed); say so in one line and continue.
-- Measured Linear facts this SOP rests on (one-level threads CTL-1891; the app actor cannot create
-  states/labels/views CTC-626): `references/threading.md` and `references/creating.md`.
+- Measured Linear facts this SOP rests on (threads are one level deep; the app actor cannot create
+  states, labels or views): `references/threading.md` and `references/creating.md`.

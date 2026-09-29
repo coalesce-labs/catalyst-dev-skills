@@ -5,7 +5,7 @@
 This skill runs on the Catalyst Cloud CLI that the Cloud pack installs and connects:
 
 ```bash
-if command -v catalyst-skills >/dev/null 2>&1; then CS=catalyst-skills; else CS="npx @catalyst-cloud/catalyst-skills"; fi
+if command -v catalyst >/dev/null 2>&1; then CS=catalyst; else CS="npx -p @catalyst-cloud/cli catalyst"; fi
 $CS status || echo "not connected to a Catalyst Cloud tenant: set it up with the Cloud pack (catalyst-setup)"
 ```
 
@@ -47,7 +47,7 @@ research-codebase skill with: "authentication patterns"
 # Saves to thoughts/shared/research/auth-patterns.md
 
 linear skill with: create thoughts/shared/research/auth-patterns.md
-# Drafts the ticket, then: catalyst-skills write create --team ENG --title "..." --description "$(cat description.md)"
+# Drafts the ticket, then: catalyst write create --team ENG --title "..." --description "$(cat description.md)"
 
 create-plan skill
 implement-plan skill with: thoughts/shared/plans/2025-01-08-auth-feature.md
@@ -55,4 +55,4 @@ create-pr skill
 merge-pr skill
 ```
 
-On a tenant, Catalyst moves the card as its phases run. When the person asks for a move by hand, it is one slot move: `catalyst-skills write state ENG-123 --slot pr`.
+On a tenant, Catalyst moves the card as its phases run. When the person asks for a move by hand, it is one slot move: `catalyst write state ENG-123 --slot pr`.

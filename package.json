@@ -1,6 +1,6 @@
 {
   "name": "catalyst-dev-skills",
-  "version": "14.1.0",
+  "version": "14.2.0",
   "private": true,
   "description": "The catalyst-dev skills as an npx-installable pack for Claude Code, Codex and OpenCode.",
   "license": "MIT",
@@ -9,10 +9,11 @@
     "test": "bash scripts/run-tests.sh",
     "version:sync": "node scripts/sync-plugin-version.mjs",
     "version:check": "node scripts/sync-plugin-version.mjs --check",
-    "test:guards": "node scripts/check-skill-scope.mjs && bun test tests/skill-scope.test.mjs",
+    "test:guards": "node scripts/check-skill-scope.mjs && node scripts/check-public-prose.mjs && bun test tests/skill-scope.test.mjs tests/public-prose.test.mjs",
     "vendor:check": "node scripts/vendor.mjs --check",
     "vendor:write": "node scripts/vendor.mjs --write",
     "smoke:install": "bash scripts/install-smoke.sh",
-    "smoke:scope": "bash scripts/install-scope-smoke.sh"
+    "smoke:scope": "bash scripts/install-scope-smoke.sh",
+    "lint:prose": "node scripts/check-public-prose.mjs"
   }
 }

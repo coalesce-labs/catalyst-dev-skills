@@ -1,8 +1,8 @@
 # Pre-merge adversarial review — the 8-gate table
 
-Relocated from the retired `phase-verify` daemon phase-agent (CTL-2223), with the `${ORCH_DIR}/workers/<TICKET>/verify.json` / `phase.verify.complete` daemon plumbing stripped. Use this checklist when a PR needs a deeper adversarial pass than this skill's own Step 3 (local tests) before you merge it — e.g. a large or risky diff, or one a reviewer flagged as needing a second look.
+Use this checklist when a PR needs a deeper adversarial pass than this skill's own Step 3 (local tests) before you merge it — e.g. a large or risky diff, or one a reviewer flagged as needing a second look.
 
-**Constraint carried over from the source skill: this is read-only.** The only files it is ever correct to create or edit while running these gates are test files (`**/__tests__/`, `*.test.*`, `*.spec.*`, `test/**`, `tests/**`). A finding that needs an application-code fix gets recorded and handed to whoever owns that fix — never patched in place from inside a "verify" pass.
+**This pass is read-only.** The only files it is ever correct to create or edit while running these gates are test files (`**/__tests__/`, `*.test.*`, `*.spec.*`, `test/**`, `tests/**`). A finding that needs an application-code fix gets recorded and handed to whoever owns that fix — never patched in place from inside a "verify" pass.
 
 ## The 8 gates
 
@@ -10,16 +10,16 @@ Run every gate; do not stop at the first failure — the pass is exhaustive, not
 
 | Gate | Tool | Skill / agent |
 |---|---|---|
-| Type check | `tsc --noEmit` (or project's `typecheckCommand`) | `catalyst-dev:validate-type-safety` |
-| Reward-hacking scan | grep-based pattern check | `catalyst-dev:scan-reward-hacking` |
-| Unit tests | project test command | `catalyst-dev:validate-type-safety` |
-| Lint | project lint command | `catalyst-dev:validate-type-safety` |
-| Security review | dependency + secret scan | `/security-review` (built-in) |
-| Code review | style/guideline adherence | `pr-review-toolkit:code-reviewer` agent |
-| Test coverage | per-file coverage on diff | `pr-review-toolkit:pr-test-analyzer` agent |
-| Silent failures | unchecked try/catch + fallback hunting | `pr-review-toolkit:silent-failure-hunter` agent |
+| Type check | `tsc --noEmit` (or project's `typecheckCommand`) | the `validate-type-safety` skill |
+| Reward-hacking scan | grep-based pattern check | the `scan-reward-hacking` skill |
+| Unit tests | project test command | the `validate-type-safety` skill |
+| Lint | project lint command | the `validate-type-safety` skill |
+| Security review | dependency + secret scan | the `review-security` skill |
+| Code review | style/guideline adherence | the `review-code` skill |
+| Test coverage | per-file coverage on diff | a test-coverage review subagent |
+| Silent failures | unchecked try/catch + fallback hunting | a silent-failure review subagent |
 
-Run the CLI gates via `Bash`, the agent gates via `Task`. Capture exit code + a one-line summary per gate.
+Run the CLI gates in the shell; run each agent gate as a subagent, or inline where your harness has none. Capture exit code + a one-line summary per gate.
 
 ## Scoring `regression_risk` (0–10)
 

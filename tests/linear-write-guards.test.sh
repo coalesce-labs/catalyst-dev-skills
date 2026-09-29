@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# linear-write-guards.test.sh — CTL-2306 Phase 1: research-codebase's Linear
+# linear-write-guards.test.sh — research-codebase's Linear
 # writes are guarded IN THE STEP, not only in a trailing section.
 #
 # WHY: a phase container holds no Linear credential and its prompt forbids
@@ -49,7 +49,7 @@ assert_guarded() {
   esac
 }
 
-echo "Linear write steps carry their own guards (CTL-2306)"
+echo "Linear write steps carry their own guards"
 
 # Positive control: the same probe passes on the step that is already guarded.
 assert_guarded "control: implement-plan's in-progress transition is guarded in-step" \

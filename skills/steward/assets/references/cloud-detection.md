@@ -1,6 +1,6 @@
 # Cloud detection — before you trust the replica
 
-Steward (and concierge) assume a live Catalyst Cloud replica by default. That assumption is not always true — a single non-fleet operator, or a host with no mirror running, has neither. Ryan direction (2026-08-25 evening, CTL-2218 Phase D): make the assumption a **checked, recoverable** fact, not a silent one. This is the canonical version: one source in the plugin's `references/`, carried as a generated copy by each skill that follows it (`steward`, `concierge`; CTL-2306), so its commands resolve against whichever skill is running.
+Steward (and concierge) assume a live Catalyst Cloud replica by default. That assumption is not always true: a single operator working alone, or a host with no mirror running, has neither. So make the assumption a **checked, recoverable** fact, not a silent one. This is the canonical version: one source, carried as a generated copy by each skill that follows it (`steward`, `concierge`), so its commands resolve against whichever skill is running.
 
 ## The check — both parts, every time you boot or start a new scope pass
 
@@ -26,7 +26,7 @@ When either check fails, say so out loud before reading anything, the same "loud
 
 ```bash
 if [[ "$rf" -ne 0 || -z "$marker" ]]; then
-  echo "⚠️ cloud-detection: NO Catalyst Cloud mirror on this host (replica_fresh_rc=$rf, marker=${marker:-absent}). Falling back to direct linearis reads for list/search — the non-fleet path. See assets/references/cloud-detection.md." >&2
+  echo "⚠️ cloud-detection: NO Catalyst Cloud mirror on this host (replica_fresh_rc=$rf, marker=${marker:-absent}). Falling back to direct linearis reads for list/search — the single-operator path. See assets/references/cloud-detection.md." >&2
   # list/search go straight to `linearis` for this pass; for any SINGLE-ticket read, still call
   # linear_read_ticket <ID> below rather than `linearis issues read` directly — it owns the timeout
   # cap and fallback telemetry this loop doesn't reproduce.
@@ -35,8 +35,8 @@ fi
 
 For a **single ticket** read, don't hand-roll this at all — `linear_read_ticket <ID>` (same file) already runs the freshness half of this gate and performs the loud fallback per-read; call it directly instead of re-deriving the logic. The two-part check above is for the coarser, session-level question — "should I even attempt scope-wide replica reads this pass" — which `linear_read_ticket` doesn't answer on its own, and it never licenses a bare `linearis issues read` for a single ticket.
 
-## This fallback is the non-fleet path, not an equal alternative
+## This fallback is the single-operator path, not an equal alternative
 
-The replica exists specifically so bulk Linear reads never hit the Linear API directly: a bare `linearis`/API read draws on the **shared, rate-limited 2500/hr quota** the whole fleet shares, and exhausting it stalls every agent on the host — measured, not hypothetical (the incident history, CTL-1397 and CTL-1420, behind the replica-first house rule in `catalyst-dev:linearis`).
+The replica exists specifically so bulk Linear reads never hit the Linear API directly: a bare `linearis`/API read draws on the **shared, rate-limited 2500/hr quota** every agent on the host shares, and exhausting it stalls all of them. That is why the `linearis-cli` skill reads from the replica first.
 
-That makes the fallback **correct and safe for a single operator working alone without the cloud stack**, and **actively wrong to recommend to anyone running the fleet-scale workflow this repo is built for.** If you find yourself on the fallback path while other agents are active on this host, that is a writer/mirror gap worth a ticket — not a state to normalize as "either path is fine."
+That makes the fallback **correct and safe for a single operator working alone without the cloud stack**, and **actively wrong to recommend to anyone running many agents at once, the workflow this pack is built for.** If you find yourself on the fallback path while other agents are active on this host, that is a writer/mirror gap worth a ticket — not a state to normalize as "either path is fine."
