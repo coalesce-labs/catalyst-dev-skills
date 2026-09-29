@@ -25,6 +25,16 @@ const RULES = [
       "(\"Commit statuses: Read-only\"), a direct settings link, and the follow-up step (accept the new " +
       "permissions on the installation).",
   },
+  {
+    // Ryan, 2026-09-28, on CTC-3950: the ask said no agent held the npm token; agents did, and the
+    // real reason was his release rule. A missing-credential claim is often a policy in disguise.
+    rule: "credential-claim",
+    re: /\b(?:no agent(?: round)? (?:holds?|has)|(?:does|do) not hold|missing (?:access|credentials?|tokens?|permissions?)|lacks? (?:access|the (?:token|credential)))\b/i,
+    fix:
+      "Check the credential is really missing: most publish and write tokens are agent-held. If a rule " +
+      "needs the human's go (a public release does), say so as policy (\"public releases need your go\"), " +
+      "not as missing access. If it truly is missing, name the credential.",
+  },
 ];
 
 /**
