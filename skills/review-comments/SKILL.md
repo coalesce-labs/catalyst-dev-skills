@@ -1,6 +1,6 @@
 ---
 name: review-comments
-description: "Systematically pull, categorize, and address all PR review comments — code change requests, questions, and suggestions. This skill fetches comments via gh api, groups them by file, implements fixes, handles disagreements diplomatically, and pushes a single commit. You should not try to handle PR review feedback manually — this skill ensures nothing gets missed. **ALWAYS consult this skill when** the user says 'address comments', 'fix review feedback', 'handle PR comments', 'respond to reviewers', 'address review', 'review feedback', or mentions that a PR has unresolved comments or review threads. Also used by /oneshot Phase 5 to process reviewer feedback before merging."
+description: "Systematically pull, categorize, and address all PR review comments — code change requests, questions, and suggestions. This skill fetches comments via gh api, groups them by file, implements fixes, handles disagreements diplomatically, and pushes a single commit. You should not try to handle PR review feedback manually — this skill ensures nothing gets missed. **ALWAYS consult this skill when** the user says 'address comments', 'fix review feedback', 'handle PR comments', 'respond to reviewers', 'address review', 'review feedback', or mentions that a PR has unresolved comments or review threads."
 disable-model-invocation: false
 allowed-tools: Bash, Read, Write, Edit, Grep, Glob
 version: 1.0.0
@@ -52,7 +52,7 @@ Group comments into threads using `in_reply_to_id` — read the full thread befo
 
 ## Step 1.5: Determine the Review Round (per reviewer)
 
-Automated reviewers re-review after every remediation push, and each round can surface new, smaller findings. Track the round **per bot**, not globally — a PR can have more than one automated reviewer (this repo's `create-pr`/`merge-pr` already anticipate that), and applying one bot's count to another bot's findings misclassifies them:
+Automated reviewers re-review after every remediation push, and each round can surface new, smaller findings. Track the round **per bot**, not globally — a PR can have more than one automated reviewer (the `create-pr` and `merge-pr` skills anticipate that), and applying one bot's count to another bot's findings misclassifies them:
 
 ```bash
 # Round for a specific bot login = how many times that login has submitted a review on this PR.
@@ -105,7 +105,7 @@ Post this reply? [y/N]
 
 Classify a finding as a disagreement/judgment call **before** applying the round-based P2 policy below — a P2 tag does not make a finding non-judgmental.
 
-**Deferring low-priority findings after round one:** applies only to **addressable findings authored by the automated reviewer** — never a human reviewer's comment, which always goes through existing human-request handling (`phase-monitor-merge` requires human change requests to be surfaced for operator action, never addressed programmatically) — and only once the disagreement check above has ruled out a judgment call.
+**Deferring low-priority findings after round one:** applies only to **addressable findings authored by the automated reviewer** — never a human reviewer's comment, which always goes through human-request handling (a human change request is surfaced for the person to act on, never addressed programmatically) — and only once the disagreement check above has ruled out a judgment call.
 
 - **Round 1**: P0/P1 always gets fixed. For P2/P3, use judgment — fix it now if it's real, cheap,
   and clearly correct; otherwise defer (below).
@@ -120,9 +120,9 @@ To defer a finding:
 
 If ticket filing fails (Linearis unavailable, no usable Linear credentials), don't let that block the thread indefinitely — fall back to fixing the finding inline instead (the normal Step 3 path). An optional dependency should never become load-bearing for getting a PR unstuck. **Phase-container guard:** skip every `linearis` call when `CATALYST_PHASE` is set (a phase container holds no Linear credential; the runner owns the ticket write-back) or when `command -v linearis` fails (the CLI is not installed); say so in one line and continue.
 
-This is a policy decision, not itself a judgment call: it applies identically in interactive and headless mode and does NOT go through the `[y/N]` prompt above. It keeps AGENTS.md's "every review thread resolved" rule intact — deferral resolves the thread via that reply, it does not leave it open.
+This is a policy decision, not itself a judgment call: it applies identically in interactive and headless mode and does NOT go through the `[y/N]` prompt above. It keeps every review thread resolved — deferral resolves the thread via that reply, it does not leave it open.
 
-## Non-interactive / headless mode (CTL-1496)
+## Non-interactive / headless mode
 
 When `CATALYST_PHASE` is set **or** `--headless` is passed as an argument, this skill runs in a mode safe for `claude --bg` workers (no stdin available):
 
@@ -137,7 +137,7 @@ When `CATALYST_PHASE` is set **or** `--headless` is passed as an argument, this 
   ```json
   { "prNumber": 42, "threadId": "T1", "path": "a.ts", "line": 5, "finding": "…", "why": "…" }
   ```
-  (Resolve `CATALYST_ORCHESTRATOR_DIR` **first** — a `claude --bg` worker receives that var, not `ORCH_DIR` — CTL-1496. Keying off `ORCH_DIR` alone wrote the record to `./workers/<ticket>` in the worktree instead of the shared orchestrator dir.) CTL-2141 removed this file's only consumer (the recovery-pass skill, which read `.review-escalations.jsonl` to author a curated escalation brief); the write here is retained as a durable record for manual triage, but nothing currently reads it automatically.
+  (Resolve `CATALYST_ORCHESTRATOR_DIR` **first** — a `claude --bg` worker receives that var, not `ORCH_DIR`; keying off `ORCH_DIR` alone writes the record to `./workers/<ticket>` in the worktree instead of the shared orchestrator dir.) The file is a durable record for manual triage; nothing reads it automatically.
 - **Interactive path preserved** — when neither `CATALYST_PHASE` is set nor `--headless` is
   passed, the existing `[y/N]` prompt behaviour is unchanged.
 

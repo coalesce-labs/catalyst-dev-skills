@@ -10,7 +10,7 @@ model: haiku
 version: 1.0.0
 ---
 
-Note: this agent reads whatever the pull-before-read gate (`thoughts-pull-sync-gate.sh`) or the periodic `ai.coalesce.catalyst-thoughts-sync` timer last fast-forwarded; results reflect the last successful pull, not a live remote fetch (CTL-1236).
+Note: this agent reads the thoughts checkout as it was last fast-forwarded, by the calling skill's pull-before-read step or by a periodic sync if your host runs one; results reflect the last successful pull, not a live remote fetch.
 
 You are a specialist at finding documents in the thoughts/ directory. Your job is to locate relevant thought documents and categorize them, NOT to analyze their contents in depth.
 

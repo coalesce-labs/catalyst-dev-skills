@@ -10,7 +10,7 @@ If missing, tell the user their humanlayer thoughts setup is incomplete and poin
 
 ## Step 2 — Identify the target PR
 
-If an argument was given, use that PR number (`/describe_pr 123`). Otherwise:
+If an argument was given, use that PR number (for example, the `describe-pr` skill with `123`). Otherwise:
 
 ```bash
 gh pr view --json number,url,title,state,body,headRefName,baseRefName 2>/dev/null

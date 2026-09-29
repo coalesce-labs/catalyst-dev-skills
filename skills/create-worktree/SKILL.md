@@ -43,7 +43,7 @@ When this command is invoked:
    - Copies `.claude/` and `.catalyst/` directories
    - Falls back to auto-detected setup if no config (dependency install + thoughts init)
 
-   **Resume-from-remote (default-on, CTL-1640).** When a NEW branch is being created and `origin/<worktree_name>` already exists (e.g. a pushed draft PR's commits, CTL-783), the worktree is seeded from that remote tip instead of being cut fresh off the base branch — so a re-dispatch or a cross-host reclaim rebuilds on the pushed work rather than orphaning it under a fresh branch. This is automatic; the script prints a `🌱 Resuming from origin/<name>` banner when it fires. An existing **local** branch always wins over the remote (no auto-merge); the resume applies only when there is no local branch yet.
+   **Resume-from-remote (default-on).** When a NEW branch is being created and `origin/<worktree_name>` already exists (e.g. a pushed draft PR's commits), the worktree is seeded from that remote tip instead of being cut fresh off the base branch — so a re-dispatch or a cross-host reclaim rebuilds on the pushed work rather than orphaning it under a fresh branch. This is automatic; the script prints a `🌱 Resuming from origin/<name>` banner when it fires. An existing **local** branch always wins over the remote (no auto-merge); the resume applies only when there is no local branch yet.
 
    To opt out and force a fresh branch off the base (ignore any matching origin branch), pass **`--no-from-remote`**. To suppress all origin fetches entirely (offline), pass **`--skip-fetch`** (which also disables the resume). Confirm with the user which they want before overriding the default when a matching origin branch may carry stale or already-merged history.
 
@@ -51,7 +51,7 @@ When this command is invoked:
 
    If `catalyst.worktree.setup` is defined in config, those commands run in order. Otherwise, the script auto-detects: dependency install (`bun/npm`) + thoughts init.
 
-   **Where thoughts go (CTC-3792).** The script looks for a declared thoughts repo: `CATALYST_THOUGHTS_REPO`, then `paths.thoughtsRepo` in `~/.config/catalyst/paths.json`, then `<repoRoot>/<owner>/thoughts` when that is a checkout. When it finds one, thoughts init points there even without the HumanLayer CLI, and `${PROFILE}` is the HumanLayer profile whose repo it is. If no profile points there, `catalyst-<owner>` is added. With nothing declared, the HumanLayer config decides, as before. `${DIRECTORY}` is `catalyst.thoughts.directory`, else the origin's repo name.
+   **Where thoughts go.** The script looks for a declared thoughts repo: `CATALYST_THOUGHTS_REPO`, then `paths.thoughtsRepo` in `~/.config/catalyst/paths.json`, then `<repoRoot>/<owner>/thoughts` when that is a checkout. When it finds one, thoughts init points there even without the HumanLayer CLI, and `${PROFILE}` is the HumanLayer profile whose repo it is. If no profile points there, `catalyst-<owner>` is added. With nothing declared, the HumanLayer config decides. `${DIRECTORY}` is `catalyst.thoughts.directory`, else the origin's repo name.
 
    Example config for full control:
 
@@ -62,8 +62,7 @@ When this command is invoked:
          "setup": [
            "humanlayer thoughts init --directory ${DIRECTORY} --profile ${PROFILE}",
            "humanlayer thoughts sync",
-           "bun install",
-           "~/.claude/scripts/trust-workspace.sh \"$(pwd)\""
+           "bun install"
          ]
        }
      }
@@ -88,7 +87,7 @@ Worktree base directory is resolved in this order:
 
 1. `--worktree-dir <path>` (explicit override)
 2. `catalyst.orchestration.worktreeDir` from config
-3. `<worktrees root>/<owner>/<repo>/`, where the root is `CATALYST_WORKTREES_DIR`, else `paths.worktrees` in `~/.config/catalyst/paths.json`, else `~/catalyst/wt`. The owner comes from the origin URL, so two clones that share a repo name (`coalesce-labs/catalyst`, `ryanrozich/catalyst`) never share a folder, and the layout matches repos at `<repoRoot>/<owner>/<repo>` (CTC-3906). Without a parseable origin, the key is `catalyst.projectKey`, else the repo name.
+3. `<worktrees root>/<owner>/<repo>/`, where the root is `CATALYST_WORKTREES_DIR`, else `paths.worktrees` in `~/.config/catalyst/paths.json`, else `~/catalyst/wt`. The owner comes from the origin URL, so two clones that share a repo name (`acme/app`, `other-org/app`) never share a folder, and the layout matches repos at `<repoRoot>/<owner>/<repo>`. Without a parseable origin, the key is `catalyst.projectKey`, else the repo name.
 
 A worktree that already exists under an old key (`<root>/<projectKey>/` or `<root>/<repo>/`) and belongs to this repository is used where it is, so a revive never starts a second tree. A relative or unreadable root refuses (exit 2) before anything is created.
 
@@ -117,5 +116,5 @@ A worktree that already exists under an old key (`<root>/<projectKey>/` or `<roo
 ## Example Interaction
 
 ```
-User: /create-worktree PROJ-123
+User: /create-worktree PROJ-123    (Claude Code; $create-worktree PROJ-123 in Codex)
 ```

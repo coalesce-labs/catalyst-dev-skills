@@ -4,7 +4,7 @@
 
 ```bash
 SCRIPT_DIR="${CLAUDE_SKILL_DIR}/scripts/morning-briefing"
-# Session tracking uses the installed catalyst-session CLI when this host has one (CTL-2306, D8).
+# Session tracking uses the installed catalyst-session CLI when this host has one.
 # Empty when the CLI is absent: every call below is guarded, and a parent CATALYST_SESSION_ID
 # handed down by the invoking workflow is kept rather than overwritten.
 SESSION_SCRIPT="$(command -v catalyst-session 2>/dev/null || true)"
@@ -46,7 +46,7 @@ If a richer Linear or Notion query is needed beyond what the CLI/REST helpers ex
 
 ## Gather "today"
 
-- In-progress Linear tickets — `linearis issues list --team "$TEAM" --status "$(state inProgress)" --limit 20`, where `state` resolves the SLOT out of the tenant's `stateMap` (`linear-transition.sh --print-state`, CTL-2300) into a CHECKED assignment first — `IN_PROGRESS=$(state inProgress) || exit 1` — because a command substitution used as an argument swallows the refusal and leaves `--status` empty. Typing a stage name here is the silent failure this whole section exists to avoid: a name the board does not use returns an empty list, which reads as "nothing in flight".
+- In-progress Linear tickets — `linearis issues list --team "$TEAM" --status "$(state inProgress)" --limit 20`, where `state` resolves the SLOT out of the tenant's `stateMap` (`linear-transition.sh --print-state`) into a CHECKED assignment first — `IN_PROGRESS=$(state inProgress) || exit 1` — because a command substitution used as an argument swallows the refusal and leaves `--status` empty. Typing a stage name here is the silent failure this whole section exists to avoid: a name the board does not use returns an empty list, which reads as "nothing in flight".
 - Today's calendar — already gathered above, reuse `$SCRATCH/calendar.json`
 - Follow-ups — extract action items from the prior day's Granola notes (`$SCRATCH/granola.json`) via a Claude-side synthesis pass
 - **Retro signals** — the most recent `ticket-retro` artifact's open watch-items, rendered as a `Plan today → Retro signals` sub-section. Degrades to an empty array (`_no data_`) when no retro has ever run.

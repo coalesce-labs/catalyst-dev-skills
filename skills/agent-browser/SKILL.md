@@ -13,12 +13,12 @@ description: Fast browser automation CLI for AI agents. **ALWAYS use instead of 
 
 ## The one rule: every session is named and closed
 
-`agent-browser` runs a **persistent per-session daemon** that owns a real "Chrome for Testing" browser. That daemon **outlives the CLI** — the browser keeps running (and, on an auto-refreshing page, keeps pegging a CPU core) until something closes it. On shared fleet/worker hosts a leaked browser starves the box (CTL-1500). So:
+`agent-browser` runs a **persistent per-session daemon** that owns a real "Chrome for Testing" browser. That daemon **outlives the CLI** — the browser keeps running (and, on an auto-refreshing page, keeps pegging a CPU core) until something closes it. On a shared worker host a leaked browser starves the box. So:
 
-- **Every command carries `--headed --session <name>`** — a short, task-specific name (e.g. `ctl-1500-verify`, `gh-review`). Never the implicit `default` session: it collides across concurrent workers and is the hardest leak to attribute.
+- **Every command carries `--headed --session <name>`** — a short, task-specific name (e.g. `eng-123-verify`, `gh-review`). Never the implicit `default` session: it collides across concurrent workers and is the hardest leak to attribute.
 - **Close in the same turn you finish**: `agent-browser --session <name> close`. If you took a wrong turn, close before starting over — never leave a session open "in case".
 - **Never write an open-loop without a guaranteed close** (e.g. `until agent-browser --session s open <url>; do sleep …; done`) — each failed `open` can spawn/adopt a browser and a loop that exits without closing strands them. If you must poll, `open` once, then `wait`/`reload`, and `close` in a trap/`finally`.
-- **On a worker/CI host**, close immediately — the host reaper (orphan-sweep vector 5) is a backstop, not a substitute.
+- **On a worker/CI host**, close immediately — a host reaper, if one runs, is a backstop, not a substitute.
 
 ```bash
 agent-browser --headed --session my-task open https://example.com

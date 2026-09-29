@@ -28,7 +28,7 @@ Auto-invoked whenever a ticket is being born or rewritten — you do **not** nee
 - breaking a PRD/plan into tickets
 - "rewrite this ticket", "clean up these ticket titles", "this backlog is unreadable"
 
-If the user is mid-creation in another skill (`linear`, `phase-triage`), apply these rules to the title and body before the issue is written.
+If the user is mid-creation in another skill (such as `linear`), apply these rules to the title and body before the issue is written.
 
 ---
 
@@ -54,8 +54,8 @@ But **bias hard toward concise and scannable. Do not force the formula.**
   only if the extra words remove ambiguity.
 - **No jargon in the title — hard rule.** No symbol, function, event, file, or flag names
   (`reap-complete`, `bootReplay`, `schedulerTick`, `layoutId`, `--label-mode`). The title is for someone deciding whether to care, not implementing. **If you can't state the outcome without naming an internal mechanism, you don't yet understand the outcome — go figure out what the work is *for*, then write that.** The mechanism belongs in the body.
-- **Component does NOT go in the title.** Put it in a Linear *label* (CTL uses component labels:
-  orchestrator / phase-agent / broker / monitor / cli / …). No `[API]` / `[Frontend]` prefixes.
+- **Component does NOT go in the title.** Put it in a Linear *label* (for example component labels
+  such as orchestrator / phase-agent / broker / monitor / cli / …). No `[API]` / `[Frontend]` prefixes.
 
 The hardest case is deep-internals work (a reaper fix, a scheduler reorder). The temptation is to title it by its mechanism because the outcome feels invisible. It isn't — every change exists to make *something* better for *someone* (the operator, the daemon, the next developer). Name that. "The reaper should record an already-gone session as reaped so the daemon stops re-checking it every boot" beats "Reap echo on already-gone bg session" even though both describe the same patch.
 
@@ -64,7 +64,7 @@ The hardest case is deep-internals work (a reaper fix, a scheduler reorder). The
 | ❌ Implementation-first (cryptic) | ✅ Outcome-first (scannable) |
 |---|---|
 | `Wire HRW ownership + claim into monitor dispatchTriage` | `The orchestrator should claim a ticket before triaging it so that two workers never grab the same job` |
-| `Fix CTL-874 preflight label scope` | `catalyst-monitor preflight should pass in workspaces that have no team-level labels` |
+| `Fix ENG-874 preflight label scope` | `catalyst-monitor preflight should pass in workspaces that have no team-level labels` |
 | `Add stale-worker detection to dispatcher` | `The dispatcher should skip workers that have gone silent when assigning new work` |
 | `Dashboard needs-attention banner` | `Humans should see an indication on the dashboard when something needs their attention so that they can react to it` |
 | `Refactor: extract dispatchAndVerify` | `Developers should change dispatch-and-verify logic in one place so that the three sweeps can't silently diverge` |
@@ -120,7 +120,7 @@ A full scenario would be hollow. Lead with **Context / Motivation / Outcome** in
 
 ```
 Context: dispatchAndVerify() is duplicated verbatim in sweep-triage, sweep-implement, sweep-verify.
-Motivation: when one copy's timeout changes, the other two silently stay wrong (the CTL-826 class).
+Motivation: when one copy's timeout changes, the other two silently stay wrong.
 Outcome: a single shared dispatchAndVerify() is extracted; all three sweeps import it.
 ```
 
@@ -206,11 +206,11 @@ Scenario: Dispatch still waits for completion before returning  # invariant
 3. Pick the tier (A/B/C) and write the **body** (Part 2).
 4. Run the **quality checklist** below.
 5. Hand the title + body to the `linear` skill to create the issue. Add component label,
-   estimate, priority there (see `feedback_linear_ticket_hygiene`).
+   estimate, priority there.
 
 ### REWRITE (existing ticket)
 1. Read the **full** existing ticket — never partial. On a tenant, one command returns the
-   title, description, comments, relations and labels: `catalyst-skills query issue "$TICKET"`
+   title, description, comments, relations and labels: `catalyst query issue "$TICKET"`
    (the `linear` skill's tenant route). On an operator machine with the operator-only `linearis`
    skill, the replica helper is the alternative, read in ONE command (the helper's function is
    only defined in the shell that sourced it):
@@ -222,7 +222,7 @@ Scenario: Dispatch still waits for completion before returning  # invariant
    restructuring, not deleting. Move technical detail under a `## Technical notes` section below the Gherkin so it stays but doesn't lead.
 3. Rewrite the title to outcome-first; rewrite the body into the right tier.
 4. Show a **before → after** so the user can eyeball it before you push the update.
-5. Apply it. The tenant route has no title or description write yet (CTC-3202), so on a tenant
+5. Apply it. The tenant route has no title or description write, so on a tenant
    hand the approved title and body to the person to paste into Linear, and say so. Only an
    operator machine with `linearis` updates the ticket directly (`linearis issues update`).
 
@@ -258,9 +258,9 @@ Dependencies:
 
 ## Dependencies — link them, don't narrate them
 
-If you know that other work **must finish before this ticket can start**, record it as a first-class Linear `blocked_by` **link** at authoring time — you know the prerequisites better than any later pass will. **Catalyst does NOT infer dependencies from prose** (CTL-838): writing "depends on CTL-123" or "see CTL-456" in the description does nothing — it is not scraped into a blocker, and it should not be (a mention is not a dependency).
+If you know that other work **must finish before this ticket can start**, record it as a first-class Linear `blocked_by` **link** at authoring time — you know the prerequisites better than any later pass will. **Catalyst does NOT infer dependencies from prose**: writing "depends on ENG-123" or "see ENG-456" in the description does nothing — it is not scraped into a blocker, and it should not be (a mention is not a dependency).
 
-The tenant write route has no relation write yet (CTC-3202). On a tenant, name each genuine
+The tenant write route has no relation write. On a tenant, name each genuine
 prerequisite to the person so they add the `blocked by` link in Linear. An operator machine with the
 operator-only `linearis` skill links it directly:
 
@@ -272,8 +272,8 @@ linearis issues update <NEW-TICKET> --blocked-by <PREREQ-TICKET>
 Rules of thumb:
 - Link only **true** prerequisites — work that must reach Done/Canceled first. A shared topic,
   prior-art reference, or "related" ticket is **not** a blocker.
-- Never link across teams for auto-sequencing (a `CTL` ticket on an `OTL`/`ADV` ticket): the
-  execution-core daemon only works its own team, so a cross-team blocker just deadlocks. Coordinate cross-team work out-of-band.
+- Never link across teams for auto-sequencing (an `ENG` ticket blocked by an `OPS` ticket): Catalyst
+  sequences work within one team, so a cross-team blocker just deadlocks. Coordinate cross-team work out-of-band.
 - A blocker you miss is fine — the relay's triage step does a semantic second pass over the backlog
   and can add genuine ones it finds. But a **false** blocker you add stalls real work, so when in doubt, leave it out.
 

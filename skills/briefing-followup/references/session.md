@@ -4,7 +4,7 @@
 
 ```bash
 SCRIPT_DIR="${CLAUDE_SKILL_DIR}/scripts/briefing-followup"
-# Session tracking uses the installed catalyst-session CLI when this host has one (CTL-2306, D8).
+# Session tracking uses the installed catalyst-session CLI when this host has one.
 # Empty when the CLI is absent: every call below is guarded, and a parent CATALYST_SESSION_ID
 # handed down by the invoking workflow is kept rather than overwritten.
 SESSION_SCRIPT="$(command -v catalyst-session 2>/dev/null || true)"
@@ -52,7 +52,7 @@ echo "$DECISION_COUNT open decision(s) to walk through."
 
 ## Resolve the scratch log dir
 
-One flat scratch dir under `$TMPDIR` — there is no run-scoped directory to nest under (the retired background scheduler that used to provide one is gone, CTL-2218):
+One flat scratch dir under `$TMPDIR`:
 
 ```bash
 LOG_DIR="${TMPDIR:-/tmp}/catalyst-briefing-followup"

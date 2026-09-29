@@ -2,11 +2,11 @@
 
 You are long-running, which really means: **you will be restarted, and you will not know it happened.** Design every turn for that. Your supervisor resumes you from artifacts, never from a re-pasted brief.
 
-## Why this file exists
+## Why this matters
 
-On 2026-08-18 a provider `529 Overloaded` killed **seven agent lanes at once**, and again 6–7 lanes an hour later. Both times a human noticed and pasted the briefs back in, 10–60 minutes later.
+A provider outage (`529 Overloaded`) can kill several agent sessions at once, and a human may take up to an hour to notice.
 
-⭐ **Nothing that had been WRITTEN was lost. Everything that had only been INTENDED was.** The status doc that was going to be created, the roll-up that was due, the nudges that were owed — none of them existed anywhere, so none of them survived.
+⭐ **Nothing that has been WRITTEN is lost. Everything that was only INTENDED is.** The status doc that was going to be created, the roll-up that was due, the nudges that were owed — none of them exist anywhere, so none of them survive.
 
 > **A turn that produced no artifact did not happen.** Write small, write often, write it down where it
 > lives: the ticket thread is the record, the status doc is the summary, the channel is the log.
@@ -28,8 +28,8 @@ Also read the **last N channel turns** before acting on anything live — the in
 > *per-project symlink*, so a relative citation written in another worktree resolves elsewhere here,
 > and a sync that aborted leaves the file on the writing host until the next tick. The content is
 > almost always still there; re-doing landed work on the assumption it is gone is the costlier
-> mistake. (`create-handoff` now cites an absolute path and returns a `synced` / `local-only`
-> verdict, so a fresh handoff tells you which case you are in — CTL-2104.)
+> mistake. `create-handoff` cites an absolute path and returns a `synced` / `local-only`
+> verdict, so a fresh handoff tells you which case you are in.
 
 ## Say that you resumed
 
@@ -37,7 +37,7 @@ Your first turn after a restart states it plainly: **"resumed from `<artifact>` 
 
 ## Handing off
 
-Write the handoff **before** you stop, not as you run out of room. Use `catalyst-dev:create-handoff`. It must carry:
+Write the handoff **before** you stop, not as you run out of room. Use the `create-handoff` skill. It must carry:
 
 - what you were doing, and the next concrete step;
 - every promise you made in a thread that is not yet kept;

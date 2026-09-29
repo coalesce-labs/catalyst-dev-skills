@@ -1,6 +1,6 @@
 # Core operations — full syntax
 
-> ⛔ **Assign the stage name, then check it — never inline `$(state …)` into the query (CTL-2300, Codex round 2).** A command substitution used as an *argument* does not propagate its exit status, so a refused slot leaves `linearis` running with an empty `--status` and the named refusal becomes an empty result set. `VAR=$(state slot) || exit 1` DOES propagate: the assignment's status is the substitution's. `state() { bash "${CLAUDE_SKILL_DIR}/scripts/linear-transition.sh" --print-state --transition "$1" --team "$TEAM"; }`
+> ⛔ **Assign the stage name, then check it — never inline `$(state …)` into the query.** A command substitution used as an *argument* does not propagate its exit status, so a refused slot leaves `linearis` running with an empty `--status` and the named refusal becomes an empty result set. `VAR=$(state slot) || exit 1` DOES propagate: the assignment's status is the substitution's. `state() { bash "${CLAUDE_SKILL_DIR}/scripts/linear-transition.sh" --print-state --transition "$1" --team "$TEAM"; }`
 
 
 Full CRUD and comment-thread commands behind `SKILL.md` → "Core Operations". Run `linearis usage` / `linearis <domain> usage` for the authoritative, always-current flag list — prefer it to memorizing.
@@ -35,7 +35,7 @@ linearis issues update ENG-123 --project-milestone "Milestone Name"
 
 ## Comment on a ticket — full command set
 
-Commenting is a **thread model** under `issues` (the old flat `comments` domain is a deprecated compatibility facade as of v2026.4.x). Both `issues discuss` and `issues discussions` accept either a UUID or an `ABC-123` identifier.
+Commenting is a **thread model** under `issues` (the flat `comments` domain is a deprecated compatibility facade). Both `issues discuss` and `issues discussions` accept either a UUID or an `ABC-123` identifier.
 
 ```bash
 # An AGENT starting a comment/discussion thread — go through linear-reply.mjs, NOT `discuss`
@@ -61,7 +61,7 @@ linearis issues delete-comment <comment-id>
 linearis issues delete-reply <reply-id>
 ```
 
-`comments create` still works but is deprecated and loses nested-reply support — don't teach it as canonical. See the `catalyst-dev:ask` skill for the ask/decision-ticket SOP and `scripts/ask.mjs` for its `create`/`accept` verbs (CTL-1922).
+`comments create` still works but is deprecated and loses nested-reply support — don't teach it as canonical. See the `ask` skill for the ask/decision-ticket SOP, and its `scripts/ask.mjs` for the `create`/`accept` verbs.
 
 ## Common mistakes
 
@@ -71,12 +71,12 @@ linearis issue view ENG-123             # ❌ no 'view' — use 'read'
 linearis issues comment ENG-123 "text"  # ❌ no 'comment' subcommand — use 'issues discuss <id> --body'
 linearis comments create ENG-123 ...     # ⚠️ deprecated facade — prefer 'issues discuss'
 linearis issues update ENG-123 --state  # ❌ use --status, not --state
-linearis project-milestones list        # ❌ renamed to 'milestones' in v2026.4
+linearis project-milestones list        # ❌ the domain is 'milestones'
 ```
 
 ## Other domains (not detailed above)
 
-v2026.4.9 also exposes these. **Read-only** subcommands (`list`/`read`/`status`/`download`) are safe; `create`/`update`/`delete`/`archive`/`upload` **mutate** — don't run them in audits.
+Linearis also exposes these. **Read-only** subcommands (`list`/`read`/`status`/`download`) are safe; `create`/`update`/`delete`/`archive`/`upload` **mutate** — don't run them in audits.
 
 - `linearis users list [--active]` — workspace members (id/name/email); resolve assignee/owner UUIDs. Note service/OAuth accounts have synthetic emails (`*@oauthapp.linear.app`).
 - `linearis attachments list <issue> [--source-type github]` — PR/Slack/link attachments.

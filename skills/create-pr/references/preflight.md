@@ -6,7 +6,7 @@
 git status --porcelain
 ```
 
-If dirty, offer to commit ("Create commits now? [Y/n]"). Yes → internally call the `/commit` workflow. No → proceed; the user may commit manually later.
+If dirty, offer to commit ("Create commits now? [Y/n]"). Yes → run the `commit` skill's workflow. No → proceed; the user may commit manually later.
 
 ## Step 2 — Verify not on main/master
 
@@ -43,7 +43,7 @@ If behind: `git rebase origin/$base`. On conflicts: show conflicting files, erro
 gh pr view --json number,url,title,state 2>/dev/null
 ```
 
-If one exists, show it and ask: "[D] Describe/update this PR  [S] Skip  [A] Abort". D → call `/describe-pr` and exit. S → exit success. A → exit. **This is the only interactive prompt in the happy path.**
+If one exists, show it and ask: "[D] Describe/update this PR  [S] Skip  [A] Abort". D → run the `describe-pr` skill and exit. S → exit success. A → exit. **This is the only interactive prompt in the happy path.**
 
 ## Step 6 — Extract ticket from branch name
 

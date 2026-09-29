@@ -1,18 +1,18 @@
 ---
 name: linearis-cli
 description:
-  Linear access rule + Linearis CLI reference. READS → query the local replica by direct SQL (`~/.config/catalyst-cloud/replica.db`); WRITES and list/search → the `linearis` CLI. Use when working with Linear tickets, cycles, projects, milestones, or ticket IDs like TEAM-123.
+  Linear access rule + Linearis CLI reference. READS → query the local Linear replica by direct SQL when one runs (`~/.config/catalyst-cloud/replica.db`), else `linearis`; WRITES and list/search → the `linearis` CLI. Use when working with Linear tickets, cycles, projects, milestones, or ticket IDs like TEAM-123.
 metadata:
   internal: true
 ---
 
 # Linearis CLI Reference
 
-> Verified against Linearis v2026.4.9 (2026-05-31). ⚠️ **READ vs WRITE.** Linear **READS** → the local replica by direct SQL, or `linear_read_ticket <ID>`. **Never** shell `linearis issues read` for a routine read — it 429s the shared fleet quota. **WRITES** → `linearis`. Read [Gotchas](#gotchas--traps) before scripting.
+> Verified against Linearis v2026.4.9 ([github.com/czottmann/linearis](https://github.com/czottmann/linearis)). ⚠️ **READ vs WRITE.** Linear **READS** → the local replica by direct SQL, or `linear_read_ticket <ID>`. **Never** shell `linearis issues read` for a routine read — on a replica machine it 429s the workspace's shared API quota. **WRITES** → `linearis`. Read [Gotchas](#gotchas--traps) before scripting.
 
 ## Setup check (first, every session)
 
-`node "${CLAUDE_SKILL_DIR}/scripts/identity-report.mjs"` — one line per identity (tenant, human, team, cloud host), and every `unresolved` line is a stop-and-say (CTL-2300). Paths like that name files inside this skill: Claude Code fills in `${CLAUDE_SKILL_DIR}`; on another harness set CLAUDE_SKILL_DIR to this SKILL.md's directory, or stop and report `skill_dir_unresolved`. A write addressed to the wrong team or the wrong workspace does not error; it lands somewhere plausible, which is why this runs before the first read as well as the first write.
+`node "${CLAUDE_SKILL_DIR}/scripts/identity-report.mjs"` — one line per identity (tenant, human, team, cloud host), and every `unresolved` line is a stop-and-say. Paths like that name files inside this skill: Claude Code fills in `${CLAUDE_SKILL_DIR}`; on another harness set CLAUDE_SKILL_DIR to this SKILL.md's directory, or stop and report `skill_dir_unresolved`. A write addressed to the wrong team or the wrong workspace does not error; it lands somewhere plausible, which is why this runs before the first read as well as the first write.
 
 ## Reading Linear
 > **Single source of the Linear read rule** — other skills point here, they don't restate it.
@@ -24,7 +24,7 @@ metadata:
    source "${CLAUDE_SKILL_DIR}/scripts/lib/plugin-dirs.sh"
    marker="$(plugin_dirs_repo_config_path)"  # "" if no .catalyst/config.json found
    ```
-   Either failing → **no cloud mirror**: say so **loudly** (never silent) and fall back to direct `linearis`/API reads — the **non-fleet path** (protects the 2500/hr quota), wrong to recommend on the fleet. Same pattern: `steward`'s `references/cloud-detection.md`.
+   Either failing → **no cloud mirror**: say so **loudly** (never silent) and fall back to direct `linearis`/API reads — the path for a machine **with no replica**, and wrong to recommend where a replica runs (it spends the shared 2500/hr API quota). Same pattern: the `steward` skill's `assets/references/cloud-detection.md`.
 2. **Cloud mode confirmed → query the replica and TRUST it.** Don't re-verify against live Linear. **Row missing / not fresh → an ALARM, not a silent reroute:** loud fallback, file a ticket.
 
 **The only reads you should shell directly are through the helper — it is the freshness gate, not a convenience wrapper.** Never run a bare `sqlite3` query against the replica yourself: it skips the `$rf`/`$marker` checks above and can return stale data (or an empty DB) with no fallback.
@@ -45,16 +45,16 @@ linearis issues search "auth bug" --team "$TEAM" --status "$(state todo)"
 linearis issues update ENG-123 --status "$(state inProgress)" --labels "bug" --label-mode add
 ```
 
-> ⛔ **Agent comments → `linear-reply.mjs`, never `issues discuss`/`reply`** — those post AS THE HUMAN (personal token; ask-resolution gate reads that as the human deciding, CTL-1567).
+> ⛔ **Agent comments → `linear-reply.mjs`, never `issues discuss`/`reply`** — those post AS THE HUMAN (personal token; ask-resolution gate reads that as the human deciding).
 ```bash
-direnv exec . node "${CLAUDE_SKILL_DIR}/scripts/linear-reply.mjs" ENG-123 --as <AGENT> --body-file <path> --top  # --body-file for any multi-line body; --body REFUSES a path (CTL-2204)
+direnv exec . node "${CLAUDE_SKILL_DIR}/scripts/linear-reply.mjs" ENG-123 --as <AGENT> --body-file <path> --top  # --body-file for any multi-line body; --body REFUSES a path
 ```
 `issues discussions <id>` (read-only) is safe. Full CRUD, comment-thread commands, common mistakes, other domains: [`references/core-operations.md`](references/core-operations.md).
 
 ## Workflow: Status Transitions
-> **Single source of the Linear `stateMap` table** — `linear`, `create-plan`, `implement-plan`, `create-pr`, `research-codebase` point here; none restates it.
+> **Single source of the Linear `stateMap` table** — `create-plan`, `implement-plan`, `create-pr`, `research-codebase` point here; none restates it.
 
-⛔ **A stage is addressed by SLOT, never by name (CTL-2300).** The table below deliberately has no column of stage names: a tenant renames its stages freely — CTC-1597 renamed one mid-flight — and this repo's own board calls `inProgress` something other than "In Progress" today. Resolve the slot with `linear-transition.sh --print-state --transition <slot> --team <KEY>`, which walks the one resolution chain (per-project `stateMap` → global `stateMap` → registry `triageStatus` → bootstrap) and REFUSES rather than substituting our word when a tenant declares a `stateMap` without the slot. The reason this matters more than it looks: `--status` is server-side and **fails empty on a typo** (Gotcha 1) — a name the board does not have returns an empty list, not an error.
+⛔ **A stage is addressed by SLOT, never by name.** The table below deliberately has no column of stage names: a tenant renames its stages freely, so a board's `inProgress` stage need not be called "In Progress". Resolve the slot with `linear-transition.sh --print-state --transition <slot> --team <KEY>`, which walks the one resolution chain (per-project `stateMap` → global `stateMap` → registry `triageStatus` → bootstrap) and REFUSES rather than substituting our word when a tenant declares a `stateMap` without the slot. The reason this matters more than it looks: `--status` is server-side and **fails empty on a typo** (Gotcha 1) — a name the board does not have returns an empty list, not an error.
 
 | Workflow Phase | Slot (config key) |
 | --- | --- |
@@ -66,7 +66,7 @@ direnv exec . node "${CLAUDE_SKILL_DIR}/scripts/linear-reply.mjs" ENG-123 --as <
 | PR created | `stateMap.inReview` |
 | Completed / Canceled | `stateMap.done` / `.canceled` |
 
-Names come from `.catalyst/config.json`'s `linear.stateMap` (`null` skips a transition); the canonical bootstrap for a repo that declares none is `scripts/lib/tenant-contract.default.json`. UUID calls + the team-key allowlist cache (`linear-team-keys.json`): [`references/status-transitions.md`](references/status-transitions.md).
+Names come from `.catalyst/config.json`'s `linear.stateMap` (`null` skips a transition); the bootstrap for a repo that declares none is built into `scripts/linear-transition.sh`. UUID calls + the team-key allowlist cache (`linear-team-keys.json`): [`references/status-transitions.md`](references/status-transitions.md).
 
 ## Gotchas & Traps
 1. `issues list` **hides the done stage** (shows the canceled one) — pass `--status "$(state done)"`, or `issues read <ID>` for one.

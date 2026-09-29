@@ -42,17 +42,17 @@ if [[ -n "$DEPLOY_RUNS" ]]; then
 fi
 ```
 
-## Step 13b — Verify the merge actually deployed (CTL-2232)
+## Step 13b — Verify the merge actually deployed
 
-`gh run list` above only shows *workflow runs*; it says nothing about whether the merged change reached a live surface. Call `verify_post_merge_deploy "$merge_sha"` from [post-merge-deploy-verify.md](post-merge-deploy-verify.md) — using the REST-confirmed `merge_commit_sha` from Step 9 ([worktree-safe-merge.md](worktree-safe-merge.md)), never a local `git rev-parse HEAD`, which `gh pr merge` never updates. The function decides whether the *current repo* even has a known deploy surface to check (`NO_DEPLOY_CONFIG` outside catalyst itself), and within catalyst, whether *this merge* has one (most don't; the plugin marketplace is git-native), then bounded-polls the CF Pages status plus a live HTTP smoke check where one applies. Capture the returned sentinel (`DEPLOYED` / `NOT_APPLICABLE` / `NO_DEPLOY_CONFIG` / `DEPLOY_PENDING` / `DEPLOY_FAILED` / `SMOKE_FAILED`) — it gates Step 14 below and is reported alongside the success summary — never silently skip it.
+`gh run list` above only shows *workflow runs*; it says nothing about whether the merged change reached a live surface. Call `verify_post_merge_deploy "$merge_sha"` from [post-merge-deploy-verify.md](post-merge-deploy-verify.md) — using the REST-confirmed `merge_commit_sha` from Step 9 ([worktree-safe-merge.md](worktree-safe-merge.md)), never a local `git rev-parse HEAD`, which `gh pr merge` never updates. The function decides whether the *current repo* even has a known deploy surface to check (`NO_DEPLOY_CONFIG` for any repo it has no mapping for), and for a mapped repo, whether *this merge* has one (most don't), then bounded-polls the CF Pages status plus a live HTTP smoke check where one applies. Capture the returned sentinel (`DEPLOYED` / `NOT_APPLICABLE` / `NO_DEPLOY_CONFIG` / `DEPLOY_PENDING` / `DEPLOY_FAILED` / `SMOKE_FAILED`) — it gates Step 14 below and is reported alongside the success summary — never silently skip it.
 
-## Step 14 — Compound closing ritual (CTL-189 / CTL-813 / CTL-831 / CTL-2244)
+## Step 14 — Compound closing ritual
 
-This is the one relay-native trigger point for all three compound tools — see the `compound-estimate` skill's `references/trigger.md` for the full contract and why it replaced the daemon-era wiring. Run this step only when Step 13b's sentinel is **terminal** — `DEPLOYED`, `NOT_APPLICABLE`, `NO_DEPLOY_CONFIG`, `DEPLOY_FAILED`, or `SMOKE_FAILED` (a failed deploy is itself a learning). On `DEPLOY_PENDING` — the bounded-poll ceiling hit with no answer yet — skip this step for now; a coordinator re-checks later rather than the ritual firing on an unresolved signal.
+This is the one trigger point for all three compound tools — see the `compound-estimate` skill's `references/trigger.md` for the full contract. Run this step only when Step 13b's sentinel is **terminal** — `DEPLOYED`, `NOT_APPLICABLE`, `NO_DEPLOY_CONFIG`, `DEPLOY_FAILED`, or `SMOKE_FAILED` (a failed deploy is itself a learning). On `DEPLOY_PENDING` — the bounded-poll ceiling hit with no answer yet — skip this step for now; a later rerun re-checks rather than the ritual firing on an unresolved signal.
 
 Three learning steps run for every merged ticket that reaches a terminal sentinel, in order:
 
-1. **Estimation actuals** — invoke the `compound-estimate` skill with `$ticket_id`. Prompts for the post-merge re-score (CTL-746 scale: XS=1 S=3 M=5 L=8 XL=13) plus two short reflections; appends the weekly compound-log entry (`thoughts/shared/retros/estimate/`).
+1. **Estimation actuals** — invoke the `compound-estimate` skill with `$ticket_id`. Prompts for the post-merge re-score (scale: XS=1 S=3 M=5 L=8 XL=13) plus two short reflections; appends the weekly compound-log entry (`thoughts/shared/retros/estimate/`).
 2. **Per-ticket learnings** — invoke the `ticket-compound` skill with `$ticket_id`. Harvests friction + diff into `thoughts/shared/learnings/`. Runs before the retro below on purpose: the retro reads the learnings store, so it must see this ticket's own entry rather than missing the merge that triggered it.
 3. **Cross-ticket retro** — invoke the `ticket-retro` skill (no arguments). Regenerates `thoughts/shared/retros/ticket/<today>.md` over the since-last-retro window, including whatever step 2 just wrote.
 

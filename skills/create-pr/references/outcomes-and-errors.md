@@ -66,15 +66,15 @@ Updating Linear ticket ENG-123 → In Review
 No ticket found in branch name
 Generated title: "Feature add validation"
 Creating PR... ✅ PR #3 created
-Calling /describe-pr... ⚠️  No Linear ticket to update
+Running the describe-pr skill... ⚠️  No Linear ticket to update
 ✅ Complete!
 ```
 
-## Integration with other commands
+## Integration with other skills
 
-- Calls `/commit` if there are uncommitted changes (optional).
-- Always calls `/describe-pr` to generate the comprehensive description.
-- Sets up for `/merge-pr` once the PR reaches a clean state.
+- Runs the `commit` skill if there are uncommitted changes (optional).
+- Always runs the `describe-pr` skill to generate the comprehensive description.
+- Sets up for the `merge-pr` skill once the PR reaches a clean state.
 
 ## Remember
 

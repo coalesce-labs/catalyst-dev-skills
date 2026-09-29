@@ -207,7 +207,7 @@ assert_grep "$RESUME_PROCESS" 'verify.*(running|alive).*before.*re-arm' \
   "process.md checks for a live background task before re-arming it"
 assert_grep "$RESUME_PROCESS" 'most reversible option' \
   "process.md falls back to the most reversible option"
-assert_grep "$RESUME_PROCESS" 'catalyst-dev:ask' \
+assert_grep "$RESUME_PROCESS" 'the `ask` skill' \
   "process.md routes a human-only decision through the ask SOP"
 assert_grep "$RESUME_PROCESS" 'irreversible outward action' \
   "process.md stops only before an unauthorized irreversible outward action"

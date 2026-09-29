@@ -20,7 +20,7 @@ A real choice where every option is reversible and none hits the always-escalate
 - an accepted ADR, the subject's approved plan, or an earlier recorded decision;
 - evidence that makes one option clearly right (an existing precedent in the same code, a measured cost).
 
-In this release the skill proposes the decidable answer and does not apply it. Say which of the three sources above picked it, and name the option in `proposed_answer` with its label copied verbatim from the ask.
+The skill proposes the decidable answer and does not apply it. Say which of the three sources above picked it, and name the option in `proposed_answer` with its label copied verbatim from the ask.
 
 ## `human`: always escalate (held)
 
@@ -45,9 +45,7 @@ Check this list before anything else, because it decides the class on its own. T
 
 `pattern` and every entry of `secondary_patterns` MUST come from this table, so patterns can be counted across runs. Put the specifics (which fence, which dependency, which PR) in `pattern_detail`, which is free text. If nothing fits, use `other` and explain in `notes`. A reviewer promotes a recurring `other` into the table. Never invent a new tag in `pattern`.
 
-The table came from the first two runs (18 asks and 46 stuck tickets, 2026-09-27), where about 40 ad-hoc tags collapsed into these families.
-
-| tag | use when | absorbs earlier ad-hoc tags |
+| tag | use when | also covers |
 | -- | -- | -- |
 | `fence-outlived-cause` | a fence, hold, park or label placed with a stated reason, and that reason is gone (the fix merged, the condition was met) | fence-condition-now-met, park-cause-fixed-on-main, file-overlap-hold-cleared, deliberate-merge-window-hold (when over) |
 | `dependency-landed` | work held on an external dependency (a package publish, a sibling merge) that has since landed | hold-dependency-now-published, held-dependency-now-published |
@@ -77,6 +75,6 @@ The table came from the first two runs (18 asks and 46 stuck tickets, 2026-09-27
 | `no-deadline` | secondary only: the ask has no `Auto-executes:` line, so it waits forever | no-deadline-default |
 | `other` | nothing above fits; explain in `notes` | — |
 
-Two checks every run makes, because both have misled runs before:
+Two checks every run makes:
 - **Confirm the owner live.** Check the session list, a live worktree, or a push or comment in the last 24 h. In a container, use the snapshot's lease heartbeats. Don't infer the owner from a handoff document's author.
 - **Check where a "fixed" fix lives before calling a fence releasable.** Repository scripts reach a ticket when its branch contains the fix. Runner-image code reaches it when the active runner pin contains it (`git merge-base --is-ancestor <fix> <pin>`). In a container with no checkout, say the fix's reach is unverified unless the snapshot states it.

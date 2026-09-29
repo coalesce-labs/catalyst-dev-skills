@@ -6,8 +6,7 @@ in spirit (entries are updated, rarely deleted), reviewable, and surfaced in the
 Source docs/code are never modified by writing a learning.
 
 The store is **grep-first**: filenames are slugs, and frontmatter fields are designed as `rg` targets.
-There is no separate index file — discoverability is the category subdirs + frontmatter + (optionally)
-`research-curate`'s INDEX.md.
+There is no separate index file — discoverability is the category subdirs + frontmatter.
 
 ## Two tracks
 
@@ -31,24 +30,24 @@ Body sections (in order): **Context** → **Guidance** → **Why This Matters** 
 
 ```yaml
 ---
-title: "Daemon declares a live --bg worker dead on its first commit"   # human title
-date: 2026-06-06                       # ISO date created
-ticket: CTL-619                        # origin ticket (or null)
-category: orchestrator-issues          # = the subdir name
+title: "Supervisor declares a live worker dead on its first commit"   # human title
+date: 2025-01-08                       # ISO date created
+ticket: ENG-123                        # origin ticket (or null)
+category: logic-errors                 # = the subdir name
 problem_type: logic_error              # drives the track + body template
-component: execution-core              # grep target (enum below)
+component: orchestrator                # grep target (enum below)
 severity: high                         # critical | high | medium | low
 root_cause: async_timing               # short slug; free-ish but prefer reuse
 resolution_type: code_fix              # code_fix|config_change|test_fix|workflow_improvement|doc_update|tooling_addition
 tags: [reclaim, revive, signal-ownership]   # grep targets
-see_also: ["thoughts/shared/learnings/orchestrator-issues/revive-storm.md"]
-last_updated: 2026-06-07               # added when an existing entry is updated
+see_also: ["thoughts/shared/learnings/logic-errors/revive-storm.md"]
+last_updated: 2025-01-09               # added when an existing entry is updated
 status: active                         # active | stale  (stale set by the refresh audit)
 ---
 ```
 
-`component` enum (Catalyst): `orchestrator | phase-agent | broker | monitor | cli | ci | worktree |
-linear | execution-core | estimation | website | plugins`.
+`component` enum (Catalyst's own; a project may keep its own short fixed list): `orchestrator |
+phase-agent | broker | monitor | cli | ci | worktree | linear | runner | estimation | website | plugins`.
 
 `category` is the subdirectory; suggested set:
 `build-errors | test-failures | runtime-errors | logic-errors | integration-issues |

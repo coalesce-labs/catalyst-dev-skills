@@ -6,7 +6,7 @@ One Linear **document per project**, attached to the project, titled exactly `St
 > refresh.** It is a concise exec summary of NOW, not an append log of history. Never add a new
 > section or append to an existing one; write the whole document from scratch on every update.
 
-## Template (CTL-2094 / COORD-380 — five sections, in this order; ≤60 lines / ~3K chars)
+## Template (five sections, in this order; ≤60 lines / ~3K chars)
 
 The first line under the title, always:
 
@@ -14,7 +14,7 @@ The first line under the title, always:
 > Last updated: <America/Chicago timestamp> by <steward/scope>
 ```
 
-Then, exactly these five headings. `<human>` is **this tenant's** human, read from `catalyst.human.name` in `.catalyst/config.json` (CTL-2299) — never a name you remember from another workspace. When the tenant has named no human, the heading reads `## Needs from the human`, which is correct everywhere and reads as deliberate rather than as a placeholder left behind. `statusDocHumanHeading()` in `lib/tenant-identity.mjs` renders exactly this.
+Then, exactly these five headings. `<human>` is **this tenant's** human, read from `catalyst.human.name` in `.catalyst/config.json` — never a name you remember from another workspace. When the tenant has named no human, the heading reads `## Needs from the human`, which is correct everywhere and reads as deliberate rather than as a placeholder left behind. `statusDocHumanHeading()` in this skill's `scripts/lib/tenant-identity.mjs` renders exactly this.
 
 ```markdown
 ## Goal right now
@@ -47,7 +47,7 @@ Each with its mitigation. A risk with no mitigation is a complaint.
 
 ⛔ **Never write a timestamp you did not read from the clock.** `TZ=America/Chicago date` — an estimated timestamp on a document whose whole purpose is freshness is worse than no timestamp, because the stale check then silently passes.
 
-⚠️ **The cadence is enforced by the supervisor, not by your memory.** A steward that held exactly this cadence as a brief instruction produced **zero** status docs in 90 minutes while dispatching five tickets. If your supervisor re-enters you saying the doc is stale, it is stale — update it, don't argue with the clock.
+⚠️ **The cadence is enforced by the supervisor, not by your memory.** A steward that holds this cadence only as a brief instruction can dispatch five tickets in 90 minutes and produce **zero** status docs. If your supervisor re-enters you saying the doc is stale, it is stale — update it, don't argue with the clock.
 
 ## Announcing it
 

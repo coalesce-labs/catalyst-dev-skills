@@ -9,7 +9,7 @@ For each open decision, present its fields and the action set filtered by decisi
 | defer / later / skip for today | `log_response "$ID" defer "$NOTE"` | TSV log only |
 | schedule meeting / book time / put on calendar | `action-schedule.sh` → `record_resolution "$ID" schedule_calendar "$JSON"` | TSV + JSON |
 | file a ticket / open Linear issue | `action-ticket.sh` → `record_resolution "$ID" file_ticket "$JSON"` | TSV + JSON |
-| dispatch the work / start relay-ticket / run the ticket | launch `/relay-ticket <TICKET>` (below) → `record_resolution "$ID" dispatch_relay_ticket "$JSON"` | TSV + JSON |
+| dispatch the work / start a worker / run the ticket | launch a ticket-worker session (below) → `record_resolution "$ID" dispatch_relay_ticket "$JSON"` | TSV + JSON |
 | draft email / send a note to X / message Y | `action-email.sh` → `record_resolution "$ID" draft_email "$JSON"` | TSV + JSON |
 | edit / update the ADR (adr_drift only) | `action-adr.sh --mode update --adr-file "$ADR"` → `record_resolution "$ID" adr_update "$JSON"` | TSV + JSON |
 | file code-drift ticket (adr_drift only) | `action-adr.sh --mode ticket --adr-file "$ADR" --team "$TEAM" --summary "$SUMMARY" --drift-status "$DRIFT_STATUS"` → `record_resolution "$ID" adr_ticket "$JSON"` | TSV + JSON |
@@ -40,20 +40,20 @@ log_response "$ID" schedule_calendar "$STATUS"
 
 The same pattern applies to `action-ticket.sh`, `action-email.sh`, and `action-adr.sh` — only the script name and the action label change.
 
-## Dispatching work — launch `/relay-ticket`, not a script
+## Dispatching work — launch a ticket-worker session, not a script
 
-There is no dedicated script handler for this one, unlike the actions above. Dispatching a ticket's work is launching a `/relay-ticket <TICKET>` session yourself (`Task`, or your environment's background session primitive) — the same dispatch verb `steward` uses (the `steward` skill's `references/dispatch.md`). The legacy single-session runner and any retired background-dispatch path are gone (CTL-2218); do not fall back to either.
+There is no dedicated script handler for this one, unlike the actions above. Dispatching a ticket's work is launching a ticket-worker session yourself (a subagent, or your environment's background session primitive) — the same dispatch verb `steward` uses; the `steward` skill's `references/dispatch.md` says what a ticket worker is. Do not fall back to a background-dispatch daemon.
 
 ```bash
 # TICKET comes from the decision's `.ticket` field (present on blocked_pr / judgment_call types).
 if [[ -z "$TICKET" ]]; then
   RESULT='{"status":"skipped","reason":"decision has no ticket field"}'
 else
-  # Launch the session (Task tool, or `claude --bg "/relay-ticket $TICKET"` outside an
-  # interactive session) — do not do the phase work yourself.
+  # Launch the ticket-worker session (a subagent, or a background session outside an
+  # interactive one) — do not do the phase work yourself.
   RESULT=$(jq -nc --arg t "$TICKET" '{ticket: $t, status: "dispatched"}')
 fi
-echo "$RESULT" | jq -r 'if .status == "dispatched" then "Dispatched \(.ticket) via relay-ticket" else "Skipped: \(.reason)" end'
+echo "$RESULT" | jq -r 'if .status == "dispatched" then "Dispatched \(.ticket) to a ticket-worker session" else "Skipped: \(.reason)" end'
 record_resolution "$ID" dispatch_relay_ticket "$RESULT"
 log_response "$ID" dispatch_relay_ticket "$(echo "$RESULT" | jq -r .status)"
 ```
@@ -92,7 +92,7 @@ record_resolution "$ID" compound_apply "$RESULT"
 |---|---|---|---|
 | Schedule a calendar event | `action-schedule.sh` | `{event_id, html_link, status: "scheduled"}` | `GOOGLE_OAUTH_ACCESS_TOKEN` unset |
 | File a Linear ticket | `action-ticket.sh` | `{identifier, url, status: "filed"}` | `linearis` not on PATH |
-| Dispatch relay-ticket | none — launch `/relay-ticket <TICKET>` directly, above | `{ticket, status: "dispatched"}` | decision has no `.ticket` field |
+| Dispatch a ticket worker | none — launch a ticket-worker session directly, above | `{ticket, status: "dispatched"}` | decision has no `.ticket` field |
 | Draft an email | `action-email.sh` | `{draft_id, status: "drafted"}` | `GMAIL_OAUTH_ACCESS_TOKEN` unset |
 | Update / ticket / defer ADR (adr_drift) | `action-adr.sh --mode update\|ticket\|defer` | `{adr_file, adr_id, commit_sha, status}` | `$EDITOR` unset, ADR not in git, or `linearis` missing |
 | Apply / edit / defer / reject proposal (`pending:`) | `action-compound.sh --mode apply\|edit\|defer\|reject` | `{adrs_file, adr_id, target, commit_sha, status}` | proposal missing, not in git, or `$EDITOR` unset (edit) |

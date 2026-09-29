@@ -4,7 +4,7 @@
 
 ## Step 12a — Wait for CI checks and automated reviewers (event-driven)
 
-Automated reviewers (Codex, security scanners, linters) typically post within 3–5 minutes; CI needs time too. Use the canonical "Reactive PR lifecycle" pattern (Pattern 3, CTL-228; the `monitor-events` skill that first documented it was removed with the daemon, CTL-2240) — one multi-event subscription that wakes on PR merged, PR closed, CI completed, review submitted, or a push to the base branch — instead of polling on a sleep loop. That subscription needs the unified event log actually live (`<events dir>/YYYY-MM.jsonl`, where the events dir is `CATALYST_EVENTS_DIR`, else `paths.events` in `~/.config/catalyst/paths.json`, else `~/.local/state/catalyst/events` present, not just the `catalyst-events` CLI installed) — on a relay-default host with no live log, the fallback below takes over instead.
+Automated reviewers (Codex, security scanners, linters) typically post within 3–5 minutes; CI needs time too. Use the "Reactive PR lifecycle" pattern — one multi-event subscription that wakes on PR merged, PR closed, CI completed, review submitted, or a push to the base branch — instead of polling on a sleep loop. That subscription needs the unified event log actually live (`<events dir>/YYYY-MM.jsonl`, where the events dir is `CATALYST_EVENTS_DIR`, else `paths.events` in `~/.config/catalyst/paths.json`, else `~/.local/state/catalyst/events` present, not just the `catalyst-events` CLI installed) — on a host with no live log, the fallback below takes over instead.
 
 ```bash
 REPO=$(gh repo view --json nameWithOwner --jq '.nameWithOwner')
@@ -15,7 +15,7 @@ BASE_BRANCH=$(gh api "repos/${REPO}/pulls/${pr_number}" --jq '.base.ref' 2>/dev/
 EVENTS_DIR="${CATALYST_EVENTS_DIR:-${CATALYST_DIR:+$CATALYST_DIR/events}}"
 EVENTS_DIR="${EVENTS_DIR:-$(jq -r '.paths.events // empty' "${CATALYST_PATHS_FILE:-${XDG_CONFIG_HOME:-$HOME/.config}/catalyst/paths.json}" 2>/dev/null)}"
 EVENT_LOG="${EVENTS_DIR:-${XDG_STATE_HOME:-$HOME/.local/state}/catalyst/events}/$(date -u +%Y-%m).jsonl"
-# Until housekeeping migrates it, an older writer may still be filling the legacy log.
+# An older writer may still be filling the legacy log location.
 [ -f "$EVENT_LOG" ] || EVENT_LOG="$HOME/catalyst/events/$(date -u +%Y-%m).jsonl"
 if command -v catalyst-events >/dev/null 2>&1 && [ -f "$EVENT_LOG" ]; then
   EVENT_JSON=$(catalyst-events wait-for \
@@ -66,11 +66,11 @@ The `--timeout 300` floor keeps this from blocking indefinitely if the event fee
 
 ## Step 12b — Address all review comments
 
-If any comments/reviews exist, run `/review-comments $pr_number`: fetch and categorize (inline, threads, issue comments), implement requested changes, resolve threads via GraphQL, push one addressing commit.
+If any comments/reviews exist, run the `review-comments` skill on `$pr_number`: fetch and categorize (inline, threads, issue comments), implement requested changes, resolve threads via GraphQL, push one addressing commit.
 
 ## Step 12c — Diagnose and resolve merge blockers
 
-Read `"${CLAUDE_SKILL_DIR}/assets/references/merge-blocker-diagnosis.md"` and run the full loop (max 3 rounds): `ci-failing` → fix + push + re-poll; `unresolved-threads` → `/review-comments`; `branch-behind` → rebase + push; `draft` → `gh pr ready`; `changes-requested` → check/attempt fix.
+Read `"${CLAUDE_SKILL_DIR}/assets/references/merge-blocker-diagnosis.md"` and run the full loop (max 3 rounds): `ci-failing` → fix + push + re-poll; `unresolved-threads` → the `review-comments` skill; `branch-behind` → rebase + push; `draft` → `gh pr ready`; `changes-requested` → check/attempt fix.
 
 **Don't confuse "unresolved review threads" with "needs approving reviewer."** Automated-reviewer threads are yours to resolve by addressing the feedback. Only `review-required` (no approving reviews at all) is a genuine human gate.
 

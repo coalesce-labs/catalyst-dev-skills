@@ -1,6 +1,6 @@
 ---
 name: validate-plan
-description: "Validate that implementation plans were correctly executed. **ALWAYS use when** the user says 'validate the plan', 'check if the plan was implemented correctly', 'verify the implementation', or after completing /implement-plan to confirm all phases were properly executed and success criteria met."
+description: "Validate that implementation plans were correctly executed. **ALWAYS use when** the user says 'validate the plan', 'check if the plan was implemented correctly', 'verify the implementation', or after the implement-plan skill completes, to confirm all phases were properly executed and success criteria met."
 disable-model-invocation: false
 allowed-tools: Read, Grep, Glob, Bash, Task
 version: 1.0.0
@@ -13,11 +13,10 @@ You are tasked with validating that an implementation plan was correctly execute
 ## Prerequisites
 
 ```bash
-# Thoughts must exist for this skill's documents. CTL-2306: the full host setup check (daemon,
-# registry, house rules) belongs to the setup-catalyst skill, not to a skill that must run anywhere.
-[[ -e thoughts/shared ]] || echo "⚠️ thoughts/shared is missing in $(pwd) — run \`humanlayer thoughts init\` or the setup-catalyst skill; if the prompt names an output path, write there" >&2
+# Thoughts must exist for this skill's documents. That is the only host check here: the skill runs anywhere.
+[[ -e thoughts/shared ]] || echo "⚠️ thoughts/shared is missing in $(pwd) — run \`humanlayer thoughts init\`; if the prompt names an output path, write there" >&2
 
-# CTL-2306 explicit-input discovery: begin
+# explicit-input discovery: begin
 # Find the plan to validate on disk for the ticket this run was given: $CATALYST_TICKET under a
 # phase, else a ticket named in the skill's argument text (Claude Code substitutes the token in
 # the heredoc below; another harness leaves it literal, which names no ticket). Nothing is
@@ -37,7 +36,7 @@ if [[ -n "$TICKET_ID" ]]; then
 elif [[ -z "${CATALYST_PHASE:-}" ]]; then
   RECENT_PLAN=$(find -H thoughts/shared/plans -type f -name '*.md' -exec ls -t {} + 2>/dev/null | head -1)
 fi
-# CTL-2306 explicit-input discovery: end
+# explicit-input discovery: end
 if [[ -n "$RECENT_PLAN" ]]; then
   echo "📋 Found plan: $RECENT_PLAN"
 else
@@ -244,14 +243,14 @@ Always verify:
 - [ ] Documentation updated if needed
 - [ ] Manual test steps are clear
 
-## Relationship to Other Commands
+## Relationship to Other Skills
 
 Recommended workflow:
 
-1. `/implement-plan` - Execute the implementation
-2. `/commit` - Create atomic commits for changes
-3. `/validate-plan` - Verify implementation correctness
-4. `/describe-pr` - Generate PR description
+1. `implement-plan` - Execute the implementation
+2. `commit` - Create atomic commits for changes
+3. `validate-plan` - Verify implementation correctness
+4. `describe-pr` - Generate PR description
 
 The validation works best after commits are made, as it can analyze the git history to understand what was implemented.
 
