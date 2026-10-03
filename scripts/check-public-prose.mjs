@@ -5,13 +5,15 @@
 //
 // The pack is published: anyone installs it with `npx skills`, into Claude Code, Codex, OpenCode or
 // Cursor. So every Markdown file an installer receives (skills/**/*.md) and the install docs follow
-// four rules:
+// these rules:
 //   1. A skill is named bare (`ask`), never through a plugin prefix (`catalyst-dev:ask`, `catalyst-cloud:catalyst-linear`).
 //   2. No person is named: "the owner", "an admin", "the person".
 //   3. No provenance: ticket ids, ADR numbers, dated history. The rule stays; how it came about goes.
 //   4. Only what an installer has: the two published packs, the `catalyst` CLI (never the retired
 //      `catalyst-skills` name), public repos and docs.
 //   5. A person's account is "your cloud account", never a "tenant".
+//   6. AI accounts are token-billed (an API key is billed per token by its provider). No
+//      subscription, plan tier, setup token, subscription login or usage window, in prose or code.
 // Dates are checked in prose only; a code block may show an example timestamp.
 
 import { readdirSync, readFileSync, statSync } from "node:fs";
@@ -38,6 +40,20 @@ export const RULES = [
   // People and their accounts are never "tenants". Identifiers keep their names, so inline code and
   // link targets are left out of this check: `tenantId`, `/v1/tenant/...`, `tenant-0`.
   { id: "tenant-word", why: "say your cloud account or the cloud account", re: /\btenants?\b/i, proseOnly: true, identifiersExempt: true },
+  // AI accounts are token-billed; no published text names a subscription or how one is used.
+  { id: "ai-subscription", why: "describe an AI account billed per token; for an event stream say watch or listener", re: /\bsubscriptions?\b/i },
+  { id: "setup-token", why: "say an API key from the provider", re: /\bsetup[- ]?tokens?\b/i },
+  {
+    id: "plan-tier",
+    why: "say nothing about plans",
+    re: /\b(?:claude\s+(?:pro|max|team)|chatgpt\s+(?:plus|pro|team|business|enterprise)|(?:max|pro|coding)\s+plans?|max\s+(?:5|20)x|plan\s+tiers?)\b/i,
+  },
+  {
+    id: "usage-window",
+    why: "say usage limits, or that a provider is limiting the account",
+    re: /\b(?:(?:5|five)[- ]?h(?:ou)?r?\s+(?:and\s+(?:a\s+)?)?(?:(?:7|seven)[- ]day\s+)?(?:windows?|limits?|caps?|resets?)|window\s+usage|(?:7|seven)[- ]day\s+(?:windows?|limits?|caps?)|weekly\s+(?:windows?|limits?|caps?)|usage\s+windows?|rate\s+windows?)\b/i,
+  },
+  { id: "subscription-login", why: "the account's own page says what it takes", re: /auth\.json|\.credentials\.json|sign in with (?:chatgpt|claude)|claude\.ai\s+(?:account|login)|claude_code_oauth_token|\bcodex login\b(?!\s+--with-api-key)/i },
 ];
 
 const withoutIdentifiers = (line) => line.replace(/`[^`]*`/g, "").replace(/\]\([^)]*\)/g, "]");

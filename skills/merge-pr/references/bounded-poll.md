@@ -4,7 +4,7 @@
 
 A merge session is one agent session. It has no background process and no way to spawn a wait that keeps running after the session's turn ends: a subagent cannot self-sustain a background wait loop — dispatching one and asking it to "wait and report back" produces a subagent that goes idle without ever reporting; and backgrounding the wait itself (`claude --bg` on a sub-shell, `&` inside the gate script) can exit print mode entirely, stranding uncommitted work with nothing watching it.
 
-So bounded-poll runs **in the calling turn**, as an ordinary blocking Bash call. The session is "busy waiting" for real wall-clock time, which is why the two constraints below (bounded, sparse) both matter — an unbounded or tight version of this loop just trades an event subscription for a REST client that never stops.
+So bounded-poll runs **in the calling turn**, as an ordinary blocking Bash call. The session is "busy waiting" for real wall-clock time, which is why the two constraints below (bounded, sparse) both matter — an unbounded or tight version of this loop just trades an event watch for a REST client that never stops.
 
 ## The two presets
 

