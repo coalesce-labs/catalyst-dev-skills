@@ -4,7 +4,7 @@
 
 ## Step 12a — Wait for CI checks and automated reviewers (event-driven)
 
-Automated reviewers (Codex, security scanners, linters) typically post within 3–5 minutes; CI needs time too. Use the "Reactive PR lifecycle" pattern — one multi-event subscription that wakes on PR merged, PR closed, CI completed, review submitted, or a push to the base branch — instead of polling on a sleep loop. That subscription needs the unified event log actually live (`<events dir>/YYYY-MM.jsonl`, where the events dir is `CATALYST_EVENTS_DIR`, else `paths.events` in `~/.config/catalyst/paths.json`, else `~/.local/state/catalyst/events` present, not just the `catalyst-events` CLI installed) — on a host with no live log, the fallback below takes over instead.
+Automated reviewers (Codex, security scanners, linters) typically post within 3–5 minutes; CI needs time too. Use the "Reactive PR lifecycle" pattern — one multi-event watch that wakes on PR merged, PR closed, CI completed, review submitted, or a push to the base branch — instead of polling on a sleep loop. That watch needs the unified event log actually live (`<events dir>/YYYY-MM.jsonl`, where the events dir is `CATALYST_EVENTS_DIR`, else `paths.events` in `~/.config/catalyst/paths.json`, else `~/.local/state/catalyst/events` present, not just the `catalyst-events` CLI installed) — on a host with no live log, the fallback below takes over instead.
 
 ```bash
 REPO=$(gh repo view --json nameWithOwner --jq '.nameWithOwner')
