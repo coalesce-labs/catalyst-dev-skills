@@ -36,6 +36,8 @@ describe("skill prose is public and harness-agnostic", () => {
     ["subscription-login", "copy ~/.claude/.credentials.json"],
     ["plan-tier", "a Max 20x account"],
     ["usage-window", "the 5h window resets at noon"],
+    ["plan-tier", "Connect your ChatGPT **Plus** account"],
+    ["plan-tier", "works with Claude [Max](https://example.com/max)"],
   ];
 
   test("control: the widened subscription patterns catch their lines", () => {
@@ -72,6 +74,7 @@ describe("skill prose is public and harness-agnostic", () => {
       "```\ncatalyst query issue ENG-1 --tenant tenant-0\n```",
       "Settings → AI accounts lists the providers your workspace can connect; an API key is billed per token by its provider.",
       "Run `codex login --with-api-key` with your key.",
+      "Set `CLAUDE_MAX_TURNS` in the environment.",
       "A phase that runs past its 5-hour build timeout is stopped.",
       "One multi-event watch wakes on PR merge, CI and review events.",
       "Write the plan, then the plan phase reviews it.",
