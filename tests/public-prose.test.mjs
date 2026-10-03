@@ -26,7 +26,26 @@ describe("skill prose is public and harness-agnostic", () => {
     "retired-cli": "Run `catalyst-skills query issue ENG-1`.",
     "private-reference": "Clone coalesce-labs/catalyst-cloud and ask Lantern.",
     "tenant-word": "Move the card on the tenant's board.",
+    "ai-subscription": "Phases run at your subscription's rate.",
+    "setup-token": "Paste what `claude setup-token` prints.",
+    "plan-tier": "Works with Claude Pro or Max.",
+    "usage-window": "Subscriptions have 5-hour and 7-day windows.",
+    "subscription-login": "Run `codex login` and paste ~/.codex/auth.json.",
   };
+  const plantedMore = [
+    ["subscription-login", "copy ~/.claude/.credentials.json"],
+    ["plan-tier", "a Max 20x account"],
+    ["usage-window", "the 5h window resets at noon"],
+  ];
+
+  test("control: the widened subscription patterns catch their lines", () => {
+    for (const [rule, line] of plantedMore) expect(findings("planted.md", line).map((f) => f.rule), line).toContain(rule);
+  });
+
+  test("control: every planted line has its rule, and every rule a planted line", () => {
+    expect(Object.keys(planted).filter((id) => !RULES.some((r) => r.id === id))).toEqual([]);
+    expect(RULES.map((r) => r.id).filter((id) => !(id in planted))).toEqual([]);
+  });
 
   for (const rule of RULES) {
     test(`control: the ${rule.id} rule catches its planted line`, () => {
@@ -51,6 +70,11 @@ describe("skill prose is public and harness-agnostic", () => {
       "Move the card on your cloud account's board; the route is `/v1/tenant/:id` and the field `tenantId`.",
       "See [the contract](https://example.com/tenant-contract).",
       "```\ncatalyst query issue ENG-1 --tenant tenant-0\n```",
+      "Settings → AI accounts lists the providers your workspace can connect; an API key is billed per token by its provider.",
+      "Run `codex login --with-api-key` with your key.",
+      "A phase that runs past its 5-hour build timeout is stopped.",
+      "One multi-event watch wakes on PR merge, CI and review events.",
+      "Write the plan, then the plan phase reviews it.",
     ].join("\n");
     expect(findings("clean.md", clean)).toEqual([]);
   });
