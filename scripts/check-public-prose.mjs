@@ -41,22 +41,33 @@ export const RULES = [
   // link targets are left out of this check: `tenantId`, `/v1/tenant/...`, `tenant-0`.
   { id: "tenant-word", why: "say your cloud account or the cloud account", re: /\btenants?\b/i, proseOnly: true, identifiersExempt: true },
   // AI accounts are token-billed; no published text names a subscription or how one is used.
-  { id: "ai-subscription", why: "describe an AI account billed per token; for an event stream say watch or listener", re: /\bsubscriptions?\b/i },
-  { id: "setup-token", why: "say an API key from the provider", re: /\bsetup[- ]?tokens?\b/i },
+  { id: "ai-subscription", why: "describe an AI account billed per token; for an event stream say watch or listener", re: /\bsubscriptions?\b/i, rendered: true },
+  { id: "setup-token", why: "say an API key from the provider", re: /\bsetup[- ]?tokens?\b/i, rendered: true },
   {
     id: "plan-tier",
     why: "say nothing about plans",
     re: /\b(?:claude\s+(?:pro|max|team)|chatgpt\s+(?:plus|pro|team|business|enterprise)|(?:max|pro|coding)\s+plans?|max\s+(?:5|20)x|plan\s+tiers?)\b/i,
+    rendered: true,
   },
   {
     id: "usage-window",
     why: "say usage limits, or that a provider is limiting the account",
     re: /\b(?:(?:5|five)[- ]?h(?:ou)?r?\s+(?:and\s+(?:a\s+)?)?(?:(?:7|seven)[- ]day\s+)?(?:windows?|limits?|caps?|resets?)|window\s+usage|(?:7|seven)[- ]day\s+(?:windows?|limits?|caps?)|weekly\s+(?:windows?|limits?|caps?)|usage\s+windows?|rate\s+windows?)\b/i,
+    rendered: true,
   },
-  { id: "subscription-login", why: "the account's own page says what it takes", re: /auth\.json|\.credentials\.json|sign in with (?:chatgpt|claude)|claude\.ai\s+(?:account|login)|claude_code_oauth_token|\bcodex login\b(?!\s+--with-api-key)/i },
+  { id: "subscription-login", why: "the account's own page says what it takes", re: /auth\.json|\.credentials\.json|sign in with (?:chatgpt|claude)|claude\.ai\s+(?:account|login)|claude_code_oauth_token|\bcodex login\b(?!\s+--with-api-key)/i, rendered: true },
 ];
 
 const withoutIdentifiers = (line) => line.replace(/`[^`]*`/g, "").replace(/\]\([^)]*\)/g, "]");
+
+// The line as it renders: link targets dropped and emphasis removed, so `ChatGPT **Plus**` reads as
+// the words a reader sees. Underscores inside identifiers stay. Rules marked `rendered` match both.
+const plainText = (line) =>
+  line
+    .replace(/\[([^\]]*)\]\([^)]*\)/g, "$1")
+    .replace(/\*+/g, "")
+    .replace(/(?<![A-Za-z0-9])_+|_+(?![A-Za-z0-9])/g, "")
+    .replace(/`/g, "");
 
 function listMarkdown(dir) {
   return readdirSync(dir).flatMap((entry) => {
@@ -78,7 +89,8 @@ export function findings(file, text) {
     if (/^\s*(```|~~~)/.test(line)) fenced = !fenced;
     for (const rule of RULES) {
       if (rule.proseOnly && fenced) continue;
-      if (rule.re.test(rule.identifiersExempt ? withoutIdentifiers(line) : line)) out.push({ file, line: i + 1, rule: rule.id, text: line.trim().slice(0, 160) });
+      const seen = rule.identifiersExempt ? withoutIdentifiers(line) : line;
+      if (rule.re.test(seen) || (rule.rendered && rule.re.test(plainText(seen)))) out.push({ file, line: i + 1, rule: rule.id, text: line.trim().slice(0, 160) });
     }
   });
   return out;
