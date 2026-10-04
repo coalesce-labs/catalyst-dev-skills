@@ -1,79 +1,98 @@
-# Post-PR Monitoring & Resolution Loop (Step 12)
+# Post-PR monitoring and resolution
 
-**Creating the PR is NOT the end of this skill.** Monitor CI, wait for automated reviewer comments, address them, and only report success once the PR is clean/mergeable or genuinely blocked on a human gate. Don't just say "PR created" and stop.
+Creating the PR starts monitoring. Address CI failures and review findings, then confirm the exact head is ready for the repository's merge route.
 
-## Step 12a — Wait for CI checks and automated reviewers (event-driven)
+## Wait for CI and reviewers
 
-Automated reviewers (Codex, security scanners, linters) typically post within 3–5 minutes; CI needs time too. Use the "Reactive PR lifecycle" pattern — one multi-event watch that wakes on PR merged, PR closed, CI completed, review submitted, or a push to the base branch — instead of polling on a sleep loop. That watch needs the unified event log actually live (`<events dir>/YYYY-MM.jsonl`, where the events dir is `CATALYST_EVENTS_DIR`, else `paths.events` in `~/.config/catalyst/paths.json`, else `~/.local/state/catalyst/events` present, not just the `catalyst-events` CLI installed) — on a host with no live log, the fallback below takes over instead.
+Use `catalyst events status --json` to check the cloud connection. Cloud events need no local sync or log file. Capture its `head` before the first GitHub read and retain `EVENT_CURSOR` across fixes and pushes. This closes the gap between reading state and starting the next wait.
+
+The CLI accepts one `--type`, so the lifecycle watch reads the cloud stream and selects event types locally. A ticket filter can exclude CI and base-branch events that carry no ticket. Use `--ticket` for a narrow ticket-linked merge wait, shown below, rather than restricting the lifecycle watch. Events only trigger a wake. GitHub REST confirms this PR's state and exact head.
 
 ```bash
-REPO=$(gh repo view --json nameWithOwner --jq '.nameWithOwner')
-BASE_BRANCH=$(gh api "repos/${REPO}/pulls/${pr_number}" --jq '.base.ref' 2>/dev/null || echo "main")
-
-# The events dir, as the producers resolve it: CATALYST_EVENTS_DIR, else $CATALYST_DIR/events (the
-# test-isolation alias), else paths.events in the machine paths file, else the default.
-EVENTS_DIR="${CATALYST_EVENTS_DIR:-${CATALYST_DIR:+$CATALYST_DIR/events}}"
-EVENTS_DIR="${EVENTS_DIR:-$(jq -r '.paths.events // empty' "${CATALYST_PATHS_FILE:-${XDG_CONFIG_HOME:-$HOME/.config}/catalyst/paths.json}" 2>/dev/null)}"
-EVENT_LOG="${EVENTS_DIR:-${XDG_STATE_HOME:-$HOME/.local/state}/catalyst/events}/$(date -u +%Y-%m).jsonl"
-# An older writer may still be filling the legacy log location.
-[ -f "$EVENT_LOG" ] || EVENT_LOG="$HOME/catalyst/events/$(date -u +%Y-%m).jsonl"
-if command -v catalyst-events >/dev/null 2>&1 && [ -f "$EVENT_LOG" ]; then
-  EVENT_JSON=$(catalyst-events wait-for \
-    --filter '
-      (.attributes."event.name" == "github.pr.merged" and .attributes."vcs.pr.number" == '"$pr_number"') or
-      (.attributes."event.name" == "github.pr.closed" and .attributes."vcs.pr.number" == '"$pr_number"') or
-      (.attributes."event.name" == "github.check_suite.completed"
-         and (.body.payload.prNumbers // [] | index('"$pr_number"') != null)) or
-      (.attributes."event.name" == "github.pr_review.submitted"
-         and .attributes."vcs.pr.number" == '"$pr_number"') or
-      (.attributes."event.name" == "github.issue_comment.created"
-         and .attributes."vcs.pr.number" == '"$pr_number"') or
-      (.attributes."event.name" == "github.pr_review_comment.created"
-         and .attributes."vcs.pr.number" == '"$pr_number"') or
-      (.attributes."event.name" == "github.push" and .attributes."vcs.ref.name" == "refs/heads/'"$BASE_BRANCH"'")
-    ' \
-    --timeout 300 || true)
-
-  # MANDATORY authoritative REST re-check on every wake-up.
-  PR_DATA=$(gh api "repos/${REPO}/pulls/${pr_number}" \
-    --jq '{merged: .merged, state: .state, head_sha: .head.sha}' 2>/dev/null || echo '{}')
-  PR_STATE=$(echo "$PR_DATA" | jq -r 'if .merged then "MERGED" elif .state == "closed" then "CLOSED" else "OPEN" end')
-  HEAD_SHA=$(echo "$PR_DATA" | jq -r '.head_sha // ""')
-  CI_STATUS="unknown"
-  if [ -n "$HEAD_SHA" ]; then
-    CI_STATUS=$(gh api "repos/${REPO}/commits/${HEAD_SHA}/check-runs" \
-      --jq '[.check_runs[] | .conclusion // .status] | unique | join(",")' 2>/dev/null || echo "pending")
-  fi
-  echo "wake: state=${PR_STATE} CI=${CI_STATUS} event=$(echo "$EVENT_JSON" | jq -r '.attributes."event.name" // "(timeout)"')"
+REPO=$(gh repo view --json nameWithOwner --jq '.nameWithOwner') || exit 1
+CLOUD_EVENTS=false
+if ! command -v catalyst >/dev/null 2>&1; then
+  echo 'REST fallback: catalyst CLI absent; 300s interval, 24 reads maximum.' >&2
+elif EVENT_STATUS=$(catalyst events status --json 2>/dev/null); then
+  EVENT_HEAD=$(printf '%s' "$EVENT_STATUS" | jq -er '.head | select(type == "number" and . >= 0 and . == floor)') || exit 1
+  EVENT_CURSOR=${EVENT_CURSOR:-$EVENT_HEAD}
+  CLOUD_EVENTS=true
 else
-  # Fallback when the catalyst-events CLI isn't installed — REST-only poll, 5-min intervals, 2-hour cap. This is the bounded-poll merge/review preset — see the `merge-pr` skill's `references/bounded-poll.md` for the full pattern and ceiling.
-  COUNT=0; MAX=24; MERGED_FLAG="false"
-  while [ "$MERGED_FLAG" != "true" ] && [ $COUNT -lt $MAX ]; do
-    sleep 300; COUNT=$((COUNT + 1))
-    PR_DATA=$(gh api "repos/${REPO}/pulls/${pr_number}" 2>/dev/null || echo '{"merged":false}')
-    MERGED_FLAG=$(echo "$PR_DATA" | jq -r '.merged')
-    COMMENT_COUNT=$(gh api "repos/${REPO}/pulls/${pr_number}/comments" --jq 'length' 2>/dev/null || echo "0")
-    REVIEW_COUNT=$(gh api "repos/${REPO}/pulls/${pr_number}/reviews" \
-      --jq '[.[] | select(.state != "APPROVED" and .state != "DISMISSED")] | length' 2>/dev/null || echo "0")
-    echo "REST poll @$((COUNT * 5))min: merged=${MERGED_FLAG} comments=${COMMENT_COUNT} reviews=${REVIEW_COUNT}"
-    [ "$MERGED_FLAG" = "true" ] && break
-    { [ "$COMMENT_COUNT" -gt 0 ] || [ "$REVIEW_COUNT" -gt 0 ]; } && break
-  done
+  echo 'REST fallback: catalyst events status failed; 300s interval, 24 reads maximum.' >&2
 fi
+
+# Read after capturing the cursor, so an event arriving during this read is replayed.
+PR_DATA=$(gh api "repos/${REPO}/pulls/${pr_number}") || exit 1
+PR_FALLBACK_READS=${PR_FALLBACK_READS:-0}
+PR_WAIT_DEADLINE=${PR_WAIT_DEADLINE:-$((SECONDS + 7200))}
+while [ "$SECONDS" -lt "$PR_WAIT_DEADLINE" ]; do
+  PR_STATE=$(printf '%s' "$PR_DATA" | jq -er 'if .merged then "MERGED" elif .state == "closed" then "CLOSED" elif .state == "open" then "OPEN" else error("unknown PR state") end') || exit 1
+  case "$PR_STATE" in
+    MERGED) echo MERGED; break ;;
+    CLOSED) echo CLOSED; exit 1 ;;
+  esac
+  EVENT=''
+  if [ "$CLOUD_EVENTS" = true ]; then
+    WAIT_SECONDS=$((PR_WAIT_DEADLINE - SECONDS))
+    [ "$WAIT_SECONDS" -le 300 ] || WAIT_SECONDS=300
+    WAIT_RC=0
+    EVENT_JSON=$(catalyst events wait-for --after "$EVENT_CURSOR" --timeout "$WAIT_SECONDS") || WAIT_RC=$?
+    case "$WAIT_RC" in
+      0)
+        NEXT_CURSOR=$(printf '%s' "$EVENT_JSON" | jq -er '.sequence | select(type == "number" and . == floor)') || exit 1
+        [ "$NEXT_CURSOR" -gt "$EVENT_CURSOR" ] || exit 1
+        EVENT_CURSOR=$NEXT_CURSOR
+        EVENT=$(printf '%s' "$EVENT_JSON" | jq -er '.type') || exit 1
+        case "$EVENT" in
+          github.pr.merged|github.pr.closed|github.check-suite.completed|github.pr-review.submitted|github.pr-review-comment.created|github.pr-review-thread.resolved|github.issue-comment.created|github.pr.synchronize|github.push) ;;
+          *) continue ;;
+        esac ;;
+      1) : ;; # Timeout: one authoritative read, then keep the same cursor.
+      130) exit 130 ;;
+      *)
+        if catalyst events status --json >/dev/null 2>&1; then
+          echo "cloud wait failed (exit $WAIT_RC); stopping." >&2; exit 1
+        fi
+        CLOUD_EVENTS=false
+        echo 'REST fallback: catalyst events status failed after wait error; 300s interval, 24 reads maximum.' >&2 ;;
+    esac
+  else
+    [ "$PR_FALLBACK_READS" -lt 24 ] || { echo PENDING; exit 1; }
+    [ "$PR_FALLBACK_READS" -eq 0 ] || sleep 300
+    PR_FALLBACK_READS=$((PR_FALLBACK_READS + 1))
+  fi
+  # Exactly one PR read per selected event or timeout; never infer merge from an event.
+  PR_DATA=$(gh api "repos/${REPO}/pulls/${pr_number}") || exit 1
+  HEAD_SHA=$(printf '%s' "$PR_DATA" | jq -er '.head.sha') || exit 1
+  if [ -n "$EVENT" ] && [ "$(printf '%s' "$PR_DATA" | jq -r '.merged or (.state == "closed")')" != true ]; then
+    echo "OPEN head=$HEAD_SHA wake=$EVENT"
+    break # Continue with CI and review resolution below, at this head.
+  fi
+  if [ "$CLOUD_EVENTS" = false ]; then
+    CHECKS=$(gh api "repos/${REPO}/commits/${HEAD_SHA}/check-runs") || exit 1
+    REVIEWS=$(gh api "repos/${REPO}/pulls/${pr_number}/reviews") || exit 1
+    if printf '%s' "$CHECKS" | jq -e 'any(.check_runs[]; .status == "completed")' >/dev/null ||
+       printf '%s' "$REVIEWS" | jq -e 'length > 0' >/dev/null; then
+      echo "OPEN head=$HEAD_SHA; inspect checks and reviews"
+      break
+    fi
+  fi
+done
+[ "$SECONDS" -lt "$PR_WAIT_DEADLINE" ] || { echo PENDING; exit 1; }
 ```
 
-The `--timeout 300` floor keeps this from blocking indefinitely if the event feed has nothing to say. `gh api` REST is the source of truth on every wake-up; the event is only the trigger.
+The watch has a two-hour ceiling and a 300-second safety timeout. On a selected event, reread this PR once, then read checks, reviews, reactions and threads for `HEAD_SHA`. Apply the CI and review readiness checks in merge-pr's `references/gh-signal-traps.md`. An unrelated event cannot prove readiness. On a timeout, recheck state without resetting the cursor or entering a sleep loop. On a wait error, fallback is allowed only after a failed status probe; otherwise stop with the error. Report `PENDING` or the actual read failure at the ceiling.
 
-## Step 12b — Address all review comments
+For a PR already linked to a ticket, a merge-only wait is:
 
-If any comments/reviews exist, run the `review-comments` skill on `$pr_number`: fetch and categorize (inline, threads, issue comments), implement requested changes, resolve threads via GraphQL, push one addressing commit.
+```bash
+catalyst events wait-for --type github.pr.merged --ticket "$ticket" --after "$EVENT_CURSOR" --timeout 300
+```
 
-## Step 12c — Diagnose and resolve merge blockers
+Use this narrow wait only when CI and reviews are already satisfied. It returns on delivery, without waiting for a polling interval. Reread the PR to confirm merge or closure, and keep the lifecycle watch when a ticket link is absent or other blockers remain.
 
-Read `"${CLAUDE_SKILL_DIR}/assets/references/merge-blocker-diagnosis.md"` and run the full loop (max 3 rounds): `ci-failing` → fix + push + re-poll; `unresolved-threads` → the `review-comments` skill; `branch-behind` → rebase + push; `draft` → `gh pr ready`; `changes-requested` → check/attempt fix.
+## Address reviews and blockers
 
-**Don't confuse "unresolved review threads" with "needs approving reviewer."** Automated-reviewer threads are yours to resolve by addressing the feedback. Only `review-required` (no approving reviews at all) is a genuine human gate.
+Run the `review-comments` skill for comments and unresolved threads. Address findings, push one commit, and resolve each applicable automated thread at the current head. An approving-review requirement and an unresolved thread are separate gates.
 
-## Step 12d — Re-poll until clean or genuinely human-blocked
-
-Continue until `mergeStateStatus` is `CLEAN` (report success), the only blocker is `review-required` (report what's needed), or 3 attempts are exhausted (report exactly what's still blocking).
+Read `${CLAUDE_SKILL_DIR}/assets/references/merge-blocker-diagnosis.md` for diagnosis, with this cloud wait taking precedence over its polling examples. Bound fixes to three rounds. After a push, resume from `EVENT_CURSOR` rather than starting a second polling loop. Confirm exact-head checks and review evidence before marking a draft ready. A repository's queue owns its queued merge.
