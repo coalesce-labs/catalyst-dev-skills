@@ -39,7 +39,7 @@ if ! command -v catalyst >/dev/null 2>&1; then
   echo 'REST fallback: catalyst CLI absent; 2s interval, 5 reads maximum.' >&2
 elif SHA_STATUS=$(catalyst events status --json 2>/dev/null); then
   SHA_HEAD=$(printf '%s' "$SHA_STATUS" | jq -er '.head | select(type == "number" and . >= 0 and . == floor)') || exit 1
-  SHA_CURSOR=${EVENT_CURSOR:-$SHA_HEAD}
+  SHA_CURSOR=$SHA_HEAD
   SHA_CLOUD=true
 else
   echo 'REST fallback: catalyst events status failed; 2s interval, 5 reads maximum.' >&2
@@ -50,22 +50,28 @@ while [ "$_i" -le "$RETRIES" ]; do
   [ -z "$MERGE_COMMIT_SHA" ] || break
   [ "$_i" -lt "$RETRIES" ] || break
   if [ "$SHA_CLOUD" = true ]; then
-    SHA_WAIT_RC=0
-    SHA_EVENT=$(catalyst events wait-for --after "$SHA_CURSOR" --timeout 2) || SHA_WAIT_RC=$?
-    case "$SHA_WAIT_RC" in
-      0)
-        SHA_NEXT=$(printf '%s' "$SHA_EVENT" | jq -er '.sequence | select(type == "number" and . == floor)') || exit 1
-        [ "$SHA_NEXT" -gt "$SHA_CURSOR" ] || exit 1
-        SHA_CURSOR=$SHA_NEXT ;;
-      1) : ;;
-      130) exit 130 ;;
-      *)
-        if catalyst events status --json >/dev/null 2>&1; then
-          echo "cloud SHA wait failed (exit $SHA_WAIT_RC); stopping." >&2; exit 1
-        fi
-        SHA_CLOUD=false
-        echo 'REST fallback: catalyst events status failed after wait error; 2s interval, 5 reads maximum.' >&2 ;;
-    esac
+    SHA_WAIT_UNTIL=$(( $(date +%s) + 2 ))
+    while [ "$(date +%s)" -lt "$SHA_WAIT_UNTIL" ]; do
+      SHA_WAIT_SECONDS=$((SHA_WAIT_UNTIL - $(date +%s)))
+      [ "$SHA_WAIT_SECONDS" -gt 0 ] || break
+      SHA_WAIT_RC=0
+      SHA_EVENT=$(catalyst events wait-for --after "$SHA_CURSOR" --timeout "$SHA_WAIT_SECONDS") || SHA_WAIT_RC=$?
+      case "$SHA_WAIT_RC" in
+        0)
+          SHA_NEXT=$(printf '%s' "$SHA_EVENT" | jq -er '.sequence | select(type == "number" and . == floor)') || exit 1
+          [ "$SHA_NEXT" -gt "$SHA_CURSOR" ] || exit 1
+          SHA_CURSOR=$SHA_NEXT ;; # Drain events without spending another REST read.
+        1) break ;;
+        130) exit 130 ;;
+        *)
+          if catalyst events status --json >/dev/null 2>&1; then
+            echo "cloud SHA wait failed (exit $SHA_WAIT_RC); stopping." >&2; exit 1
+          fi
+          SHA_CLOUD=false
+          echo 'REST fallback: catalyst events status failed after wait error; 2s interval, 5 reads maximum.' >&2
+          break ;;
+      esac
+    done
   else
     sleep 2
   fi
@@ -77,7 +83,7 @@ if [ -z "$MERGE_COMMIT_SHA" ]; then
 fi
 ```
 
-Only an absent CLI or a failed `catalyst events status` probe permits the sleep fallback. A cloud timeout keeps the cloud wait. A GitHub failure stops the readback. Use this whenever a step (a follow-on step such as deploy verification) needs the actual squash SHA rather than `git rev-parse HEAD` from a checkout that may not have fetched the merge yet.
+The readback captures a fresh cloud head and drains events within each two-second retry window. Unrelated events cannot spend the REST read budget. Only an absent CLI or a failed `catalyst events status` probe permits the sleep fallback. A cloud timeout keeps the cloud wait. A GitHub failure stops the readback. Use this whenever a step (a follow-on step such as deploy verification) needs the actual squash SHA rather than `git rev-parse HEAD` from a checkout that may not have fetched the merge yet.
 
 ## Why REST, never GraphQL, for mergeable state
 

@@ -32,10 +32,13 @@ fi
 n=$(cat "$WAIT_COUNT" 2>/dev/null || echo 0); n=$((n + 1)); echo "$n" > "$WAIT_COUNT"
 touch "$WOKE"
 [ "$MOCK_WAIT_RC" = 0 ] || exit "$MOCK_WAIT_RC"
-echo "$EVENTS_JSON" | jq -ce --argjson n "$n" '.[$n - 1]'`);
+echo "$EVENTS_JSON" | jq -ce --argjson n "$n" '.[$n - 1]' || { touch "$TIMED_OUT"; exit 1; }`);
   script("gh", `echo "gh $*" >> "$CALL_LOG"
 if [ "$1" = repo ]; then echo "$REPO_NAME"; exit 0; fi
 if [ "$4" = '.merge_commit_sha // empty' ]; then
+  if [ "$SHA_AFTER_TIMEOUT" = true ]; then
+    [ ! -f "$TIMED_OUT" ] || echo merge-sha; exit 0
+  fi
   [ ! -f "$WOKE" ] || echo merge-sha; exit 0
 fi
 if [ "$GH_FAIL" = true ]; then echo 'GitHub unavailable' >&2; exit 1; fi
@@ -63,6 +66,7 @@ else exec /usr/bin/date "$@"; fi`);
       env: {
         PATH: `${bin}:/usr/bin:/bin`, HOME: dir, CALL_LOG: log, WOKE: join(dir, "woke"),
         CLAUDE_SKILL_DIR: skillDir, WAIT_COUNT: join(dir, "waits"), READ_COUNT: join(dir, "reads"),
+        TIMED_OUT: join(dir, "timed-out"), SHA_AFTER_TIMEOUT: String(options.shaAfterTimeout ?? false),
         pr_number: "123", ticket: "CTC-1234", MOCK_PR_STATE: options.closed ? "closed" : "open",
         MERGE_ON_READ: String(options.mergeOnRead ?? 2), MOCK_WAIT_RC: String(options.waitRc ?? 0),
         EVENTS_JSON: JSON.stringify(options.events ?? [{ sequence: 41, type: "github.pr.merged" }]),
@@ -241,7 +245,21 @@ test("merge SHA readback uses a cloud wait instead of a sleep retry", () => {
   const retry = [...readFileSync(new URL(path, root), "utf8").matchAll(/```bash\n([\s\S]*?)```/g)][1][1];
   const result = runExample(path, { code: `REPO=coalesce-labs/example; PR_NUMBER=123\n${retry}` });
   expect(result.status).toBe(0);
-  expect(waits(result)).toHaveLength(1);
+  expect(waits(result).length).toBeGreaterThanOrEqual(1);
+  expect(sleeps(result)).toEqual([]);
+});
+
+test("merge SHA readback does not consume its read budget on an unrelated event backlog", () => {
+  const path = "skills/merge-pr/references/ci-fixup-and-behind.md";
+  const retry = [...readFileSync(new URL(path, root), "utf8").matchAll(/```bash\n([\s\S]*?)```/g)][1][1];
+  const result = runExample(path, {
+    now: 2000000000, shaAfterTimeout: true,
+    events: [41, 42, 43, 44].map((sequence) => ({ sequence, type: "relay.phase.completed" })),
+    code: `REPO=coalesce-labs/example; PR_NUMBER=123; EVENT_CURSOR=10\n${retry}`,
+  });
+  expect(result.status).toBe(0);
+  expect(result.calls.filter((call) => call.includes(".merge_commit_sha // empty"))).toHaveLength(2);
+  expect(waits(result)).toHaveLength(5);
   expect(sleeps(result)).toEqual([]);
 });
 
