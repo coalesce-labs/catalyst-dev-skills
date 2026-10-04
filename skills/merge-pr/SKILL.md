@@ -6,7 +6,7 @@ description:
   approvals, squash merges or hands the PR to the repository's merge queue, cleans up branches,
   and verifies the deploy."
 disable-model-invocation: false
-allowed-tools: Bash(linearis *), Bash(git *), Bash(gh *), Read
+allowed-tools: Bash(linearis *), Bash(git *), Bash(gh *), Bash(catalyst *), Read
 version: 1.0.0
 ---
 
@@ -33,9 +33,8 @@ Resolve every blocker legitimately, or escalate with specifics. Never use `--adm
 2. **Verify it is open and mergeable.** Rebase if behind; resolve conflicts or exit. An already-merged PR skips to step 5, which resumes at cleanup.
 3. **Run local tests**, unless `--skip-tests`.
 4. **Wait out the blockers until the PR is CLEAN.**
-   - The event log is live when `<events dir>/YYYY-MM.jsonl` exists and its producer is running. The events dir is `CATALYST_EVENTS_DIR`, else `paths.events` in `~/.config/catalyst/paths.json`, else `~/.local/state/catalyst/events`.
-   - Live: run [blocker-loop.md](references/blocker-loop.md)'s single disjunctive `wait-for` (CI, reviews, push, merge/close), with an authoritative `gh api` REST re-check on every wake-up.
-   - Absent: poll on [bounded-poll.md](references/bounded-poll.md)'s merge/review cadence. On each tick, take the same resolution actions as blocker-loop.md's table (CI fix-up, bot-thread resolve via the `review-comments` skill, BEHIND update), and test readiness with [gh-signal-traps.md](references/gh-signal-traps.md)'s combined CI-ready and review-ready check. `bounded_poll_pr_state` alone only detects `MERGED`/`CLOSED`, which a CI-green, reviewed, unmerged PR never reaches.
+   - Probe with `catalyst events status --json`. A successful probe uses [blocker-loop.md](references/blocker-loop.md)'s `catalyst events wait-for` lifecycle watch for CI, reviews, pushes and merge/close. Retain the cursor across fixes and reread this PR once on each selected wake. No local sync or log is required.
+   - Only an absent CLI or failed status probe permits [bounded-poll.md](references/bounded-poll.md)'s REST fallback. State the reason in one line. Apply blocker-loop.md's resolution table and [gh-signal-traps.md](references/gh-signal-traps.md)'s combined current-head CI/review readiness check on each snapshot. A timeout keeps the cloud wait; it never enables a sleep loop.
 5. **Merge and clean up.** `scripts/merge-route.sh` decides who merges: this skill squash-merges only when the repository has no merge queue; otherwise the queue merges and this skill enters the PR the way the queue's config names. Then delete the remote ref checkout-free and the local branch worktree-safely. The step is re-entrant: on a PR someone else merged, it skips the merge call and runs cleanup, so deploy verification and the compound close still fire. The ticket is not moved here; on Catalyst Cloud the merge moves it to done. See [worktree-safe-merge.md](references/worktree-safe-merge.md) and [squash-merge.md](references/squash-merge.md).
 6. **Post-merge.** Detect and verify the deployment. Once that verification is terminal, run compound-estimate, ticket-compound and ticket-retro, then report success. See [post-merge.md](references/post-merge.md).
 
@@ -49,3 +48,5 @@ Resolve every blocker legitimately, or escalate with specifics. Never use `--adm
 | Confirming a merged change deployed, with a live smoke check | [post-merge-deploy-verify.md](references/post-merge-deploy-verify.md) |
 | Flags (`--skip-tests`, `--keep-branch`), errors, examples | [flags-errors.md](references/flags-errors.md) |
 | Configuration (`.catalyst/config.json` schema, safety features) | [config-safety.md](references/config-safety.md) |
+
+Acceptance evals and their runner are in [evals/README.md](evals/README.md).

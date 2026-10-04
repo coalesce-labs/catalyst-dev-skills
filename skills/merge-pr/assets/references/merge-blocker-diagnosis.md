@@ -4,7 +4,7 @@ Shared workflow for diagnosing and resolving all merge blockers on a pull reques
 
 ## Rate Limit Warning
 
-GitHub's GraphQL API has a **5,000 requests/hr** rate limit. A tight polling loop without `sleep` can exhaust this in minutes, blocking ALL `gh` commands across every session for up to an hour. Every poll loop in this workflow MUST include an explicit `sleep 30` between iterations.
+GitHub's GraphQL API has a **5,000 requests/hr** rate limit. A tight polling loop without `sleep` can exhaust this in minutes, blocking ALL `gh` commands across every session for up to an hour. Probe `catalyst events status` before waiting. With a successful probe, use the calling create-pr or merge-pr skill's cloud lifecycle wait and retain its cursor across fixes. Only an absent CLI or failed probe permits the bounded REST polling examples below. Print that reason in one line. A cloud timeout does not enable polling.
 
 ## Safety Rules
 
@@ -168,8 +168,8 @@ attempt=0
 while blockers is not empty AND attempt < MAX_RESOLVE_ATTEMPTS:
   for each blocker:
     attempt_resolution(blocker)
-  sleep 30
-  re-query merge state (step 1)
+  wait on the cloud lifecycle events, or use the bounded fallback after an absent CLI or failed status probe
+  re-query authoritative GitHub REST state
   rebuild blockers list (step 2)
   attempt += 1
 ```
@@ -224,7 +224,7 @@ gh pr ready $pr_number
 
 *Can fix:* Depends on the failure. Analyze each failing check.
 
-For **pending** checks: wait and re-poll (up to 10 minutes). Always include `sleep 30` between iterations — never use a tight loop.
+For **pending** checks, return to the calling skill's `catalyst events wait-for` watch. A `github.check-suite.completed` or review event wakes the session for one authoritative PR read. Use the following 10-minute REST fallback only after the CLI is absent or `catalyst events status` fails, and state that reason in one line. Never run it with an available cloud connection.
 
 ```bash
 MAX_POLLS=20
@@ -252,7 +252,7 @@ Analyze the failure. If it's a linting, type-check, or test error that can be fi
 1. Read the error output
 2. Fix the code
 3. Commit and push
-4. Re-poll checks
+4. Resume the cloud lifecycle wait from the retained cursor, or the bounded fallback only while cloud status fails or the CLI is absent.
 
 If it's an infrastructure failure (timeout, flaky test, service unavailable):
 

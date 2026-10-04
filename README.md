@@ -94,7 +94,8 @@ node scripts/vendor.mjs --check   # CI: fails when a copy differs from its sourc
 - the skill shape holds: an 80-line `SKILL.md` and 150-line references, each one linked;
 - every skill that mentions `linearis` documents the phase-container skip (`linearis-guard`);
 - every subagent a skill names is a skill or an agent in `agents/` (`plugin-agents`);
-- the workflow-input, handoff, review-skill and Linear-write contracts hold, and the vendored replica reader finds `~/.config/catalyst-cloud/replica.db`.
+- the workflow-input, handoff, review-skill and Linear-write contracts hold, and the vendored replica reader finds `~/.config/catalyst-cloud/replica.db`;
+- create-pr and merge-pr wake through cloud events, retain their cursors, and reread authoritative PR state once per selected wake. Their `evals/evals.json` cases run in `tests/pr-cloud-events.test.mjs`. The tests execute the published Bash examples and permit bounded REST polling only for an absent CLI or failed cloud status probe.
 
 CI also runs:
 - `test:guards` (`scripts/check-skill-scope.mjs` + `tests/skill-scope.test.mjs`), which fails when a skill is unowned by `packs/skills-ownership.json`, when this checkout carries a repository-scoped install, or when a documented install command has lost `-g`;
