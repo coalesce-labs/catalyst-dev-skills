@@ -29,7 +29,7 @@ PR_WAIT_DEADLINE=${PR_WAIT_DEADLINE:-$((PR_WAIT_NOW + 7200))}
 while [ "$(date +%s)" -lt "$PR_WAIT_DEADLINE" ]; do
   PR_STATE=$(printf '%s' "$PR_DATA" | jq -er 'if .merged then "MERGED" elif .state == "closed" then "CLOSED" elif .state == "open" then "OPEN" else error("unknown PR state") end') || exit 1
   case "$PR_STATE" in
-    MERGED) echo MERGED; break ;;
+    MERGED) break ;;
     CLOSED) echo CLOSED; exit 1 ;;
   esac
   EVENT=''
@@ -82,7 +82,13 @@ while [ "$(date +%s)" -lt "$PR_WAIT_DEADLINE" ]; do
     fi
   fi
 done
-[ "$(date +%s)" -lt "$PR_WAIT_DEADLINE" ] || { echo PENDING; exit 1; }
+# Confirmed terminal state wins even when the final read crosses the deadline.
+PR_STATE=$(printf '%s' "$PR_DATA" | jq -er 'if .merged then "MERGED" elif .state == "closed" then "CLOSED" elif .state == "open" then "OPEN" else error("unknown PR state") end') || exit 1
+case "$PR_STATE" in
+  MERGED) echo MERGED ;;
+  CLOSED) echo CLOSED; exit 1 ;;
+  OPEN) [ "$(date +%s)" -lt "$PR_WAIT_DEADLINE" ] || { echo PENDING; exit 1; } ;;
+esac
 ```
 
 The watch has a two-hour ceiling, retained across shells in the epoch timestamp `PR_WAIT_DEADLINE`, and a 300-second safety timeout. On a selected event, reread this PR once, then read checks, reviews, reactions and threads for `HEAD_SHA`. Apply the CI and review readiness checks in merge-pr's `references/gh-signal-traps.md`. An unrelated event cannot prove readiness. On a timeout, recheck state without resetting the cursor or entering a sleep loop. On a wait error, fallback is allowed only after a failed status probe; otherwise stop with the error. Report `PENDING` or the actual read failure at the ceiling.

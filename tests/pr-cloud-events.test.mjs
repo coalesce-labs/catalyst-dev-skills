@@ -50,7 +50,9 @@ merged=false; [ "$n" -lt "$MERGE_ON_READ" ] || merged=true
 printf '{"merged":%s,"state":"%s","head":{"sha":"head-1"}}\\n' "$merged" "$MOCK_PR_STATE"`);
   if (options.queueWait) script("mergify", 'echo "mergify $*" >> "$CALL_LOG"; echo "$MOCK_QUEUE_JSON"');
   script("sleep", 'echo "sleep $*" >> "$CALL_LOG"; exit 0');
-  if (options.now) script("date", `if [ "$1" = +%s ]; then echo '${options.now}'; else exec /usr/bin/date "$@"; fi`);
+  if (options.now) script("date", `if [ "$1" = +%s ]; then
+  if [ -f "$WOKE" ]; then echo '${options.nowAfterWake ?? options.now}'; else echo '${options.now}'; fi
+else exec /usr/bin/date "$@"; fi`);
   script("curl", 'echo "curl $*" >> "$CALL_LOG"; echo 200');
   script("catalyst-events", 'echo "retired CLI" >> "$CALL_LOG"; exit 70');
   try {
@@ -117,6 +119,22 @@ for (const path of [monitoring, blocker]) {
     expect(result.status).toBe(0);
     expect(waits(result)).toEqual(["catalyst events wait-for --after 40 --timeout 123"]);
     expect(result.stdout).toContain("MERGED");
+    expect(sleeps(result)).toEqual([]);
+  });
+  for (const closed of [false, true]) {
+    test(`${path}: an expired resumed wait reports confirmed ${closed ? "closure" : "merge"}`, () => {
+      const result = runExample(path, { now: 2000000000, deadline: 1999999999, mergeOnRead: closed ? 999 : 1, closed });
+      expect(result.status).toBe(closed ? 1 : 0);
+      expect(result.stdout.trim()).toBe(closed ? "CLOSED" : "MERGED");
+      expect(waits(result)).toEqual([]);
+      expect(sleeps(result)).toEqual([]);
+    });
+  }
+  test(`${path}: a final merge read at the deadline takes precedence over PENDING`, () => {
+    const result = runExample(path, { now: 2000000000, nowAfterWake: 2000000300, deadline: 2000000300 });
+    expect(result.status).toBe(0);
+    expect(result.stdout.trim()).toBe("MERGED");
+    expect(reads(result)).toHaveLength(2);
     expect(sleeps(result)).toEqual([]);
   });
   for (const type of ["github.pr-review.submitted", "github.pr-review-comment.created", "github.pr-review-thread.resolved", "github.issue-comment.created", "github.push"]) {

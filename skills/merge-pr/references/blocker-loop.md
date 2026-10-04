@@ -41,7 +41,7 @@ check_queue_pause() {
 while [ "$(date +%s)" -lt "$PR_WAIT_DEADLINE" ]; do
   PR_STATE=$(printf '%s' "$PR_DATA" | jq -er 'if .merged then "MERGED" elif .state == "closed" then "CLOSED" elif .state == "open" then "OPEN" else error("unknown PR state") end') || exit 1
   case "$PR_STATE" in
-    MERGED) echo MERGED; break ;;
+    MERGED) break ;;
     CLOSED) echo CLOSED; exit 1 ;;
   esac
   check_queue_pause
@@ -99,7 +99,13 @@ while [ "$(date +%s)" -lt "$PR_WAIT_DEADLINE" ]; do
     fi
   fi
 done
-[ "$(date +%s)" -lt "$PR_WAIT_DEADLINE" ] || { echo PENDING; exit 1; }
+# Confirmed terminal state wins even when the final read crosses the deadline.
+PR_STATE=$(printf '%s' "$PR_DATA" | jq -er 'if .merged then "MERGED" elif .state == "closed" then "CLOSED" elif .state == "open" then "OPEN" else error("unknown PR state") end') || exit 1
+case "$PR_STATE" in
+  MERGED) echo MERGED ;;
+  CLOSED) echo CLOSED; exit 1 ;;
+  OPEN) [ "$(date +%s)" -lt "$PR_WAIT_DEADLINE" ] || { echo PENDING; exit 1; } ;;
+esac
 ```
 
 Resume blocker resolution after an `OPEN` wake. Read checks and reviews at `HEAD_SHA`, including the repository's review-evidence gate and unresolved threads. A finished check suite can be green or red; both need a recheck. New reviews include approvals, changes requested, inline findings and reaction-only signals. Do not infer the outcome or the reviewer identity from the event. Read them from GitHub. An unrelated account event cannot make this PR ready.
