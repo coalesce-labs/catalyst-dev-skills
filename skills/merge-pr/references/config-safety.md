@@ -45,7 +45,7 @@ Full schema:
 - PR not in mergeable state
 
 **Diagnose and fix automatically:**
-- CI failures → analyze errors, fix code, push, re-poll
+- CI failures → analyze errors, fix code, push, resume the cloud lifecycle wait
 - Unresolved review threads → run the `review-comments` skill, resolve via GraphQL
 - Branch behind → rebase and push
 - Draft PR → mark as ready with `gh pr ready`

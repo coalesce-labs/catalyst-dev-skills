@@ -52,10 +52,19 @@ case "$route" in
         ;;
       *) echo "❌ merge-pr: unknown queue entry '$how' for #$pr_number — not merging." >&2; exit 1 ;;
     esac
-    # Wait for the queue's merge: one REST read of the PR every 3 minutes, 30 reads while the queue
-    # runs (a batch usually lands within 20-45 minutes). A paused queue merges nothing, so a poll taken
-    # while it is paused does not count against those 30; a pause that outlasts 20 polls (an hour) ends
-    # the run with its reason. Re-check the pause on every poll: a hand-merge window can open mid-wait.
+    # The agent resumes blocker-loop.md's cloud lifecycle wait after enqueueing.
+    if command -v catalyst >/dev/null 2>&1; then
+      if QUEUE_EVENT_STATUS=$(catalyst events status --json 2>/dev/null); then
+        QUEUE_EVENT_HEAD=$(printf '%s' "$QUEUE_EVENT_STATUS" | jq -er '.head | select(type == "number" and . >= 0 and . == floor)') || exit 1
+        EVENT_CURSOR=${EVENT_CURSOR:-$QUEUE_EVENT_HEAD}
+        echo "QUEUE_WAIT_REQUIRED: resume blocker-loop.md from cursor $EVENT_CURSOR, then resume merge readback." >&2
+        exit 0
+      fi
+      echo 'REST fallback: catalyst events status failed; 180s interval, 30 active reads maximum.' >&2
+    else
+      echo 'REST fallback: catalyst CLI absent; 180s interval, 30 active reads maximum.' >&2
+    fi
+    # Fallback only. A pause has a separate 20-read ceiling; inspect it on each wake.
     outcome=PENDING; polls=0; paused=0; pause=""
     while (( polls < 30 )); do
       state=$(gh api "repos/${REPO}/pulls/${pr_number}" 2>/dev/null \
@@ -103,15 +112,13 @@ case "$route" in
 esac
 
 merged_by=$(gh api "repos/${REPO}/pulls/${pr_number}" --jq '.merged_by.login // "unknown"' 2>/dev/null || echo "unknown")
-# `gh pr merge` merges on GitHub's side and never touches this local checkout, so `git rev-parse
-# HEAD` here is not the squash commit. Read the merge commit back via REST instead; a merge can take
-# a moment to report `merge_commit_sha`, so retry briefly.
-merge_sha=""
-for _ in 1 2 3 4 5; do
-  merge_sha=$(gh api "repos/${REPO}/pulls/${pr_number}" --jq '.merge_commit_sha // empty' 2>/dev/null || true)
-  [[ -n "$merge_sha" ]] && break
-  sleep 2
-done
+# Read the merge SHA from REST. If it is not ready, use ci-fixup-and-behind.md's
+# bounded cloud readback procedure; do not start another sleep loop here.
+merge_sha=$(gh api "repos/${REPO}/pulls/${pr_number}" --jq '.merge_commit_sha // empty') || exit 1
+if [[ -z "$merge_sha" ]]; then
+  echo 'MERGE_SHA_PENDING: use ci-fixup-and-behind.md for bounded readback.' >&2
+  exit 1
+fi
 echo "merge-pr: #$pr_number merged by $merged_by at ${merge_sha:-<no merge sha yet>}" >&2
 ```
 
@@ -119,7 +126,7 @@ echo "merge-pr: #$pr_number merged by $merged_by at ${merge_sha:-<no merge sha y
 
 For anything about the Mergify queue beyond this step, use the `mergify-merge-queue` skill if it is installed. That covers where a PR stands (`mergify queue show <PR> --json`), why it was dequeued, and whether the queue is paused. Use the `mergify-config` skill to read or check the queue config.
 
-- When the event log is live, wait on the PR's merge event with [blocker-loop.md](blocker-loop.md)'s `wait-for` instead of polling. Use the same bounds, and re-check the queue's pause on each wake-up.
+- After a successful `catalyst events status` probe, the queue branch returns `QUEUE_WAIT_REQUIRED`. Resume [blocker-loop.md](blocker-loop.md)'s `catalyst events wait-for` lifecycle watch from `EVENT_CURSOR`. Once REST confirms merge, rerun this step on the `merged` route for readback and cleanup. Only an absent CLI or failed probe enters the bounded REST fallback. Recheck the queue's pause on every wake.
 - The queue's merge is the terminal signal: `merged_by` is the queue bot (`mergify[bot]`; `gh pr view` shows it as `app/mergify`), with `merged` true and a `merge_commit_sha`.
 - A PR the queue has taken carries the exact label `queued`. Match it delimited (`,queued,`), since `dequeued` also contains it.
 - A PR that is eligible but not yet queued meets every queue condition and has no `queued` label.

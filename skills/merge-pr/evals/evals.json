@@ -1,0 +1,90 @@
+{
+  "version": 1,
+  "reference": "skills/merge-pr/references/blocker-loop.md",
+  "cases": [
+    {
+      "id": "ci-wake",
+      "prompt": "A pending check suite finishes successfully. Wake and reread this PR once at its current head.",
+      "options": {
+        "mergeOnRead": 999,
+        "events": [
+          {
+            "sequence": 41,
+            "type": "github.check-suite.completed"
+          }
+        ]
+      },
+      "expected": {
+        "stdout": "github.check-suite.completed",
+        "waits": 1,
+        "reads": 2,
+        "sleeps": 0,
+        "status": 0
+      }
+    },
+    {
+      "id": "review-wake",
+      "prompt": "A reviewer submits new findings. Wake once and inspect the authoritative current-head review.",
+      "options": {
+        "mergeOnRead": 999,
+        "events": [
+          {
+            "sequence": 41,
+            "type": "github.pr-review.submitted"
+          }
+        ]
+      },
+      "expected": {
+        "stdout": "github.pr-review.submitted",
+        "waits": 1,
+        "reads": 2,
+        "sleeps": 0,
+        "status": 0
+      }
+    },
+    {
+      "id": "status-unavailable",
+      "prompt": "Cloud status fails. Use bounded REST checks with a concise reason.",
+      "options": {
+        "statusFail": true,
+        "mergeOnRead": 4
+      },
+      "expected": {
+        "stdout": "MERGED",
+        "reason": "status failed",
+        "waits": 0,
+        "reads": 4,
+        "sleeps": 2,
+        "status": 0
+      }
+    },
+    {
+      "id": "timeout",
+      "prompt": "The cloud wait times out while the connection is available. Recheck once without sleeping.",
+      "options": {
+        "waitRc": 1
+      },
+      "expected": {
+        "stdout": "MERGED",
+        "waits": 1,
+        "reads": 2,
+        "sleeps": 0,
+        "status": 0
+      }
+    },
+    {
+      "id": "bad-wait",
+      "prompt": "The cloud wait fails but the status probe succeeds. Stop and report the wait failure instead of polling.",
+      "options": {
+        "waitRc": 4
+      },
+      "expected": {
+        "reason": "cloud wait failed",
+        "waits": 1,
+        "reads": 1,
+        "sleeps": 0,
+        "status": 1
+      }
+    }
+  ]
+}

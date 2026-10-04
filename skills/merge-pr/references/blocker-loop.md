@@ -52,7 +52,9 @@ while [ "$SECONDS" -lt "$PR_WAIT_DEADLINE" ]; do
           echo "cloud wait failed (exit $WAIT_RC); stopping." >&2; exit 1
         fi
         CLOUD_EVENTS=false
-        echo 'REST fallback: catalyst events status failed after wait error; 300s interval, 24 reads maximum.' >&2 ;;
+        echo 'REST fallback: catalyst events status failed after wait error; 300s interval, 24 reads maximum.' >&2
+        [ "$PR_FALLBACK_READS" -lt 24 ] || { echo PENDING; exit 1; }
+        PR_FALLBACK_READS=$((PR_FALLBACK_READS + 1)) ;;
     esac
   else
     [ "$PR_FALLBACK_READS" -lt 24 ] || { echo PENDING; exit 1; }

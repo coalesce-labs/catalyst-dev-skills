@@ -17,6 +17,11 @@ function runExample(path, options = {}) {
   const bin = join(dir, "bin");
   mkdirSync(bin);
   const log = join(dir, "calls");
+  const skillDir = join(dir, "skill");
+  if (options.route) {
+    mkdirSync(join(skillDir, "scripts"), { recursive: true });
+    writeFileSync(join(skillDir, "scripts", "merge-route.sh"), `#!/bin/bash\necho '${options.route}'\n`, { mode: 0o755 });
+  }
   const script = (name, body) => writeFileSync(join(bin, name), `#!/bin/bash\n${body}\n`, { mode: 0o755 });
   if (!options.absent) script("catalyst", `echo "catalyst $*" >> "$CALL_LOG"
 if [ "$2" = status ]; then
@@ -53,7 +58,7 @@ printf '{"merged":%s,"state":"%s","head":{"sha":"head-1"}}\\n' "$merged" "$MOCK_
     const result = spawnSync("bash", ["-c", code], {
       env: {
         PATH: `${bin}:/usr/bin:/bin`, HOME: dir, CALL_LOG: log, WOKE: join(dir, "woke"),
-        WAIT_COUNT: join(dir, "waits"), READ_COUNT: join(dir, "reads"),
+        CLAUDE_SKILL_DIR: skillDir, WAIT_COUNT: join(dir, "waits"), READ_COUNT: join(dir, "reads"),
         pr_number: "123", ticket: "CTC-1234", MOCK_PR_STATE: options.closed ? "closed" : "open",
         MERGE_ON_READ: String(options.mergeOnRead ?? 2), MOCK_WAIT_RC: String(options.waitRc ?? 0),
         EVENTS_JSON: JSON.stringify(options.events ?? [{ sequence: 41, type: "github.pr.merged" }]),
@@ -158,7 +163,7 @@ for (const path of [monitoring, blocker]) {
     const result = runExample(path, { waitRc: 4, failAfterWait: true, mergeOnRead: 4 });
     expect(result.status).toBe(0);
     expect(result.stderr).toContain("status failed after wait error");
-    expect(sleeps(result)).toHaveLength(1);
+    expect(sleeps(result)).toHaveLength(2);
   });
   test(`${path}: interruption stops without a fallback`, () => {
     const result = runExample(path, { waitRc: 130 });
@@ -202,4 +207,61 @@ test("merge SHA readback uses a cloud wait instead of a sleep retry", () => {
   expect(result.status).toBe(0);
   expect(waits(result)).toHaveLength(1);
   expect(sleeps(result)).toEqual([]);
+});
+
+for (const skill of ["create-pr", "merge-pr"]) {
+  const evals = JSON.parse(readFileSync(new URL(`skills/${skill}/evals/evals.json`, root), "utf8"));
+  for (const scenario of evals.cases) {
+    test(`${skill} eval ${scenario.id}: ${scenario.prompt}`, () => {
+      const result = runExample(evals.reference, scenario.options);
+      expect(result.status).toBe(scenario.expected.status);
+      expect(waits(result)).toHaveLength(scenario.expected.waits);
+      expect(reads(result)).toHaveLength(scenario.expected.reads);
+      expect(sleeps(result)).toHaveLength(scenario.expected.sleeps);
+      if (scenario.expected.stdout) expect(result.stdout).toContain(scenario.expected.stdout);
+      if (scenario.expected.reason) expect(result.stderr).toContain(scenario.expected.reason);
+      if (scenario.id === "merge-wake") expect(result.elapsedMs).toBeLessThan(60000);
+    });
+  }
+}
+
+test("the merge-only example uses the supported ticket and exact type filters", () => {
+  const narrow = [...readFileSync(new URL(monitoring, root), "utf8").matchAll(/```bash\n([\s\S]*?)```/g)][1][1];
+  const result = runExample(monitoring, { code: `EVENT_CURSOR=40\n${narrow}` });
+  expect(result.status).toBe(0);
+  expect(waits(result)).toEqual(["catalyst events wait-for --type github.pr.merged --ticket CTC-1234 --after 40 --timeout 300"]);
+  expect(sleeps(result)).toEqual([]);
+});
+
+for (const options of [{ absent: true }, { statusFail: true }]) {
+  test("deploy verification has a bounded fallback with a reason when cloud is unavailable", () => {
+    const path = "skills/merge-pr/references/post-merge-deploy-verify.md";
+    const result = runExample(path, { ...options, repo: "coalesce-labs/catalyst", code: `${example(path)}\nverify_post_merge_deploy merge-sha` });
+    expect(result.status).toBe(1);
+    expect(result.stdout).toContain("DEPLOY_PENDING");
+    expect(waits(result)).toEqual([]);
+    expect(sleeps(result)).toHaveLength(29);
+    expect(result.stderr.trim().split("\n")).toHaveLength(1);
+    expect(result.calls.filter((call) => call.startsWith("gh api ") && call.includes("/status "))).toHaveLength(30);
+  });
+}
+
+for (const path of [monitoring, blocker]) {
+  test(`${path}: an outage cannot add an uncounted fallback read`, () => {
+    const result = runExample(path, { waitRc: 4, failAfterWait: true, mergeOnRead: 999 });
+    expect(result.status).toBe(1);
+    expect(reads(result)).toHaveLength(25);
+    expect(result.stdout).toContain("PENDING");
+  });
+}
+
+
+test("the queue route delegates its wait to the cloud lifecycle procedure", () => {
+  const path = "skills/merge-pr/references/squash-merge.md";
+  const result = runExample(path, { route: "queue auto", code: `REPO=coalesce-labs/example\n${example(path)}` });
+  expect(result.status).toBe(0);
+  expect(result.stdout + result.stderr).toContain("QUEUE_WAIT_REQUIRED");
+  expect(result.stdout + result.stderr).toContain("cursor 40");
+  expect(sleeps(result)).toEqual([]);
+  expect(result.calls.some((call) => call.startsWith("gh pr merge "))).toBe(false);
 });

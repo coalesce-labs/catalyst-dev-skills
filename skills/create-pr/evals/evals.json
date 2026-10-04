@@ -1,0 +1,49 @@
+{
+  "version": 1,
+  "reference": "skills/create-pr/references/monitoring-loop.md",
+  "cases": [
+    {
+      "id": "merge-wake",
+      "prompt": "An open PR has satisfied checks and review. The cloud delivers its merge event. Confirm merge within a minute without sleeping.",
+      "options": {},
+      "expected": {
+        "stdout": "MERGED",
+        "waits": 1,
+        "reads": 2,
+        "sleeps": 0,
+        "status": 0
+      }
+    },
+    {
+      "id": "cli-absent",
+      "prompt": "The cloud CLI is absent. Wait for merge with a bounded REST fallback and a one-line reason.",
+      "options": {
+        "absent": true,
+        "mergeOnRead": 4
+      },
+      "expected": {
+        "stdout": "MERGED",
+        "reason": "CLI absent",
+        "waits": 0,
+        "reads": 4,
+        "sleeps": 2,
+        "status": 0
+      }
+    },
+    {
+      "id": "closed",
+      "prompt": "The PR was closed without merging. Stop without claiming success.",
+      "options": {
+        "closed": true,
+        "mergeOnRead": 999
+      },
+      "expected": {
+        "stdout": "CLOSED",
+        "waits": 0,
+        "reads": 1,
+        "sleeps": 0,
+        "status": 1
+      }
+    }
+  ]
+}
