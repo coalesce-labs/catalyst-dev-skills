@@ -182,9 +182,9 @@ polls() { cat "$TMP/polls" 2>/dev/null || echo 0; }
 for r in "queue auto" "queue label ready-to-merge" "queue comment" "queue unclear" hand-merge held merged unknown; do
   if MERGE_AFTER=2 run_block "$r" | grep -q "pr merge"; then bad "route '$r' never calls gh pr merge"; else ok "route '$r' never calls gh pr merge"; fi
 done
-run_block "queue auto" | grep -qE "pr edit|pr comment" && bad "an automatic queue is never entered by hand" || ok "an automatic queue is never entered by hand"
-run_block "queue label ready-to-merge" | grep -q "pr edit 42 --add-label ready-to-merge" && ok "a label-entered queue gets exactly its label" || bad "a label-entered queue gets exactly its label"
-run_block "queue comment" | grep -q "pr comment 42 --body @mergifyio queue" && ok "a command-entered queue gets the queue command" || bad "a command-entered queue gets the queue command"
+run_block "queue auto" | grep -E "pr edit|pr comment" >/dev/null && bad "an automatic queue is never entered by hand" || ok "an automatic queue is never entered by hand"
+run_block "queue label ready-to-merge" | grep "pr edit 42 --add-label ready-to-merge" >/dev/null && ok "a label-entered queue gets exactly its label" || bad "a label-entered queue gets exactly its label"
+run_block "queue comment" | grep "pr comment 42 --body @mergifyio queue" >/dev/null && ok "a command-entered queue gets the queue command" || bad "a command-entered queue gets the queue command"
 MERGE_AFTER=1 run_block "queue unclear" >"$TMP/unclear.log"
 if grep -qE "pr edit|pr comment" "$TMP/unclear.log" || [[ "$(polls)" -gt 0 ]]; then
   bad "an unclear entry rule is reported, not acted on or waited on"
@@ -209,8 +209,8 @@ PAUSED_POLLS=15 MERGE_AFTER=40 run_block "queue auto" >/dev/null
 PAUSED_POLLS=999 run_block "queue auto" >/dev/null
 grep -q "paused (hand-merge of #9)" "$TMP/err" && [[ "$(polls)" -lt 100 ]] && ok "a pause that outlasts its own bound is reported with its reason" || bad "a pause that outlasts its own bound is reported with its reason (polls $(polls))"
 rm -f "$TMP/bin/mergify"
-run_block "queue github" | grep -q "pr merge 42 --auto" && ok "GitHub's native queue is entered with gh pr merge --auto" || bad "GitHub's native queue is entered with gh pr merge --auto"
-run_block direct | grep -q "pr merge 42 --squash" && ok "route direct merges with gh pr merge --squash" || bad "route direct merges with gh pr merge --squash"
+run_block "queue github" | grep "pr merge 42 --auto" >/dev/null && ok "GitHub's native queue is entered with gh pr merge --auto" || bad "GitHub's native queue is entered with gh pr merge --auto"
+run_block direct | grep "pr merge 42 --squash" >/dev/null && ok "route direct merges with gh pr merge --squash" || bad "route direct merges with gh pr merge --squash"
 [[ "$(grep -c 'gh pr merge' "$MERGE_DOC")" -ge 1 ]] || bad "squash-merge.md names gh pr merge for the no-queue route"
 
 echo "merge-route.test.sh: $PASS passed, $FAIL failed"

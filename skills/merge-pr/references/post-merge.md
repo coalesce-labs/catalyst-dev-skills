@@ -38,13 +38,13 @@ if [[ -n "$DEPLOY_RUNS" ]]; then
   gh run list --branch "$base_branch" --limit 5 \
     --json workflowName,status,url \
     --jq '.[] | select(.status == "in_progress" or .status == "queued") | "  - \(.workflowName): \(.status) (\(.url))"'
-  echo "Tip: /loop 3m gh run list --branch $base_branch --limit 3 ..."
+  echo "Use post-merge-deploy-verify.md for a bounded cloud wait and authoritative deploy readback."
 fi
 ```
 
 ## Step 13b — Verify the merge actually deployed
 
-`gh run list` above only shows *workflow runs*; it says nothing about whether the merged change reached a live surface. Call `verify_post_merge_deploy "$merge_sha"` from [post-merge-deploy-verify.md](post-merge-deploy-verify.md) — using the REST-confirmed `merge_commit_sha` from Step 9 ([worktree-safe-merge.md](worktree-safe-merge.md)), never a local `git rev-parse HEAD`, which `gh pr merge` never updates. The function decides whether the *current repo* even has a known deploy surface to check (`NO_DEPLOY_CONFIG` for any repo it has no mapping for), and for a mapped repo, whether *this merge* has one (most don't), then bounded-polls the CF Pages status plus a live HTTP smoke check where one applies. Capture the returned sentinel (`DEPLOYED` / `NOT_APPLICABLE` / `NO_DEPLOY_CONFIG` / `DEPLOY_PENDING` / `DEPLOY_FAILED` / `SMOKE_FAILED`) — it gates Step 14 below and is reported alongside the success summary — never silently skip it.
+`gh run list` above only shows *workflow runs*; it says nothing about whether the merged change reached a live surface. Call `verify_post_merge_deploy "$merge_sha"` from [post-merge-deploy-verify.md](post-merge-deploy-verify.md) — using the REST-confirmed `merge_commit_sha` from Step 9 ([worktree-safe-merge.md](worktree-safe-merge.md)), never a local `git rev-parse HEAD`, which `gh pr merge` never updates. The function decides whether the *current repo* even has a known deploy surface to check (`NO_DEPLOY_CONFIG` for any repo it has no mapping for), and for a mapped repo, whether *this merge* has one (most don't), then waits through the cloud and rereads the CF Pages status plus a live HTTP smoke check where one applies. Capture the returned sentinel (`DEPLOYED` / `NOT_APPLICABLE` / `NO_DEPLOY_CONFIG` / `DEPLOY_PENDING` / `DEPLOY_FAILED` / `DEPLOY_ERROR` / `SMOKE_FAILED`) — it gates Step 14 below and is reported alongside the success summary — never silently skip it.
 
 ## Step 14 — Compound closing ritual
 

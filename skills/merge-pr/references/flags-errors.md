@@ -22,7 +22,7 @@ For all errors, provide clear messages with the specific error, what went wrong,
 - PR not open/mergeable → show current state
 
 **Diagnose and attempt to fix (Step 6 blocker loop):**
-- CI checks failing → analyze failure, attempt code fix, re-push, re-poll
+- CI checks failing → analyze failure, attempt code fix, re-push, resume the cloud lifecycle wait
 - Unresolved threads → run the `review-comments` skill, resolve threads
 - Branch behind → rebase and push
 - Draft PR → mark as ready

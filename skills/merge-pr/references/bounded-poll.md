@@ -1,5 +1,7 @@
 # bounded-poll — mechanism, numbers, failure mode
 
+Use this fallback only when the `catalyst` CLI is absent or `catalyst events status` fails. Print the reason in one line before polling. With a successful probe, use [blocker-loop.md](blocker-loop.md)'s cloud wait. A cloud timeout alone does not permit this fallback.
+
 ## Why foreground-only
 
 A merge session is one agent session. It has no background process and no way to spawn a wait that keeps running after the session's turn ends: a subagent cannot self-sustain a background wait loop — dispatching one and asking it to "wait and report back" produces a subagent that goes idle without ever reporting; and backgrounding the wait itself (`claude --bg` on a sub-shell, `&` inside the gate script) can exit print mode entirely, stranding uncommitted work with nothing watching it.

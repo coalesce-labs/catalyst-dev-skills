@@ -73,8 +73,8 @@ Running the describe-pr skill...
 
 ## Remember
 
-- **Never stop at "PR created"** — poll (event-driven, 3-min minimum wait) checking CI, reviews, and PR state; address comments, fix CI failures, confirm clean merge state.
-- **"PR created with auto-merge" is NOT done** — poll until MERGED or genuinely human-blocked.
+- **Never stop at "PR created"** — wait through `catalyst events wait-for`, then reread CI, reviews and PR state; address comments, fix CI failures, confirm clean merge state.
+- **"PR created with auto-merge" is NOT done** — keep the cloud lifecycle watch until MERGED or genuinely human-blocked.
 - Automated reviewer comments are yours to address, not the human's.
 - Minimize prompts — only ask when a PR already exists. Auto-rebase, auto-describe.
 - Fail fast on conflicts/errors.
