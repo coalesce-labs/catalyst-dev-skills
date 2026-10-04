@@ -48,6 +48,7 @@ if [[ "$2" = */commits/* ]]; then echo website/index.md; exit 0; fi
 n=$(cat "$READ_COUNT" 2>/dev/null || echo 0); n=$((n + 1)); echo "$n" > "$READ_COUNT"
 merged=false; [ "$n" -lt "$MERGE_ON_READ" ] || merged=true
 printf '{"merged":%s,"state":"%s","head":{"sha":"head-1"}}\\n' "$merged" "$MOCK_PR_STATE"`);
+  if (options.queueWait) script("mergify", 'echo "mergify $*" >> "$CALL_LOG"; echo "$MOCK_QUEUE_JSON"');
   script("sleep", 'echo "sleep $*" >> "$CALL_LOG"; exit 0');
   script("curl", 'echo "curl $*" >> "$CALL_LOG"; echo 200');
   script("catalyst-events", 'echo "retired CLI" >> "$CALL_LOG"; exit 70');
@@ -64,6 +65,7 @@ printf '{"merged":%s,"state":"%s","head":{"sha":"head-1"}}\\n' "$merged" "$MOCK_
         EVENTS_JSON: JSON.stringify(options.events ?? [{ sequence: 41, type: "github.pr.merged" }]),
         STATUS_JSON: JSON.stringify(options.status ?? { head: 40, reachable: true }),
         STATUS_FAIL: String(options.statusFail ?? false), FAIL_AFTER_WAIT: String(options.failAfterWait ?? false),
+        MERGE_QUEUE_WAIT: String(options.queueWait ?? false), QUEUE_PAUSED_AT: String(options.pausedAt ?? ""), MOCK_QUEUE_JSON: JSON.stringify(options.queue ?? { pause: null }),
         GH_FAIL: String(options.ghFail ?? false), REPO_NAME: options.repo ?? "coalesce-labs/example",
       }, encoding: "utf8", timeout: 5000,
     });
@@ -264,4 +266,23 @@ test("the queue route delegates its wait to the cloud lifecycle procedure", () =
   expect(result.stdout + result.stderr).toContain("cursor 40");
   expect(sleeps(result)).toEqual([]);
   expect(result.calls.some((call) => call.startsWith("gh pr merge "))).toBe(false);
+});
+
+
+test("a cloud queue wait preserves the one-hour paused outcome and reason", () => {
+  const result = runExample(blocker, { queueWait: true, pausedAt: 1, queue: { pause: { reason: "migration window" } }, mergeOnRead: 999 });
+  expect(result.status).toBe(1);
+  expect(result.stdout + result.stderr).toContain("PAUSED");
+  expect(result.stdout + result.stderr).toContain("migration window");
+  expect(result.calls).toContain("mergify queue status --json");
+  expect(sleeps(result)).toEqual([]);
+});
+
+
+test("the cloud queue wait probes pause before and after a selected wake", () => {
+  const result = runExample(blocker, { queueWait: true, mergeOnRead: 999, events: [{ sequence: 41, type: "github.check-suite.completed" }] });
+  expect(result.status).toBe(0);
+  expect(result.calls.filter((call) => call === "mergify queue status --json")).toHaveLength(2);
+  expect(waits(result)).toHaveLength(1);
+  expect(sleeps(result)).toEqual([]);
 });

@@ -23,16 +23,32 @@ fi
 PR_DATA=$(gh api "repos/${REPO}/pulls/${pr_number}") || exit 1
 PR_FALLBACK_READS=${PR_FALLBACK_READS:-0}
 PR_WAIT_DEADLINE=${PR_WAIT_DEADLINE:-$((SECONDS + 7200))}
+check_queue_pause() {
+  [ "${MERGE_QUEUE_WAIT:-false}" = true ] || return 0
+  command -v mergify >/dev/null 2>&1 || return 0
+  QUEUE_STATUS=$(mergify queue status --json) || exit 1
+  QUEUE_PAUSE=$(printf '%s' "$QUEUE_STATUS" | jq -r 'if .pause != null then (.pause.reason // "no reason given") else empty end') || exit 1
+  QUEUE_NOW=$(date +%s)
+  if [ -n "$QUEUE_PAUSE" ]; then
+    QUEUE_PAUSED_AT=${QUEUE_PAUSED_AT:-$QUEUE_NOW}
+    QUEUE_PAUSE_LEFT=$((QUEUE_PAUSED_AT + 3600 - QUEUE_NOW))
+    [ "$QUEUE_PAUSE_LEFT" -gt 0 ] || { echo "PAUSED: $QUEUE_PAUSE"; exit 1; }
+  else
+    QUEUE_PAUSED_AT=''; QUEUE_PAUSE_LEFT=''
+  fi
+}
 while [ "$SECONDS" -lt "$PR_WAIT_DEADLINE" ]; do
   PR_STATE=$(printf '%s' "$PR_DATA" | jq -er 'if .merged then "MERGED" elif .state == "closed" then "CLOSED" elif .state == "open" then "OPEN" else error("unknown PR state") end') || exit 1
   case "$PR_STATE" in
     MERGED) echo MERGED; break ;;
     CLOSED) echo CLOSED; exit 1 ;;
   esac
+  check_queue_pause
   EVENT=''
   if [ "$CLOUD_EVENTS" = true ]; then
     WAIT_SECONDS=$((PR_WAIT_DEADLINE - SECONDS))
     [ "$WAIT_SECONDS" -le 300 ] || WAIT_SECONDS=300
+    if [ -n "${QUEUE_PAUSE_LEFT:-}" ] && [ "$QUEUE_PAUSE_LEFT" -lt "$WAIT_SECONDS" ]; then WAIT_SECONDS=$QUEUE_PAUSE_LEFT; fi
     WAIT_RC=0
     EVENT_JSON=$(catalyst events wait-for --after "$EVENT_CURSOR" --timeout "$WAIT_SECONDS") || WAIT_RC=$?
     case "$WAIT_RC" in
@@ -63,6 +79,9 @@ while [ "$SECONDS" -lt "$PR_WAIT_DEADLINE" ]; do
   fi
   # Exactly one PR read per selected event or timeout; never infer merge from an event.
   PR_DATA=$(gh api "repos/${REPO}/pulls/${pr_number}") || exit 1
+  # A confirmed merge/close takes precedence over a queue pause.
+  if [ "$(printf '%s' "$PR_DATA" | jq -r '.merged or (.state == "closed")')" = true ]; then continue; fi
+  check_queue_pause
   HEAD_SHA=$(printf '%s' "$PR_DATA" | jq -er '.head.sha') || exit 1
   if [ -n "$EVENT" ] && [ "$(printf '%s' "$PR_DATA" | jq -r '.merged or (.state == "closed")')" != true ]; then
     echo "OPEN head=$HEAD_SHA wake=$EVENT"
@@ -98,6 +117,8 @@ On a timeout, reread state once and retain the cursor. The session's ceiling is 
 | review required | Report the approval requirement after resolving addressable findings. |
 | HAS_HOOKS | Wait for the next cloud event or safety timeout, then reread. |
 | UNKNOWN | Read branch protection requirements and report each missing gate. |
+
+When waiting for a queue, set `MERGE_QUEUE_WAIT=true`. The pause probe runs before waiting and on every wake. Retain `QUEUE_PAUSED_AT` across resumes. A continuous pause ends after one hour with `PAUSED` and its reason. The epoch timestamp survives a new shell. The pause bounds the next cloud timeout without starting a sleep loop.
 
 Bound resolution to three rounds. A clean snapshot proceeds through the repository's configured merge route. The queue owns a queued merge. When REST confirms MERGED, capture `merged_at` and `merge_commit_sha` from that same response and continue cleanup.
 

@@ -57,7 +57,7 @@ case "$route" in
       if QUEUE_EVENT_STATUS=$(catalyst events status --json 2>/dev/null); then
         QUEUE_EVENT_HEAD=$(printf '%s' "$QUEUE_EVENT_STATUS" | jq -er '.head | select(type == "number" and . >= 0 and . == floor)') || exit 1
         EVENT_CURSOR=${EVENT_CURSOR:-$QUEUE_EVENT_HEAD}
-        echo "QUEUE_WAIT_REQUIRED: resume blocker-loop.md from cursor $EVENT_CURSOR, then resume merge readback." >&2
+        echo "QUEUE_WAIT_REQUIRED: resume blocker-loop.md with MERGE_QUEUE_WAIT=true from cursor $EVENT_CURSOR, then resume merge readback." >&2
         exit 0
       fi
       echo 'REST fallback: catalyst events status failed; 180s interval, 30 active reads maximum.' >&2
@@ -126,7 +126,7 @@ echo "merge-pr: #$pr_number merged by $merged_by at ${merge_sha:-<no merge sha y
 
 For anything about the Mergify queue beyond this step, use the `mergify-merge-queue` skill if it is installed. That covers where a PR stands (`mergify queue show <PR> --json`), why it was dequeued, and whether the queue is paused. Use the `mergify-config` skill to read or check the queue config.
 
-- After a successful `catalyst events status` probe, the queue branch returns `QUEUE_WAIT_REQUIRED`. Resume [blocker-loop.md](blocker-loop.md)'s `catalyst events wait-for` lifecycle watch from `EVENT_CURSOR`. Once REST confirms merge, rerun this step on the `merged` route for readback and cleanup. Only an absent CLI or failed probe enters the bounded REST fallback. Recheck the queue's pause on every wake.
+- After a successful `catalyst events status` probe, the queue branch returns `QUEUE_WAIT_REQUIRED`. Resume [blocker-loop.md](blocker-loop.md)'s `catalyst events wait-for` lifecycle watch from `EVENT_CURSOR` with `MERGE_QUEUE_WAIT=true`. Retain its `QUEUE_PAUSED_AT` timestamp across resumes. Once REST confirms merge, rerun this step on the `merged` route for readback and cleanup. Only an absent CLI or failed probe enters the bounded REST fallback. Recheck the queue's pause on every wake.
 - The queue's merge is the terminal signal: `merged_by` is the queue bot (`mergify[bot]`; `gh pr view` shows it as `app/mergify`), with `merged` true and a `merge_commit_sha`.
 - A PR the queue has taken carries the exact label `queued`. Match it delimited (`,queued,`), since `dequeued` also contains it.
 - A PR that is eligible but not yet queued meets every queue condition and has no `queued` label.
