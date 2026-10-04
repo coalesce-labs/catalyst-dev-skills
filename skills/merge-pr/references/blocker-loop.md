@@ -22,7 +22,8 @@ fi
 # Read after capturing the cursor, so an event arriving during this read is replayed.
 PR_DATA=$(gh api "repos/${REPO}/pulls/${pr_number}") || exit 1
 PR_FALLBACK_READS=${PR_FALLBACK_READS:-0}
-PR_WAIT_DEADLINE=${PR_WAIT_DEADLINE:-$((SECONDS + 7200))}
+PR_WAIT_NOW=$(date +%s) || exit 1
+PR_WAIT_DEADLINE=${PR_WAIT_DEADLINE:-$((PR_WAIT_NOW + 7200))}
 check_queue_pause() {
   [ "${MERGE_QUEUE_WAIT:-false}" = true ] || return 0
   command -v mergify >/dev/null 2>&1 || return 0
@@ -37,7 +38,7 @@ check_queue_pause() {
     QUEUE_PAUSED_AT=''; QUEUE_PAUSE_LEFT=''
   fi
 }
-while [ "$SECONDS" -lt "$PR_WAIT_DEADLINE" ]; do
+while [ "$(date +%s)" -lt "$PR_WAIT_DEADLINE" ]; do
   PR_STATE=$(printf '%s' "$PR_DATA" | jq -er 'if .merged then "MERGED" elif .state == "closed" then "CLOSED" elif .state == "open" then "OPEN" else error("unknown PR state") end') || exit 1
   case "$PR_STATE" in
     MERGED) echo MERGED; break ;;
@@ -46,7 +47,8 @@ while [ "$SECONDS" -lt "$PR_WAIT_DEADLINE" ]; do
   check_queue_pause
   EVENT=''
   if [ "$CLOUD_EVENTS" = true ]; then
-    WAIT_SECONDS=$((PR_WAIT_DEADLINE - SECONDS))
+    WAIT_SECONDS=$((PR_WAIT_DEADLINE - $(date +%s)))
+    [ "$WAIT_SECONDS" -gt 0 ] || { echo PENDING; exit 1; }
     [ "$WAIT_SECONDS" -le 300 ] || WAIT_SECONDS=300
     if [ -n "${QUEUE_PAUSE_LEFT:-}" ] && [ "$QUEUE_PAUSE_LEFT" -lt "$WAIT_SECONDS" ]; then WAIT_SECONDS=$QUEUE_PAUSE_LEFT; fi
     WAIT_RC=0
@@ -97,12 +99,12 @@ while [ "$SECONDS" -lt "$PR_WAIT_DEADLINE" ]; do
     fi
   fi
 done
-[ "$SECONDS" -lt "$PR_WAIT_DEADLINE" ] || { echo PENDING; exit 1; }
+[ "$(date +%s)" -lt "$PR_WAIT_DEADLINE" ] || { echo PENDING; exit 1; }
 ```
 
 Resume blocker resolution after an `OPEN` wake. Read checks and reviews at `HEAD_SHA`, including the repository's review-evidence gate and unresolved threads. A finished check suite can be green or red; both need a recheck. New reviews include approvals, changes requested, inline findings and reaction-only signals. Do not infer the outcome or the reviewer identity from the event. Read them from GitHub. An unrelated account event cannot make this PR ready.
 
-On a timeout, reread state once and retain the cursor. The session's ceiling is two hours, shared across resumes through `PR_WAIT_DEADLINE`. The fallback's 24-read cap also survives resumes through `PR_FALLBACK_READS`. A REST failure stops the wait rather than becoming OPEN. A failed cloud wait permits REST polling only when a new `catalyst events status` probe fails. Report that reason in one line. An available cloud connection never enters a sleep loop.
+On a timeout, reread state once and retain the cursor. The session's ceiling is two hours, shared across resumes through the epoch timestamp `PR_WAIT_DEADLINE`. The fallback's 24-read cap also survives resumes through `PR_FALLBACK_READS`. A REST failure stops the wait rather than becoming OPEN. A failed cloud wait permits REST polling only when a new `catalyst events status` probe fails. Report that reason in one line. An available cloud connection never enters a sleep loop.
 
 ## Resolve the current blockers
 

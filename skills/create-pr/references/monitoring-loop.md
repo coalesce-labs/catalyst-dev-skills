@@ -24,8 +24,9 @@ fi
 # Read after capturing the cursor, so an event arriving during this read is replayed.
 PR_DATA=$(gh api "repos/${REPO}/pulls/${pr_number}") || exit 1
 PR_FALLBACK_READS=${PR_FALLBACK_READS:-0}
-PR_WAIT_DEADLINE=${PR_WAIT_DEADLINE:-$((SECONDS + 7200))}
-while [ "$SECONDS" -lt "$PR_WAIT_DEADLINE" ]; do
+PR_WAIT_NOW=$(date +%s) || exit 1
+PR_WAIT_DEADLINE=${PR_WAIT_DEADLINE:-$((PR_WAIT_NOW + 7200))}
+while [ "$(date +%s)" -lt "$PR_WAIT_DEADLINE" ]; do
   PR_STATE=$(printf '%s' "$PR_DATA" | jq -er 'if .merged then "MERGED" elif .state == "closed" then "CLOSED" elif .state == "open" then "OPEN" else error("unknown PR state") end') || exit 1
   case "$PR_STATE" in
     MERGED) echo MERGED; break ;;
@@ -33,7 +34,8 @@ while [ "$SECONDS" -lt "$PR_WAIT_DEADLINE" ]; do
   esac
   EVENT=''
   if [ "$CLOUD_EVENTS" = true ]; then
-    WAIT_SECONDS=$((PR_WAIT_DEADLINE - SECONDS))
+    WAIT_SECONDS=$((PR_WAIT_DEADLINE - $(date +%s)))
+    [ "$WAIT_SECONDS" -gt 0 ] || { echo PENDING; exit 1; }
     [ "$WAIT_SECONDS" -le 300 ] || WAIT_SECONDS=300
     WAIT_RC=0
     EVENT_JSON=$(catalyst events wait-for --after "$EVENT_CURSOR" --timeout "$WAIT_SECONDS") || WAIT_RC=$?
@@ -80,10 +82,10 @@ while [ "$SECONDS" -lt "$PR_WAIT_DEADLINE" ]; do
     fi
   fi
 done
-[ "$SECONDS" -lt "$PR_WAIT_DEADLINE" ] || { echo PENDING; exit 1; }
+[ "$(date +%s)" -lt "$PR_WAIT_DEADLINE" ] || { echo PENDING; exit 1; }
 ```
 
-The watch has a two-hour ceiling and a 300-second safety timeout. On a selected event, reread this PR once, then read checks, reviews, reactions and threads for `HEAD_SHA`. Apply the CI and review readiness checks in merge-pr's `references/gh-signal-traps.md`. An unrelated event cannot prove readiness. On a timeout, recheck state without resetting the cursor or entering a sleep loop. On a wait error, fallback is allowed only after a failed status probe; otherwise stop with the error. Report `PENDING` or the actual read failure at the ceiling.
+The watch has a two-hour ceiling, retained across shells in the epoch timestamp `PR_WAIT_DEADLINE`, and a 300-second safety timeout. On a selected event, reread this PR once, then read checks, reviews, reactions and threads for `HEAD_SHA`. Apply the CI and review readiness checks in merge-pr's `references/gh-signal-traps.md`. An unrelated event cannot prove readiness. On a timeout, recheck state without resetting the cursor or entering a sleep loop. On a wait error, fallback is allowed only after a failed status probe; otherwise stop with the error. Report `PENDING` or the actual read failure at the ceiling.
 
 For a PR already linked to a ticket, a merge-only wait is:
 

@@ -50,6 +50,7 @@ merged=false; [ "$n" -lt "$MERGE_ON_READ" ] || merged=true
 printf '{"merged":%s,"state":"%s","head":{"sha":"head-1"}}\\n' "$merged" "$MOCK_PR_STATE"`);
   if (options.queueWait) script("mergify", 'echo "mergify $*" >> "$CALL_LOG"; echo "$MOCK_QUEUE_JSON"');
   script("sleep", 'echo "sleep $*" >> "$CALL_LOG"; exit 0');
+  if (options.now) script("date", `if [ "$1" = +%s ]; then echo '${options.now}'; else exec /usr/bin/date "$@"; fi`);
   script("curl", 'echo "curl $*" >> "$CALL_LOG"; echo 200');
   script("catalyst-events", 'echo "retired CLI" >> "$CALL_LOG"; exit 70');
   try {
@@ -66,6 +67,7 @@ printf '{"merged":%s,"state":"%s","head":{"sha":"head-1"}}\\n' "$merged" "$MOCK_
         STATUS_JSON: JSON.stringify(options.status ?? { head: 40, reachable: true }),
         STATUS_FAIL: String(options.statusFail ?? false), FAIL_AFTER_WAIT: String(options.failAfterWait ?? false),
         MERGE_QUEUE_WAIT: String(options.queueWait ?? false), QUEUE_PAUSED_AT: String(options.pausedAt ?? ""), MOCK_QUEUE_JSON: JSON.stringify(options.queue ?? { pause: null }),
+        PR_WAIT_DEADLINE: String(options.deadline ?? ""),
         GH_FAIL: String(options.ghFail ?? false), REPO_NAME: options.repo ?? "coalesce-labs/example",
       }, encoding: "utf8", timeout: 5000,
     });
@@ -103,6 +105,20 @@ test("merge-pr wakes on a completed check suite and rereads the PR once", () => 
 });
 
 for (const path of [monitoring, blocker]) {
+  test(`${path}: a new shell honors an expired retained deadline`, () => {
+    const result = runExample(path, { now: 2000000000, deadline: 1999999999 });
+    expect(result.status).toBe(1);
+    expect(result.stdout).toContain("PENDING");
+    expect(waits(result)).toEqual([]);
+    expect(sleeps(result)).toEqual([]);
+  });
+  test(`${path}: a resumed cloud wait uses the retained epoch time remaining`, () => {
+    const result = runExample(path, { now: 2000000000, deadline: 2000000123 });
+    expect(result.status).toBe(0);
+    expect(waits(result)).toEqual(["catalyst events wait-for --after 40 --timeout 123"]);
+    expect(result.stdout).toContain("MERGED");
+    expect(sleeps(result)).toEqual([]);
+  });
   for (const type of ["github.pr-review.submitted", "github.pr-review-comment.created", "github.pr-review-thread.resolved", "github.issue-comment.created", "github.push"]) {
     test(`${path}: ${type} wakes once without sleeping`, () => {
       const result = runExample(path, { mergeOnRead: 999, events: [{ sequence: 41, type }] });
