@@ -16,7 +16,7 @@ If an argument was given, use that PR number (for example, the `describe-pr` ski
 gh pr view --json number,url,title,state,body,headRefName,baseRefName 2>/dev/null
 ```
 
-If there's no PR on the current branch (or it's `main`/`master`), list recent PRs and ask:
+If there's no PR on the current branch (or it's `main`/`master`): when `CATALYST_PHASE` is set, never ask and wait, stop and report `no_pr_found`. Otherwise list recent PRs and ask:
 
 ```bash
 gh pr list --limit 10 --json number,title,headRefName,state

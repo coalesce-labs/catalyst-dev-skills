@@ -13,7 +13,7 @@ version: 1.0.0
 ```bash
 # Thoughts must exist for this skill's documents. That is the only host check here: the skill runs anywhere.
 [[ -e thoughts/shared ]] || echo "⚠️ thoughts/shared is missing in $(pwd) — run \`humanlayer thoughts init\`; if the prompt names an output path, write there" >&2
-
+if [[ -n "${CATALYST_PHASE:-}" ]]; then echo "unattended: CATALYST_PHASE=$CATALYST_PHASE, so never ask and wait"; fi
 # explicit-input discovery: begin
 # Find the plan to validate on disk for the ticket this run was given: $CATALYST_TICKET under a
 # phase, else a ticket named in the skill's argument text (Claude Code substitutes the token in
@@ -42,7 +42,7 @@ else
 fi
 ```
 
-A plan path argument wins. Otherwise, after `📋 Found plan`, show the path and ask "**Validate this plan?** [Y/n]". Otherwise, or on no, search recent commits for plan references, list the plans in `thoughts/shared/plans/`, and ask which to validate.
+A plan path argument wins. When `CATALYST_PHASE` is set, never ask and wait: use that path or the found plan, and with neither, stop and report `no_plan_found`. Otherwise, after `📋 Found plan`, show the path and ask "**Validate this plan?** [Y/n]". Otherwise, or on no, search recent commits for plan references, list the plans in `thoughts/shared/plans/`, and ask which to validate.
 
 ## 2. Gather evidence
 
