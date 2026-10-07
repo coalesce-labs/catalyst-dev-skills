@@ -12,18 +12,18 @@ version: 1.0.0
 
 # Create plan
 
-Build the plan with the person and get their agreement at each step. Be skeptical: verify every requirement against the code, and research each correction the person makes before accepting it. When the person names an existing plan and asks for changes, follow [Revising an existing plan](#revising-an-existing-plan) instead.
+Build the plan with the person and get their agreement at each step; when `CATALYST_PHASE` is set, never ask and wait: decide from the evidence and record each choice in the plan. Be skeptical: verify every requirement against the code, and research each correction the person makes before accepting it. When the person names an existing plan and asks for changes, follow [Revising an existing plan](#revising-an-existing-plan) instead.
 
 **Paths.** `${CLAUDE_SKILL_DIR}` is this skill's directory, which Claude Code fills in. On another harness, set it to the directory holding this SKILL.md, or stop and report `skill_dir_unresolved`.
 
 ## Start
 
-Run this, then start session tracking as [references/session-tracking.md](references/session-tracking.md) shows.
+Run this, then start session tracking as [references/session-tracking.md](references/session-tracking.md) shows. When `CATALYST_PHASE` is set, never ask and wait: plan from the input or the research the block found, and record each choice you make in the plan.
 
 ```bash
 # Thoughts must exist for this skill's documents. That is the only host check here: the skill runs anywhere.
 [[ -e thoughts/shared ]] || echo "⚠️ thoughts/shared is missing in $(pwd) — run \`humanlayer thoughts init\` in the repo root, or create the worktree with the create-worktree skill, which does it; if the prompt names an output path, write there" >&2
-
+if [[ -n "${CATALYST_PHASE:-}" ]]; then echo "unattended: CATALYST_PHASE=$CATALYST_PHASE, so never ask and wait"; fi
 # explicit-input discovery: begin
 # Find the research to plan from on disk for the ticket this run was given: $CATALYST_TICKET under a
 # phase, else a ticket named in the skill's argument text (Claude Code substitutes the token in
@@ -58,6 +58,8 @@ fi
 
 ## Steps
 
+When `CATALYST_PHASE` is set, never ask and wait at any step below: take the approach the evidence supports, record each decision and open trade-off in the plan, and skip the review loop.
+
 1. **Gather context.** Read every mentioned file yourself, in full (no limit or offset), before spawning subagents. Take the ticket from the research's `source_ticket`, the argument, or the conversation. Run `codebase-locator`, `codebase-analyzer` and `thoughts-locator` scoped to the ticket (the `research-codebase` skill's agents) and read what they find in full. Check the requirements against the code, present your understanding with file:line references, and ask only what the code cannot answer.
 2. **Research.** Track the work in TodoWrite and run in parallel `codebase-locator`, `codebase-analyzer`, `codebase-pattern-finder`, `external-research` (framework patterns), `thoughts-locator` and `thoughts-analyzer`. Each agent's instructions ship as `${CLAUDE_SKILL_DIR}/assets/agents/<name>.md`; run a subagent with that file plus your request, or do the task inline when the harness has no subagents. Wait for all of them, then present design options with pros and cons.
 3. **Outline.** Once you agree on an approach, show the phases and what each does, and get feedback before writing details.
@@ -69,7 +71,7 @@ Planning moves no ticket; a person who asks for a move uses `catalyst write stat
 
 ## Revising an existing plan
 
-Use this when the person names an existing plan (a path, or a ticket with a plan on disk) and asks for changes. Back each change with research, not just text edits.
+Use this when the person names an existing plan (a path, or a ticket with a plan on disk) and asks for changes. Back each change with research, not just text edits. When `CATALYST_PHASE` is set, never ask and wait: take the plan and the change from the arguments and the prompt.
 
 1. **Find the plan.** Use the path given, or the newest plan for `TICKET_ID`: `find -H thoughts/shared/plans -type f -name '*.md' -ipath "*${TICKET_ID}[!0-9]*" -exec ls -t {} + 2>/dev/null | head -1`. Show it, ask "**Update this plan?** [Y/n]", then ask what should change. With no plan found, ask for its path.
 2. **Read it in full**, noting which phases are done.

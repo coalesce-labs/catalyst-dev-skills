@@ -54,7 +54,7 @@ Review updated PR: {url}
 
 ## Error handling
 
-- **No PR found** → list open PRs, ask the user which to describe.
+- **No PR found** → when `CATALYST_PHASE` is set, never ask and wait: report `no_pr_found` and stop. Otherwise list open PRs, ask the user which to describe.
 - **Template missing** → warn, generate without it.
 - **Verification fails** → mark failed checks with the error, continue with the description.
 
