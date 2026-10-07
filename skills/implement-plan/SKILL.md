@@ -17,7 +17,7 @@ version: 1.0.0
 ```bash
 # Thoughts must exist for this skill's documents. That is the only host check here: the skill runs anywhere.
 [[ -e thoughts/shared ]] || echo "⚠️ thoughts/shared is missing in $(pwd) — run \`humanlayer thoughts init\` in the repo root, or create the worktree with the create-worktree skill, which does it; if the prompt names an output path, write there" >&2
-
+if [[ -n "${CATALYST_PHASE:-}" ]]; then echo "unattended: CATALYST_PHASE=$CATALYST_PHASE, so never ask and wait"; fi
 # explicit-input discovery: begin
 # Find the plan to implement on disk for the ticket this run was given: $CATALYST_TICKET under a
 # phase, else a ticket named in the skill's argument text (Claude Code substitutes the token in
@@ -56,7 +56,7 @@ if [[ -n "$SESSION_SCRIPT" ]]; then
 fi
 ```
 
-A plan path passed as an argument wins. Otherwise, after `📋 Found plan`, show the path and ask "**Proceed with this plan?** [Y/n]". Otherwise, or on no, list the five most recent plans in `thoughts/shared/plans/` with dates and ticket numbers, and wait for the user to pick one.
+A plan path passed as an argument wins. When `CATALYST_PHASE` is set, never ask and wait: use that path or the found plan, and with neither, stop and report `no_plan_found`. Otherwise, after `📋 Found plan`, show the path and ask "**Proceed with this plan?** [Y/n]". Otherwise, or on no, list the five most recent plans in `thoughts/shared/plans/` with dates and ticket numbers, and wait for the user to pick one.
 
 Read the plan whole (no limit or offset), the ticket in its `source_ticket` frontmatter (this skill moves no ticket; when someone asks for a move, read [references/linear.md](references/linear.md)), and every file it mentions. Checked items (`- [x]`) are done: resume from the first unchecked one. On an adopted branch, where `git fetch origin main && git log --oneline origin/main..HEAD` lists commits before you change anything, run `git merge --no-edit origin/main` first and resolve any conflict as part of this phase; otherwise validate reviews main's changes as this ticket's. Then make a todo list.
 

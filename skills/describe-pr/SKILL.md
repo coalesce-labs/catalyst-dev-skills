@@ -11,7 +11,7 @@ version: 2.0.0
 
 # Generate/Update PR Description
 
-Runs fully automated, with no interactive prompts: it regenerates the auto-generated sections, preserves manual edits, updates the title, and names the Linear ticket.
+Runs fully automated, with no interactive prompts: it regenerates the auto-generated sections, preserves manual edits, updates the title, and names the Linear ticket. When `CATALYST_PHASE` is set, never ask and wait at any step, including the error paths.
 
 **Paths.** Commands below name files inside this skill's own directory as `${CLAUDE_SKILL_DIR}/…`. Claude Code fills that in. On any other harness, set CLAUDE_SKILL_DIR to the absolute directory that contains this SKILL.md before running them. If you cannot, stop and report `skill_dir_unresolved`.
 
@@ -20,6 +20,7 @@ Runs fully automated, with no interactive prompts: it regenerates the auto-gener
 ```bash
 # Thoughts must exist for this skill's documents. That is the only host check here: the skill runs anywhere.
 [[ -e thoughts/shared ]] || echo "⚠️ thoughts/shared is missing in $(pwd) — run \`humanlayer thoughts init\` in the repo root, or create the worktree with the create-worktree skill, which does it; if the prompt names an output path, write there" >&2
+if [[ -n "${CATALYST_PHASE:-}" ]]; then echo "unattended: CATALYST_PHASE=$CATALYST_PHASE, so never ask and wait"; fi
 ```
 
 ## Rules

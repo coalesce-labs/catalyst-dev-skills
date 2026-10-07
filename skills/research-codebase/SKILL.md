@@ -27,9 +27,10 @@ Your job ends when the research document is saved under `thoughts/shared/researc
 ```bash
 # Thoughts must exist for this skill's documents. That is the only host check here: the skill runs anywhere.
 [[ -e thoughts/shared ]] || echo "⚠️ thoughts/shared is missing in $(pwd) — run \`humanlayer thoughts init\` in the repo root, or create the worktree with the create-worktree skill, which does it; if the prompt names an output path, write there" >&2
+if [[ -n "${CATALYST_PHASE:-}" ]]; then echo "unattended: CATALYST_PHASE=$CATALYST_PHASE, so never ask and wait"; fi
 ```
 
-Start session tracking as [references/session-tracking.md](references/session-tracking.md) shows; it also holds the phase and end calls used below. Then reply, and wait for the research query:
+Start session tracking as [references/session-tracking.md](references/session-tracking.md) shows; it also holds the phase and end calls used below. When `CATALYST_PHASE` is set, never ask and wait: there is no second turn, so take the research question from the arguments and the prompt, skip the reply below, and go straight to the steps. Otherwise reply, and wait for the research query:
 
 ```
 I'm ready to research the codebase. Please provide your research question or area of interest,

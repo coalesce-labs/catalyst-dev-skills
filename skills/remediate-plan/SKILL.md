@@ -15,7 +15,7 @@ version: 1.2.0
 
 The report's last fenced block, `catalyst-validation-ladder`, is what this skill acts on: five steps, each with a verdict and its findings. Its schema lives only in the `validate-plan` skill, section "The validation ladder block" (in a skills-CLI install, the sibling `validate-plan` skill directory). Read it there.
 
-The report comes from one of two places, and the steps are the same for both:
+The report comes from one of two places, and the steps are the same for both. When `CATALYST_PHASE` is set, never ask and wait: act on the report you were given, and escalate instead of stopping on a question:
 
 - **Same session (laptop):** a `validate-plan` run in this conversation reported FAIL or PARTIAL.
 - **Fresh session (cloud dispatch):** the dispatch prompt names a report file on disk, usually the failed validate phase's `validation.md` fetched from its artifact store; failing that, a thoughts doc or Linear attachment the prompt points at.
