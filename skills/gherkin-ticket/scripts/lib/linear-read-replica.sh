@@ -28,7 +28,7 @@
 
 [[ -n "${_CATALYST_LINEAR_READ_REPLICA_SH:-}" ]] && return 0
 
-# The replica `catalyst-skills replica start` writes: CATALYST_REPLICA_DB overrides;
+# The replica `catalyst replica start` writes: CATALYST_REPLICA_DB overrides;
 # then the machine manifest, then the saved legacy CLI path before manifest adoption.
 # The retired daemon-era $CATALYST_DIR/catalyst-replica.db is no longer consulted.
 
