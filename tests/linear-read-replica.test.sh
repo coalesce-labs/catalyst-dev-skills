@@ -2,7 +2,7 @@
 # linear-read-replica.test.sh — the vendored replica reader finds the Catalyst Cloud replica.
 #
 # The replica now lives at ~/.config/catalyst-cloud/replica.db (written by
-# `catalyst-skills replica start`), not the retired ~/catalyst/catalyst-replica.db. Its
+# `catalyst replica start`), not the retired ~/catalyst/catalyst-replica.db. Its
 # freshness gate accepts a change-feed cursor from either `sync_cursors` or the
 # `sync_meta` 'cursor' row, and still refuses a replica with neither (positive control).
 #

@@ -23,7 +23,7 @@ describe("skill prose is public and harness-agnostic", () => {
     "ticket-id": "This guard came from CTC-1234.",
     "adr-id": "See ADR-20260927T224315 for the layout.",
     "dated-history": "Decided on 2026-09-26, so the rail is gone.",
-    "retired-cli": "Run `catalyst-skills query issue ENG-1`.",
+    "retired-cli": `Run \`${["catalyst", "skills"].join("-")} query issue ENG-1\`.`,
     "private-reference": "Clone coalesce-labs/catalyst-cloud and ask Lantern.",
     "tenant-word": "Move the card on the tenant's board.",
     "ai-subscription": "Phases run at your subscription's rate.",

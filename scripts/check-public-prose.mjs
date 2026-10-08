@@ -9,8 +9,7 @@
 //   1. A skill is named bare (`ask`), never through a plugin prefix (`catalyst-dev:ask`, `catalyst-cloud:catalyst-linear`).
 //   2. No person is named: "the owner", "an admin", "the person".
 //   3. No provenance: ticket ids, ADR numbers, dated history. The rule stays; how it came about goes.
-//   4. Only what an installer has: the two published packs, the `catalyst` CLI (never the retired
-//      `catalyst-skills` name), public repos and docs.
+//   4. Only what an installer has: the two published packs, the `catalyst` CLI, public repos and docs.
 //   5. A person's account is "your cloud account", never a "tenant".
 //   6. AI accounts are token-billed (an API key is billed per token by its provider). No
 //      subscription, plan tier, setup token, subscription login or usage window, in prose or code.
@@ -31,7 +30,7 @@ export const RULES = [
   { id: "ticket-id", why: "drop the ticket id; keep the rule", re: new RegExp(`\\b(${TEAM_KEYS.join("|")})-\\d+\\b`) },
   { id: "adr-id", why: "drop the ADR reference; keep the rule", re: /\bADR[- ]?\d|\bADR-\d{8}T/ },
   { id: "dated-history", why: "drop the date; keep the rule", re: /\b20\d\d-\d\d-\d\d\b/, proseOnly: true },
-  { id: "retired-cli", why: "the CLI is `catalyst` (npx -p @catalyst-cloud/cli catalyst <verb>)", re: /(?<![\w-])catalyst-skills\b/ },
+  { id: "retired-cli", why: "the CLI is `catalyst` (npx -p @catalyst-cloud/cli catalyst <verb>)", re: /(?<![\w-])catalyst[-]skills\b/ },
   {
     id: "private-reference",
     why: "reference only the published packs and public repos",

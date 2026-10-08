@@ -2836,7 +2836,7 @@ export function readLinearReplica(env = process.env) {
 }
 
 // CTL-1340: path to the local Catalyst-Cloud SQLite replica, the one
-// `catalyst-skills replica start` writes. The canonical environment/manifest selection
+// `catalyst replica start` writes. The canonical environment/manifest selection
 // retains the legacy CLI default before setup (the daemon-era path is retired).
 // Re-resolved per call so tests redirect via the env vars.
 export { getReplicaDbPath } from "../lib/replica-path.mjs";
