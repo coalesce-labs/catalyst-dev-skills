@@ -13,6 +13,7 @@
 // trigger will see it: `create` reads the created ticket BACK out of Linear and parses the
 // stored body with the same rules the trigger uses. A body that renders correctly and
 // stores mangled is the failure this exists to catch, and only a round-trip can see it.
+// CTC-4114: the round trip also covers attached facts; see FACTS_HEADING.
 //
 // ── ⚠️ THE PARITY RISK, STATED ──
 // The authoritative parser is `apps/mirror/src/do/ask-decision.ts` in the catalyst-cloud
@@ -156,21 +157,127 @@ export function howToAnswerLine(hasOptions) {
 }
 
 /**
+ * ⭐ CTC-4114 — THE FACTS BLOCK. A raiser attaches what it already knows as label/value pairs
+ * (`--fact "Pull request=#5211, required check red"`), and the body carries them under one
+ * heading, so the card can read them instead of a model extracting them from the prose.
+ *
+ * ⚠️ THE PARITY DIRECTION IS REVERSED HERE. `parseAskOptions` above is a port FROM the mirror;
+ * this block is defined HERE, and the mirror's facts parser ports `parseAskFacts` byte-for-byte
+ * on FACTS_HEADER, FACT_ITEM and the unescape rule. Change one, change both.
+ *
+ * ⛔ ALWAYS LAST IN THE BODY, after `Blocks:`. The cloud parses Options, Default if silent and
+ * How to answer by finding the FIRST matching line; a fact placed before them and labelled
+ * "Default if silent" would be read in its place. Last, every older section is met first.
+ *
+ *   **Facts:**
+ *   - **Pull request:** #5211, required check red
+ *   - **Blocked since:** 09:40 UTC
+ */
+export const FACTS_HEADING = "**Facts:**";
+
+// ⛔ Escape what markdown would act on. Linear stores the description as markdown and
+// backslash-escapes `~ * [ ]` it reads as literal text, and an unescaped `**` in a value is an
+// emphasis run that can close the bold label early (an option holding `images/runner/**` parsed
+// to ZERO options in production). With every `*` in a label escaped, the label ends at the first
+// unescaped `:**`, so a label may hold any character, `:` included.
+const FACT_MARKDOWN_ACTIVE = /[\\`*_~[\]<>&]/g;
+// CommonMark: a backslash before ASCII punctuation IS that character. Reading back through this
+// rule makes the round trip indifferent to which escapes Linear keeps, drops or adds.
+const MARKDOWN_ESCAPE = /\\([!-\/:-@[-`{-~])/g;
+const escapeFactText = (text) => text.replace(FACT_MARKDOWN_ACTIVE, "\\$&");
+const unescapeFactText = (text) => text.replace(MARKDOWN_ESCAPE, "$1");
+
+// Alone on its line — unlike OPTIONS_HEADER there is no inline form — so prose that says
+// "Facts: …" is never a heading. Optional bold and a CR before the newline are tolerated.
+const FACTS_HEADER = /(?:^|\n)[ \t]*\*{0,2}[ \t]*Facts[ \t]*:[ \t]*\*{0,2}[ \t]*\r?(?=\n|$)/gi;
+/** `- **label:** value` or `* **label:** value`. The label holds no unescaped `*`. */
+const FACT_ITEM = /^[-*][ \t]+\*\*((?:\\.|[^*\\])+):\*\*[ \t]+(.+)$/;
+
+/** The fact bullets, in order. Label and value are escaped; parseAskFacts undoes it. */
+export function askFactBullets(facts) {
+  return facts.map(({ label, value }) => `- **${escapeFactText(label)}:** ${escapeFactText(value)}`);
+}
+
+/**
+ * parseAskFacts — `[{label, value}]` in order; `[]` when the body carries no readable block.
+ *
+ * ⛔ THE LAST HEADER WINS, because the writer puts the block last: a `--why` that holds a
+ * `Facts:` line, or a whole planted block, cannot shadow the raiser's real facts.
+ */
+export function parseAskFacts(body) {
+  const s = nonEmpty(body);
+  if (s == null) return [];
+  let header = null;
+  for (const m of s.matchAll(FACTS_HEADER)) header = m;
+  if (header == null) return [];
+  const facts = [];
+  for (const line of s.slice(header.index + header[0].length).split("\n")) {
+    const trimmed = line.trim();
+    if (trimmed === "") {
+      if (facts.length > 0) break; // a blank line ends the list
+      continue;
+    }
+    const item = FACT_ITEM.exec(trimmed);
+    if (item == null) break; // a non-item line ends the list
+    const label = nonEmpty(unescapeFactText(item[1]));
+    const value = nonEmpty(unescapeFactText(item[2]));
+    if (label != null && value != null) facts.push({ label, value });
+  }
+  return facts;
+}
+
+/**
+ * parseFactArg — one `--fact` value → `{ok: true, fact}` or a refusal with a frozen reason:
+ * fact-missing-value · fact-multiline · fact-no-separator · fact-empty-label · fact-empty-value.
+ * Split on the FIRST `=`, so a value may hold `=`; each side is trimmed, nothing else changes.
+ */
+export function parseFactArg(raw) {
+  const how = 'write it as --fact "<label>=<value>", e.g. --fact "Pull request=#5211, required check red"';
+  if (typeof raw !== "string") return { ok: false, reason: "fact-missing-value", message: `--fact needs a value; ${how}` };
+  if (/[\r\n]/.test(raw)) return { ok: false, reason: "fact-multiline", message: `--fact ${JSON.stringify(raw)} spans more than one line; ${how}` };
+  const eq = raw.indexOf("=");
+  if (eq === -1) return { ok: false, reason: "fact-no-separator", message: `--fact ${JSON.stringify(raw)} has no "="; ${how}` };
+  const label = nonEmpty(raw.slice(0, eq));
+  const value = nonEmpty(raw.slice(eq + 1));
+  if (label == null) return { ok: false, reason: "fact-empty-label", message: `--fact ${JSON.stringify(raw)} has nothing before the "="; ${how}` };
+  if (value == null) return { ok: false, reason: "fact-empty-value", message: `--fact ${JSON.stringify(raw)} has nothing after the "="; ${how}` };
+  return { ok: true, fact: { label, value } };
+}
+
+/**
+ * verifyAskFacts — the facts round trip, shaped like verifyAskBody: no facts attached is
+ * "nothing to verify"; otherwise facts-unreadable · fact-count-mismatch · fact-text-mismatch.
+ */
+export function verifyAskFacts({ intendedFacts = [], storedBody }) {
+  const parsed = parseAskFacts(storedBody ?? "");
+  if (intendedFacts.length === 0) return { ok: true, reason: null, parsed, note: "no facts attached — nothing to verify" };
+  if (parsed.length === 0) return { ok: false, reason: "facts-unreadable", parsed, note: "the stored body parses to ZERO facts" };
+  if (parsed.length !== intendedFacts.length) {
+    return { ok: false, reason: "fact-count-mismatch", parsed, note: `wrote ${intendedFacts.length}, stored parses to ${parsed.length}` };
+  }
+  const i = intendedFacts.findIndex((f, k) => f.label !== parsed[k].label || f.value !== parsed[k].value);
+  if (i !== -1) return { ok: false, reason: "fact-text-mismatch", parsed, note: `fact ${i + 1} differs` };
+  return { ok: true, reason: null, parsed, note: null };
+}
+
+/**
  * buildAskBody — the canonical shape. Exactly one blank line between sections, because a
  * blank line is what ends the option list for the parser above.
+ * CTC-4114: the Facts block goes LAST; see FACTS_HEADING.
  *
  * ⚠️ THE LETTERS AND THE HOW-TO-ANSWER LINE ARE ONE CHANGE, NOT TWO (CTL-2300). The line
  * tells the human to reply with "the option letter"; rendering it above a list that carries
  * no letters is the exact defect CTC-1298 measured on the cloud side ("did I need to put
  * the word decided there?"). Neither half ships without the other.
  */
-export function buildAskBody({ why, options = [], defaultIfSilent, blocks = [] }) {
+export function buildAskBody({ why, options = [], defaultIfSilent, blocks = [], facts = [] }) {
   const hasOptions = options.length > 0;
   const parts = [`**Why:** ${why}`];
   if (hasOptions) parts.push(["**Options:**", ...askOptionBullets(options)].join("\n"));
   if (nonEmpty(defaultIfSilent)) parts.push(`**Default if silent:** ${defaultIfSilent}`);
   parts.push(howToAnswerLine(hasOptions));
   if (blocks.length > 0) parts.push(`Blocks: ${blocks.join(", ")}`);
+  if (facts.length > 0) parts.push([FACTS_HEADING, ...askFactBullets(facts)].join("\n"));
   return parts.join("\n\n");
 }
 
@@ -438,7 +545,7 @@ function usage() {
   ask.mjs create [--team <TEAM>] --title <t> --why <text>
                  --option <label> --option <label> [--option ...]   (at least TWO)
                  --default <text> --blocks <ISSUE> [--blocks <ISSUE> ...]
-                 [--priority <1-4>] [--dry-run]
+                 [--fact "<label>=<value>" ...] [--priority <1-4>] [--dry-run]
   ask.mjs accept <ISSUE> --as <AGENT> (--body <markdown|-> | --body-file <path>) [--dry-run]
 
 create files a correctly-shaped ask ticket, then READS IT BACK and proves the decision
@@ -453,6 +560,12 @@ a person-shaped fallback — an unconfigured tenant gets a named refusal, not a 
 ⛔ --option (>=2), --default and --blocks are REQUIRED (CTL-2157). An ask with nothing to
 choose between, no meaning for silence, or no work attached is the pile-up asks exist to
 replace: the answer wakes the agents parked on the tickets the ask BLOCKS.
+--fact attaches one thing the ask already knows, as "<label>=<value>": split on the first "=",
+so the value may hold "=", commas and colons. Repeat it for several. The body lists them under
+a **Facts:** heading word for word, and create reads them back like the options. A fact that
+does not read back is reported (factsVerified: false in the JSON, and on stderr) but does not
+change the exit code: facts inform the answer; they do not decide whether the ask can be answered.
+
 Exit: 0 filed and provably answerable · 1 nothing was filed · 2 filed but DEFECTIVE
 (undecidable body, or a --blocks relation Linear did not record).`);
 }
@@ -476,6 +589,7 @@ function cmdCreate(argv) {
   const options = argOf(argv, "--option", { many: true });
   const dflt = argOf(argv, "--default");
   const blocks = argOf(argv, "--blocks", { many: true });
+  const factArgs = argOf(argv, "--fact", { many: true });
   const priority = argOf(argv, "--priority") ?? "2";
   const dryRun = argv.includes("--dry-run");
 
@@ -533,7 +647,20 @@ function cmdCreate(argv) {
     );
     return 1;
   }
-  const body = buildAskBody({ why, options, defaultIfSilent: dflt, blocks });
+  // ⛔ CTC-4114 — A FACT THAT CANNOT BE WRITTEN IS REFUSED, NOT DROPPED. An automated raiser
+  // reads the exit code, not stderr; dropping a malformed --fact would file the ask without it
+  // and say nothing. argOf ignores a --fact that is the LAST argument, so that case is caught
+  // here too. Facts stay optional: no --fact at all is fine.
+  const facts = [];
+  for (const raw of argv[argv.length - 1] === "--fact" ? [...factArgs, undefined] : factArgs) {
+    const f = parseFactArg(raw);
+    if (!f.ok) {
+      console.error(`ask create: REFUSING — ${f.message}. Nothing was filed.`);
+      return 1;
+    }
+    facts.push(f.fact);
+  }
+  const body = buildAskBody({ why, options, defaultIfSilent: dflt, blocks, facts });
   // CTC-4075 — wording warnings, never a refusal (see lib/ask-copy.mjs).
   const copyFindings = askCopyFindings(`${title}\n${body}`);
   for (const f of copyFindings) {
@@ -546,6 +673,13 @@ function cmdCreate(argv) {
   if (!pre.ok) {
     console.error(
       `ask create: REFUSING — the body I built does not parse (${pre.reason}: ${pre.note})`
+    );
+    return 1;
+  }
+  const preFacts = verifyAskFacts({ intendedFacts: facts, storedBody: body });
+  if (!preFacts.ok) {
+    console.error(
+      `ask create: REFUSING — the body I built does not read back its facts (${preFacts.reason}: ${preFacts.note})`
     );
     return 1;
   }
@@ -585,6 +719,7 @@ function cmdCreate(argv) {
           title,
           body,
           parsedOptions: pre.parsed,
+          parsedFacts: preFacts.parsed,
           labelIds,
           copyFindings,
         },
@@ -659,6 +794,7 @@ function cmdCreate(argv) {
     return 1;
   }
   const post = verifyAskBody({ intendedOptions: options, storedBody: stored });
+  const postFacts = verifyAskFacts({ intendedFacts: facts, storedBody: stored });
 
   // ⛔ Codex #3509 P2: "a `--relates-to` / `--blocks` list keeps only the LAST flag in some
   // linearis versions" — the ask skill's own gotcha. The round trip validated the body and
@@ -680,6 +816,9 @@ function cmdCreate(argv) {
       decidable: post.ok,
       reason: post.reason,
       parsedOptions: post.parsed,
+      parsedFacts: postFacts.parsed,
+      factsVerified: postFacts.ok,
+      factsReason: postFacts.reason,
       blocksVerified,
       missingBlocks,
       copyFindings,
@@ -704,6 +843,17 @@ function cmdCreate(argv) {
       `ask create: ⛔ ${id} filed, but the read-back carried NO relation field — cannot prove the ` +
         `--blocks relations (${blocks.join(", ")}) landed. Verify by hand; until then an answer on ` +
         "this ask is not proven to wake anything."
+    );
+  }
+  // ⚠️ CTC-4114 — A WARNING, DELIBERATELY NOT A FAILURE. Exit 2 means the ask is defective:
+  // undecidable, or not wired to the work it blocks. A fact Linear stored differently leaves the
+  // ask answerable and wakeable, and Linear's handling of some text (links, issue ids) is not
+  // measured yet — failing on it would turn optional context into a way an ask can break.
+  // The JSON carries factsVerified/factsReason for a caller that acts on it.
+  if (!postFacts.ok) {
+    console.error(
+      `ask create: ⚠️ ${id} is filed and answerable, but its facts did not read back word for word ` +
+        `(${postFacts.reason}: ${postFacts.note}). Check the Facts section on ${id} before relying on the card's fact list.`
     );
   }
   if (!post.ok) {
