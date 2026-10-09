@@ -3,3 +3,28 @@
 
 [project]
 linear_team = "CTC"
+
+# The checks the ci.yml pull request gate runs. There are no package dependencies to install. The install smokes are left out: they clone sibling repositories.
+[environment]
+toolchains = [{ name = "node", version = "22" }, { name = "bun", version = "1.3.14" }]
+system_packages = [{ name = "sqlite3" }, { name = "jq" }, { name = "zsh" }]
+
+[environment.container]
+git = { submodules = false, lfs = false }
+
+[[environment.verify]]
+name = "vendored-copies"
+run = ["sh", "-lc", "node scripts/vendor.mjs --check"]
+
+[[environment.verify]]
+name = "version-check"
+run = ["sh", "-lc", "npm run version:check"]
+
+[[environment.verify]]
+name = "test"
+run = ["sh", "-lc", "bash scripts/run-tests.sh"]
+timeout_seconds = 1800
+
+[[environment.verify]]
+name = "guards"
+run = ["sh", "-lc", "bun run test:guards"]
