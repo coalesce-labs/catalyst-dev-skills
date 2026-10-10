@@ -6,8 +6,10 @@ Write the research document in this shape. Frontmatter comes before the heading.
 ---
 date: YYYY-MM-DDTHH:MM:SS+TZ
 researcher: { your-name }
-git_commit: { commit-hash }
+git_commit: { full commit SHA }
 branch: { branch-name }
+git_main_sha: { fetched origin/main SHA }
+git_merge_base: { merge-base of git_main_sha and git_commit }
 repository: { repo-name }
 topic: "{User's Research Question}"
 tags: [research, codebase, { component-names }]
