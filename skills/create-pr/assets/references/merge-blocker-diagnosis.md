@@ -182,14 +182,15 @@ while blockers is not empty AND attempt < MAX_RESOLVE_ATTEMPTS:
 
 *Can fix:* Yes, always attempt.
 
+Merge the base in; never rebase or force-push a published branch.
+
 ```bash
 git fetch origin $base_branch
-git rebase origin/$base_branch
-if [ $? -eq 0 ]; then
-  git push --force-with-lease
+if git merge --no-ff --no-edit origin/$base_branch; then
+  git push
 else
-  git rebase --abort
-  # Report specific conflicting files to user
+  git diff --name-only --diff-filter=U   # report these files to the user
+  git merge --abort
 fi
 ```
 
@@ -197,14 +198,14 @@ fi
 
 #### `conflicts` — Merge conflicts exist.
 
-*Can fix:* Attempt rebase. If conflicts are in generated files (lockfiles, etc.), try auto-resolve. Otherwise, report specific files.
+*Can fix:* Attempt a merge of the base. If conflicts are in generated files (lockfiles, etc.), try auto-resolve. Otherwise, report specific files.
 
 ```
 I can regenerate lockfiles automatically. For source conflicts, you'll need to:
-  1. Resolve conflicts in the listed files
+  1. git merge origin/<base>, then resolve conflicts in the listed files
   2. git add <resolved-files>
-  3. git rebase --continue
-  4. git push --force-with-lease
+  3. git commit
+  4. git push
   5. Run /merge-pr again
 ```
 

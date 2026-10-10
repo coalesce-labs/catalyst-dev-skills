@@ -30,7 +30,7 @@ Resolve every blocker legitimately, or escalate with specifics. Never use `--adm
 ## Process
 
 1. **Identify the PR** from the argument, else `gh pr view` / `gh pr list`. See [pr-identification.md](references/pr-identification.md).
-2. **Verify it is open and mergeable.** Rebase if behind; resolve conflicts or exit. An already-merged PR skips to step 5, which resumes at cleanup.
+2. **Verify it is open and mergeable.** Merge the base in if behind (never rebase or force-push a published branch); resolve conflicts or exit. An already-merged PR skips to step 5, which resumes at cleanup.
 3. **Run local tests**, unless `--skip-tests`.
 4. **Wait out the blockers until the PR is CLEAN.**
    - Probe with `catalyst events status --json`. A successful probe uses [blocker-loop.md](references/blocker-loop.md)'s `catalyst events wait-for` lifecycle watch for CI, reviews, pushes and merge/close. Retain the cursor across fixes and reread this PR once on each selected wake. No local sync or log is required.
@@ -42,7 +42,7 @@ Resolve every blocker legitimately, or escalate with specifics. Never use `--adm
 
 | Situation | Reference |
 |---|---|
-| CI fix-up and BEHIND rebase in depth (hooks-disabled push, bounded fix attempts, human-vs-bot threads, empty `merge_commit_sha` retry) | [ci-fixup-and-behind.md](references/ci-fixup-and-behind.md) |
+| CI fix-up and BEHIND merge in depth (hooks-disabled push, bounded fix attempts, human-vs-bot threads, empty `merge_commit_sha` retry) | [ci-fixup-and-behind.md](references/ci-fixup-and-behind.md) |
 | Checking a ticket is done before calling it done (other open PRs, orphan-PR reconciliation) | [done-judgment.md](references/done-judgment.md) |
 | Adversarial pre-merge review of a risky diff (8-gate table, regression-risk scoring) | [verify-gates.md](references/verify-gates.md) |
 | Confirming a merged change deployed, with a live smoke check | [post-merge-deploy-verify.md](references/post-merge-deploy-verify.md) |
