@@ -25,6 +25,12 @@
 #       translate this into a push_safety_gate_blocked escalation.
 #   5 — draft_pr_push_verify: repository permission denied. Callers translate this
 #       into a push_denied_no_permission escalation.
+#   6 — draft_pr_push_verify: push rejected on a stack-managed branch (commits carry a
+#       Mergify Change-Id trailer). Nothing was replayed or pushed; the seat resyncs its
+#       stack with `mergify stack sync` + `mergify stack push`. (CTC-5513)
+#   7 — draft_pr_push_verify: the remote branch moved and replaying the unpublished
+#       commits onto its tip conflicted. Nothing was pushed; the rebase is left in
+#       progress so the seat can resolve it. (CTC-5513)
 
 _draft_pr_warn() {
   printf 'draft-pr: %s\n' "$*" >&2
@@ -41,6 +47,8 @@ _DRAFT_PR_WORKFLOW_SCOPE_RC=3
 # test's isolated mkdtemp sandbox, and pushed the result to a real branch.
 _DRAFT_PR_SAFETY_GATE_RC=4
 _DRAFT_PR_PERMISSION_RC=5
+_DRAFT_PR_STACK_RC=6
+_DRAFT_PR_REPLAY_CONFLICT_RC=7
 
 _draft_pr_config_str() {
   local file="$1" selector="$2" raw
@@ -399,109 +407,131 @@ draft_pr_promote() {
   return 0
 }
 
+# _draft_pr_is_branch_moved_error FILE — 0 iff FILE holds git's rejection of a
+# push that is not a fast-forward of the remote branch.
+_draft_pr_is_branch_moved_error() {
+  local errfile="$1"
+  [[ -f "$errfile" ]] || return 1
+  grep -qiE 'non-fast-forward|\(fetch first\)|updates were rejected' "$errfile"
+}
+
+# _draft_pr_push_ff REMOTE ERRF — one fast-forward push of HEAD; never forced.
+#   0 pushed · 3 workflow scope · 5 permission · 1 anything else, git's stderr in ERRF.
+# With CATALYST_WORKFLOW_GITHUB_TOKEN set, a diff touching .github/workflows/ goes
+# through the scoped credential first (CTL-1181), and a workflow-scope rejection
+# retries through it (CTL-1119).
+_draft_pr_push_ff() {
+  local remote="$1" errf="$2"
+  if [[ -n "${CATALYST_WORKFLOW_GITHUB_TOKEN:-}" ]] && draft_pr_diff_touches_workflows; then
+    _draft_pr_warn "workflow files + CATALYST_WORKFLOW_GITHUB_TOKEN set — routing through scoped token proactively"
+    draft_pr_push_token "$CATALYST_WORKFLOW_GITHUB_TOKEN" -u "$remote" HEAD >/dev/null 2>"$errf" && return 0
+    _draft_pr_is_branch_moved_error "$errf" && return 1
+    _draft_pr_warn "proactive scoped-token push failed"
+    return "$_DRAFT_PR_WORKFLOW_SCOPE_RC"
+  fi
+  git -c core.hooksPath=/dev/null push -u "$remote" HEAD >/dev/null 2>"$errf" && return 0
+  if _draft_pr_is_workflow_scope_error "$errf"; then
+    _draft_pr_warn "push rejected: missing 'workflow' OAuth scope"
+    [[ -n "${CATALYST_WORKFLOW_GITHUB_TOKEN:-}" ]] || return "$_DRAFT_PR_WORKFLOW_SCOPE_RC"
+    _draft_pr_warn "retrying push with CATALYST_WORKFLOW_GITHUB_TOKEN"
+    draft_pr_push_token "$CATALYST_WORKFLOW_GITHUB_TOKEN" -u "$remote" HEAD >/dev/null 2>"$errf" && return 0
+    _draft_pr_is_branch_moved_error "$errf" && return 1
+    _draft_pr_warn "token-routed push also failed"
+    return "$_DRAFT_PR_WORKFLOW_SCOPE_RC"
+  fi
+  if _draft_pr_is_permission_error "$errf"; then
+    _draft_pr_warn "push denied: $(_draft_pr_permission_context "$remote") missing=push"
+    return "$_DRAFT_PR_PERMISSION_RC"
+  fi
+  return 1
+}
+
+# _draft_pr_replay_unpublished REMOTE BRANCH ERRF — after a rejected push, put the
+# seat's unpublished commits on top of the moved remote tip so the next push is a
+# fast-forward (CTC-5513). The last published commit is the merge-base of HEAD and
+# the fetched tip; only the commits after it are replayed, with
+# `git rebase --onto <tip> <last published>`. A commit someone else pushed (the
+# upkeep robot's merge of main) stays in the tip untouched.
+#   0 replayed · 1 cannot replay · 6 stack-managed branch · 7 replay conflicted
+_draft_pr_replay_unpublished() {
+  local remote="$1" branch="$2" errf="$3" tip published unpublished conflicts
+  if ! git fetch --quiet "$remote" "$branch" 2>/dev/null; then
+    _draft_pr_warn "push failed and ${remote}/${branch} could not be fetched: $(head -n 3 "$errf" 2>/dev/null | tr '\n' ' ')"
+    return 1
+  fi
+  tip="$(git rev-parse --verify --quiet 'FETCH_HEAD^{commit}' 2>/dev/null || true)"
+  [[ -n "$tip" ]] || { _draft_pr_warn "cannot resolve the fetched ${remote}/${branch}"; return 1; }
+  if git merge-base --is-ancestor "$tip" HEAD 2>/dev/null; then
+    _draft_pr_warn "push failed but ${remote}/${branch} has not moved past HEAD: $(head -n 3 "$errf" 2>/dev/null | tr '\n' ' ')"
+    return 1
+  fi
+  # A Mergify stack is owned by `mergify stack push`: the local stack is authoritative,
+  # so never replay it onto the remote tip and never force it.
+  if git log --format='%(trailers:key=Change-Id,valueonly)' "${tip}..HEAD" 2>/dev/null | grep -q .; then
+    _draft_pr_warn "branch moved: ${remote}/${branch} is now ${tip}, and this is a stack-managed branch (Mergify Change-Id trailers). Nothing was replayed or pushed. The local stack is authoritative: resync it with \`mergify stack sync\`, then \`mergify stack push\`."
+    return "$_DRAFT_PR_STACK_RC"
+  fi
+  published="$(git merge-base HEAD "$tip" 2>/dev/null || true)"
+  [[ -n "$published" ]] || { _draft_pr_warn "branch moved: ${remote}/${branch} (${tip}) shares no history with HEAD; nothing pushed"; return 1; }
+  if [[ -n "$(git rev-list --merges "${published}..HEAD" 2>/dev/null)" ]]; then
+    _draft_pr_warn "branch moved: ${remote}/${branch} is now ${tip}, and the unpublished commits include a merge, which a replay would flatten. Nothing pushed. Merge ${remote}/${branch} into the branch, then push again."
+    return 1
+  fi
+  unpublished="$(git rev-list --count "${published}..HEAD" 2>/dev/null || echo '?')"
+  _draft_pr_warn "branch moved: ${remote}/${branch} is now ${tip}; replaying ${unpublished} unpublished commit(s) after ${published} onto it"
+  if ! git -c core.hooksPath=/dev/null rebase --onto "$tip" "$published" >/dev/null 2>"$errf"; then
+    conflicts="$(git diff --name-only --diff-filter=U 2>/dev/null | tr '\n' ' ')"
+    if [[ -n "$conflicts" ]]; then
+      _draft_pr_warn "branch moved: ${remote}/${branch} is now ${tip}, and replaying the unpublished commits conflicts in: ${conflicts% }. Nothing was pushed. The rebase is left in progress: resolve those files, \`git add\` them, \`git rebase --continue\`, then push again."
+      return "$_DRAFT_PR_REPLAY_CONFLICT_RC"
+    fi
+    if [[ -d "$(git rev-parse --git-path rebase-merge 2>/dev/null)" ]]; then
+      _draft_pr_warn "branch moved: ${remote}/${branch} is now ${tip}, and the replay stopped mid-rebase: $(head -n 3 "$errf" 2>/dev/null | tr '\n' ' ')Nothing was pushed. Fix it, then \`git rebase --continue\` and push again."
+      return "$_DRAFT_PR_REPLAY_CONFLICT_RC"
+    fi
+    _draft_pr_warn "branch moved: ${remote}/${branch} is now ${tip}, and the replay could not start: $(head -n 3 "$errf" 2>/dev/null | tr '\n' ' ')"
+    return 1
+  fi
+  return 0
+}
+
 # draft_pr_push_verify — push current HEAD to origin and PROVE the remote tip
 # equals local HEAD. Unlike draft_pr_push (fail-open), this is fail-CLOSED: it
 # returns 0 ONLY when origin/<branch> == local HEAD after the push, so callers
 # can fail the phase rather than announce/merge a stale ref (CTL-1051).
-#   - First attempt: plain push (fast-forward). CTL-693 hook suppression.
+#   - Push: fast-forward only, never forced (CTC-5513). CTL-693 hook suppression.
 #   - Workflow-scope rejection (rc=3): when CATALYST_WORKFLOW_GITHUB_TOKEN is
 #     configured, retries through that credential transparently. When unset,
 #     returns 3 so callers can escalate with a MANUAL explanation.call_to_action. (CTL-1119/CTL-1130)
-#   - Non-fast-forward (branch rebased/amended after a prior push): retry with
-#     --force-with-lease (mirrors the BEHIND handler in phase-monitor-merge).
+#   - Rejected because the branch moved (another writer, e.g. the upkeep robot's
+#     merge of main): fetch, replay only the unpublished commits onto the remote
+#     tip, and push fast-forward once more. A stack-managed branch returns 6, a
+#     replay conflict returns 7; neither pushes anything. (CTC-5513)
 #   - Verify: git fetch the branch, compare origin/<branch> to local HEAD.
 # Echoes the verified SHA on success; nothing on failure.
 draft_pr_push_verify() {
   command -v git >/dev/null 2>&1 || { _draft_pr_warn "git unavailable"; return 1; }
   _draft_pr_safety_gate || return "$_DRAFT_PR_SAFETY_GATE_RC"
-  local branch local_sha remote remote_sha errf
+  local branch local_sha remote remote_sha errf rc=0
   branch="$(git rev-parse --abbrev-ref HEAD 2>/dev/null || true)"
   [[ -z "$branch" || "$branch" == "HEAD" ]] && { _draft_pr_warn "detached HEAD; cannot push-verify"; return 1; }
-  local_sha="$(git rev-parse HEAD 2>/dev/null || true)"
-  [[ -z "$local_sha" ]] && { _draft_pr_warn "cannot resolve local HEAD"; return 1; }
+  git rev-parse HEAD >/dev/null 2>&1 || { _draft_pr_warn "cannot resolve local HEAD"; return 1; }
   remote="$(_draft_pr_push_remote)"
 
   errf="$(mktemp -t draft-pr-push-XXXXXX 2>/dev/null || echo "/tmp/draft-pr-push-verify-$$")"
-
-  # Proactive workflow-scope detour (CTL-1181): when a scoped token is configured
-  # and the diff touches .github/workflows/, route the first push through the
-  # scoped credential instead of attempting the plain push that will be rejected.
-  if [[ -n "${CATALYST_WORKFLOW_GITHUB_TOKEN:-}" ]] && draft_pr_diff_touches_workflows; then
-    _draft_pr_warn "workflow files + CATALYST_WORKFLOW_GITHUB_TOKEN set — routing through scoped token proactively"
-    if draft_pr_push_token "$CATALYST_WORKFLOW_GITHUB_TOKEN" -u "$remote" HEAD >/dev/null 2>&1; then
-      rm -f "$errf"
-      git fetch --quiet "$remote" "$branch" 2>/dev/null || true
-      remote_sha="$(git rev-parse "${remote}/${branch}" 2>/dev/null || true)"
-      if [[ -n "$remote_sha" && "$remote_sha" == "$local_sha" ]]; then
-        printf '%s\n' "$local_sha"; return 0
-      fi
-      _draft_pr_warn "post-push verify mismatch (proactive route): local=${local_sha} ${remote}/${branch}=${remote_sha:-<none>}"
-      return 1
+  _draft_pr_push_ff "$remote" "$errf" || rc=$?
+  if [[ $rc -eq 1 ]]; then
+    rc=0
+    _draft_pr_replay_unpublished "$remote" "$branch" "$errf" || rc=$?
+    if [[ $rc -eq 0 ]]; then
+      _draft_pr_push_ff "$remote" "$errf" || rc=$?
+      [[ $rc -eq 1 ]] && _draft_pr_warn "push rejected again after the replay; nothing forced: $(head -n 3 "$errf" 2>/dev/null | tr '\n' ' ')"
     fi
-    _draft_pr_warn "proactive scoped-token push failed"
-    rm -f "$errf"
-    return "$_DRAFT_PR_WORKFLOW_SCOPE_RC"
   fi
+  rm -f "$errf"
+  [[ $rc -eq 0 ]] || return "$rc"
 
-  if ! git -c core.hooksPath=/dev/null push -u "$remote" HEAD >/dev/null 2>"$errf"; then
-    if _draft_pr_is_workflow_scope_error "$errf"; then
-      _draft_pr_warn "push rejected: missing 'workflow' OAuth scope"
-      rm -f "$errf"
-      # Phase 2 (CTL-1119): route through the configured workflow-scoped credential.
-      if [[ -n "${CATALYST_WORKFLOW_GITHUB_TOKEN:-}" ]]; then
-        _draft_pr_warn "retrying push with CATALYST_WORKFLOW_GITHUB_TOKEN"
-        local tok_errf
-        tok_errf="$(mktemp -t draft-pr-tok-XXXXXX 2>/dev/null || echo "/tmp/draft-pr-tok-$$")"
-        if draft_pr_push_token "$CATALYST_WORKFLOW_GITHUB_TOKEN" -u "$remote" HEAD >/dev/null 2>"$tok_errf"; then
-          rm -f "$tok_errf"
-        else
-          _draft_pr_warn "token-routed push also failed"
-          rm -f "$tok_errf"
-          return "$_DRAFT_PR_WORKFLOW_SCOPE_RC"
-        fi
-      else
-        return "$_DRAFT_PR_WORKFLOW_SCOPE_RC"
-      fi
-    elif _draft_pr_is_permission_error "$errf"; then
-      _draft_pr_warn "push denied: $(_draft_pr_permission_context "$remote") missing=push"
-      rm -f "$errf"
-      return "$_DRAFT_PR_PERMISSION_RC"
-    else
-      _draft_pr_warn "fast-forward push failed; retrying with --force-with-lease"
-      if ! git -c core.hooksPath=/dev/null push --force-with-lease -u "$remote" HEAD >/dev/null 2>"$errf"; then
-        if _draft_pr_is_workflow_scope_error "$errf"; then
-          _draft_pr_warn "force-with-lease push rejected: missing 'workflow' OAuth scope"
-          rm -f "$errf"
-          if [[ -n "${CATALYST_WORKFLOW_GITHUB_TOKEN:-}" ]]; then
-            _draft_pr_warn "retrying force-with-lease with CATALYST_WORKFLOW_GITHUB_TOKEN"
-            local tok_errf2
-            tok_errf2="$(mktemp -t draft-pr-tok-XXXXXX 2>/dev/null || echo "/tmp/draft-pr-tok2-$$")"
-            if draft_pr_push_token "$CATALYST_WORKFLOW_GITHUB_TOKEN" --force-with-lease -u "$remote" HEAD >/dev/null 2>"$tok_errf2"; then
-              rm -f "$tok_errf2"
-            else
-              rm -f "$tok_errf2"
-              return "$_DRAFT_PR_WORKFLOW_SCOPE_RC"
-            fi
-          else
-            return "$_DRAFT_PR_WORKFLOW_SCOPE_RC"
-          fi
-        elif _draft_pr_is_permission_error "$errf"; then
-          _draft_pr_warn "force push denied: $(_draft_pr_permission_context "$remote") missing=push"
-          rm -f "$errf"
-          return "$_DRAFT_PR_PERMISSION_RC"
-        else
-          _draft_pr_warn "force-with-lease push failed"
-          rm -f "$errf"
-          return 1
-        fi
-      else
-        rm -f "$errf"
-      fi
-    fi
-  else
-    rm -f "$errf"
-  fi
-
+  local_sha="$(git rev-parse HEAD 2>/dev/null || true)"
   git fetch --quiet "$remote" "$branch" 2>/dev/null || true
   remote_sha="$(git rev-parse "${remote}/${branch}" 2>/dev/null || true)"
   if [[ -n "$remote_sha" && "$remote_sha" == "$local_sha" ]]; then

@@ -1,6 +1,6 @@
 # PR Identification and Pre-Merge Verification (Steps 1–5)
 
-_Steps to identify the target PR, verify it is open and mergeable, rebase if behind, and run local tests before entering the blocker-diagnosis loop._
+_Steps to identify the target PR, verify it is open and mergeable, merge the base in if behind, and run local tests before entering the blocker-diagnosis loop._
 
 ## Step 1 — Identify PR to merge
 
@@ -35,7 +35,7 @@ REPO=$(gh repo view --json nameWithOwner --jq '.nameWithOwner')
 ```
 
 If PR is not OPEN:
-- `state == "MERGED"` → skip Steps 4–8 (rebase and local tests do not apply to an already-merged PR) and go directly to Step 9 in [squash-merge.md](squash-merge.md), whose `already_merged` check resumes post-merge (Steps 9b–15: branch cleanup, deploy verify, compound close) even though this session never called `gh pr merge` — this is the rerun after someone else, a person or a merge queue, merged the PR.
+- `state == "MERGED"` → skip Steps 4–8 (the base merge and local tests do not apply to an already-merged PR) and go directly to Step 9 in [squash-merge.md](squash-merge.md), whose `already_merged` check resumes post-merge (Steps 9b–15: branch cleanup, deploy verify, compound close) even though this session never called `gh pr merge` — this is the rerun after someone else, a person or a merge queue, merged the PR.
 - Any other non-OPEN state → report current state and exit.
 
 If `mergeable == "CONFLICTING"`:
@@ -60,22 +60,22 @@ if git log HEAD..origin/$base_branch --oneline | grep -q .; then
 fi
 ```
 
-If behind, auto-rebase:
+If behind, merge the base in. The branch is published, so never rebase or force-push it ([ci-fixup-and-behind.md](ci-fixup-and-behind.md)):
 ```bash
-git rebase origin/$base_branch
-if [ $? -ne 0 ]; then
-  echo "❌ Rebase conflicts"
-  git rebase --abort
+if ! git merge --no-ff --no-edit origin/$base_branch; then
+  echo "❌ Merge conflicts — conflicting files:"
+  git diff --name-only --diff-filter=U
+  git merge --abort
   exit 1
 fi
-git push --force-with-lease
+git push
 ```
 
 On conflict:
 ```
-❌ Rebase conflicts detected — conflicting files:
+❌ Merge conflicts detected — conflicting files:
   $(git diff --name-only --diff-filter=U)
-Resolve: fix files, git add, git rebase --continue, git push --force-with-lease,
+Resolve: git merge origin/$base_branch, fix files, git add, git commit, git push,
 then re-run the merge-pr skill.
 ```
 

@@ -41,13 +41,13 @@ Full schema:
 **Fail fast on:**
 - Merge conflicts (can't auto-resolve)
 - Test failures (unless `--skip-tests`)
-- Rebase conflicts
+- Merge conflicts
 - PR not in mergeable state
 
 **Diagnose and fix automatically:**
 - CI failures → analyze errors, fix code, push, resume the cloud lifecycle wait
 - Unresolved review threads → run the `review-comments` skill, resolve via GraphQL
-- Branch behind → rebase and push
+- Branch behind → merge the base in and push fast-forward
 - Draft PR → mark as ready with `gh pr ready`
 
 **Escalate with actionable specifics:**
@@ -56,7 +56,7 @@ Full schema:
 - Unknown blockers → full branch protection rule breakdown
 
 **Always automated:**
-- Rebase if behind (no conflicts)
+- Merge the base in if behind (no conflicts)
 - Squash merge
 - Delete remote branch (checkout-free)
 - Delete local branch (when not in a linked worktree)
