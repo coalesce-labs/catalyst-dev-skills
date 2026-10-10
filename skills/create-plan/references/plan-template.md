@@ -1,21 +1,21 @@
 # Plan template
 
-Gather the metadata, then write the plan in this shape. Frontmatter comes before the heading. Order each phase's steps test-first. For database changes: schema or migration, tests for the store methods, store methods, tests for the business logic, business logic, tests for the API, API, clients. For a new feature: research patterns, data model, then tests before each of backend logic, API endpoints and UI. For a refactor: capture the existing behaviour as tests first, change in small steps with the tests green, keep backwards compatibility, and plan the migration.
+Gather the metadata, then write the plan in this shape. Fetch `origin/main` before capturing its SHA and merge-base. Frontmatter comes before the heading. Order each phase's steps test-first. For database changes: schema or migration, tests for the store methods, store methods, tests for the business logic, business logic, tests for the API, API, clients. For a new feature: research patterns, data model, then tests before each of backend logic, API endpoints and UI. For a refactor: capture the existing behaviour as tests first, change in small steps with the tests green, keep backwards compatibility, and plan the migration.
 
 ```bash
-CURRENT_ISO_DATETIME=$(date -Iseconds)
-CURRENT_DATE=$(date +%Y-%m-%d)
-GIT_COMMIT_SHORT=$(git rev-parse --short HEAD)
-GIT_BRANCH=$(git branch --show-current)
+CURRENT_ISO_DATETIME=$(date -Iseconds); CURRENT_DATE=$(date +%Y-%m-%d); GIT_COMMIT=$(git rev-parse HEAD)
+GIT_BRANCH=$(git branch --show-current); GIT_MAIN_SHA=$(git rev-parse origin/main)
+GIT_MERGE_BASE=$(git merge-base "$GIT_MAIN_SHA" "$GIT_COMMIT")
 REPO_NAME=$(basename "$(git rev-parse --show-toplevel)")
 ```
-
 ````markdown
 ---
 date: { CURRENT_ISO_DATETIME }
 researcher: claude
-git_commit: { GIT_COMMIT_SHORT }
+git_commit: { GIT_COMMIT }
 branch: { GIT_BRANCH }
+git_main_sha: { GIT_MAIN_SHA }
+git_merge_base: { GIT_MERGE_BASE }
 repository: { REPO_NAME }
 topic: "{PLAN_TITLE}"
 tags: [plan, implementation, { RELEVANT_COMPONENT_TAGS }]
