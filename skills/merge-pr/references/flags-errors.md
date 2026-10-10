@@ -17,14 +17,14 @@ merge-pr skill with: 123 --skip-tests --keep-branch
 For all errors, provide clear messages with the specific error, what went wrong, and how to fix it. **Never give up with a generic message** — always diagnose the specific cause and provide actionable next steps.
 
 **Fail fast (stop execution):**
-- Rebase conflicts → show conflicting files, instructions to resolve manually, then re-run
+- Merge conflicts → show conflicting files, instructions to resolve manually, then re-run
 - Test failures → show failed tests, suggest fix or `--skip-tests`
 - PR not open/mergeable → show current state
 
 **Diagnose and attempt to fix (Step 6 blocker loop):**
 - CI checks failing → analyze failure, attempt code fix, re-push, resume the cloud lifecycle wait
 - Unresolved threads → run the `review-comments` skill, resolve threads
-- Branch behind → rebase and push
+- Branch behind → merge the base in and push fast-forward
 - Draft PR → mark as ready
 - Changes requested → check if addressed, suggest re-request review
 - Infrastructure failures → suggest re-run, provide log URL
@@ -48,6 +48,6 @@ For all errors, provide clear messages with the specific error, what went wrong,
 - **Always squash merge** — clean history
 - **Always delete branches** — no orphan branches
 - **Always run tests** — unless explicitly skipped
-- **Auto-rebase** — keep up-to-date with base
+- **Auto-update** — keep up-to-date with base through a merge commit
 - **Diagnose, don't give up** — identify specific blockers and fix or explain them
 - **Leave the ticket alone** — on Catalyst Cloud the merge moves it to done

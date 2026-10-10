@@ -117,7 +117,7 @@ On a timeout, reread state once and retain the cursor. The session's ceiling is 
 | Blocker | Action |
 |---|---|
 | BEHIND | Update the branch, then wait from the retained cursor. |
-| DIRTY | Rebase against the base; report unresolvable conflicts. |
+| DIRTY | Merge the base into the branch (never rebase or force-push a published branch); report unresolvable conflicts. |
 | draft | Mark ready after exact-head validation and review. |
 | UNSTABLE | Read the failing check, fix and push, then resume the cloud wait. |
 | unresolved threads | Address automated findings through `review-comments`; keep human conversations for their author. |

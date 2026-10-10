@@ -1,18 +1,22 @@
-# CI fix-up and BEHIND-rebase — deeper know-how
+# CI fix-up and BEHIND merge — deeper know-how
 
 [`blocker-loop.md`](blocker-loop.md) already covers the reactive wait and the top-level blocker table (BEHIND/DIRTY/UNSTABLE/…); this file adds the specific techniques that table doesn't spell out.
 
-## BEHIND: rebase with hooks disabled on the push
+## BEHIND: merge the base, never rebase a published branch
 
-`blocker-loop.md`'s BEHIND row uses the REST `update-branch` endpoint (safe default — GitHub does the merge commit). When you need an actual rebase instead (e.g. to keep a linear history, or `update-branch` itself is blocked), disable local hooks on the push so a pre-push hook can't reject a force-push it wasn't written to expect:
+`blocker-loop.md`'s BEHIND row uses the REST `update-branch` endpoint (safe default — GitHub does the merge commit). When `update-branch` itself is blocked, make the same merge commit locally and push it fast-forward. Never rebase or force-push here: the branch's commits are published, other writers (the upkeep robot, review threads) build on them, and the merge queue squashes, so a merge commit on the branch costs nothing at merge. Disable local hooks on the push so a pre-push hook cannot reject it:
 
 ```bash
 git fetch origin "$BASE_BRANCH"
-git rebase "origin/${BASE_BRANCH}"
-git -c core.hooksPath=/dev/null push --force-with-lease
+git merge --no-ff --no-edit "origin/${BASE_BRANCH}"
+git -c core.hooksPath=/dev/null push
 ```
 
-On rebase conflict: `git rebase --abort` and report the conflicting files rather than guessing at a resolution — same rule as `merge-blocker-diagnosis.md`'s `conflicts` entry.
+The push is a plain fast-forward. If it is rejected because the branch moved, `git pull --no-rebase` and push again; never add `--force` or `--force-with-lease`.
+
+On merge conflict: `git merge --abort` and report the conflicting files (`git diff --name-only --diff-filter=U`, read before the abort) rather than guessing at a resolution — same rule as `merge-blocker-diagnosis.md`'s `conflicts` entry.
+
+A stack-managed branch (its commits carry a Mergify `Change-Id` trailer) is the exception: `mergify stack push` owns it and would discard a merge commit. Bring it current with `mergify stack sync`, then `mergify stack push`.
 
 ## CI fix-up: bound the attempt count, then go back to the reactive wait
 

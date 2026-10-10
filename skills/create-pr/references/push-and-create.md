@@ -25,7 +25,16 @@ VERIFIED_SHA="$(draft_pr_push_verify)" || PUSH_VERIFY_RC=$?
 [[ $PUSH_VERIFY_RC -ne 0 ]] && { echo "create-pr: push-verify failed (rc=${PUSH_VERIFY_RC})" >&2; exit "$PUSH_VERIFY_RC"; }
 ```
 
-`draft_pr_push_verify` is the guarded helper every push site in this pack uses: a pre-push safety gate (placeholder-identity / anomalous tree-wide-deletion commits refuse with rc=4), fast-forward-then-force-with-lease retry, and a post-push origin==HEAD verify.
+`draft_pr_push_verify` is the guarded helper every push site in this pack uses: a pre-push safety gate (placeholder-identity / anomalous tree-wide-deletion commits refuse with rc=4), a fast-forward push that is never forced, and a post-push origin==HEAD verify.
+
+Branches are kept current while work is in flight, so the remote branch can hold a commit this seat did not write, such as the upkeep robot's merge of main. When the push is rejected because the branch moved, the helper fetches it and replays only the unpublished commits (those after the merge-base of HEAD and the remote tip) with `git rebase --onto <remote tip> <last published>`, then pushes fast-forward once more. The other writer's commits stay as they are.
+
+| rc | What happened | What the seat does |
+|---|---|---|
+| 6 | The branch is stack-managed (its commits carry a Mergify `Change-Id` trailer). Nothing was replayed or pushed. | The local stack is authoritative: `mergify stack sync`, then `mergify stack push`. |
+| 7 | Replaying conflicted. Nothing was pushed; the message names the conflicting files and the rebase is left in progress. | Resolve the files, `git add` them, `git rebase --continue`, then push again. |
+
+Never fall back to `git push --force-with-lease` without an expected SHA: after any `git fetch` its lease matches the moved tip and overwrites the other writer's commit.
 
 ## Step 9 — Create the PR
 
