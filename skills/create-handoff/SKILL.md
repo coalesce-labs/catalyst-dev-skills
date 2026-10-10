@@ -38,7 +38,7 @@ HANDOFF_ABS="$(printf '%s\n' "$HANDOFF_PATHS" | sed -n '2p')"   # /Users/.../rep
 printf 'relative: %s\nabsolute: %s\n' "$HANDOFF_REL" "$HANDOFF_ABS"
 ```
 
-Capture both lines (e.g. `thoughts/shared/handoffs/PROJ-123/2025-01-08_13-55-22_auth-feature.md` and its absolute path). The frontmatter `date` is the timestamp in `$HANDOFF_REL`; branch, commit and repository come from git.
+Capture both lines (e.g. `thoughts/shared/handoffs/PROJ-123/2025-01-08_13-55-22_auth-feature.md` and its absolute path). The frontmatter `date` is the timestamp in `$HANDOFF_REL`. Before writing, fetch `origin/main`; record the full `git rev-parse HEAD`, `git branch --show-current`, fetched `origin/main` SHA, `git merge-base origin/main HEAD`, and repository name. These refs identify the handoff's exact source and its main baseline.
 
 ## 2. Write the document to a temp file
 
@@ -50,8 +50,10 @@ HANDOFF_TMP="$(mktemp -t handoff-XXXXXX)"   # Write your document content here.
 ---
 date: [ISO date-time with timezone]
 researcher: [name from thoughts status]
-git_commit: [commit hash]
+git_commit: [full commit SHA]
 branch: [branch]
+git_main_sha: [fetched origin/main full SHA]
+git_merge_base: [merge-base of git_main_sha and git_commit]
 repository: [repository name]
 topic: "[Feature/Task Name] Implementation Strategy"
 tags: [implementation, strategy, relevant-component-names]

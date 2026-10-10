@@ -58,13 +58,13 @@ fi
 
 A plan path passed as an argument wins. When `CATALYST_PHASE` is set, never ask and wait: use that path or the found plan, and with neither, stop and report `no_plan_found`. Otherwise, after `📋 Found plan`, show the path and ask "**Proceed with this plan?** [Y/n]". Otherwise, or on no, list the five most recent plans in `thoughts/shared/plans/` with dates and ticket numbers, and wait for the user to pick one.
 
-Read the plan whole (no limit or offset), the ticket in its `source_ticket` frontmatter (this skill moves no ticket; when someone asks for a move, read [references/linear.md](references/linear.md)), and every file it mentions. Checked items (`- [x]`) are done: resume from the first unchecked one. On an adopted branch, where `git fetch origin main && git log --oneline origin/main..HEAD` lists commits before you change anything, run `git merge --no-edit origin/main` first and resolve any conflict as part of this phase; otherwise validate reviews main's changes as this ticket's. Then make a todo list.
+Read the plan whole (no limit or offset), the ticket in its `source_ticket` frontmatter (this skill moves no ticket; when someone asks for a move, read [references/linear.md](references/linear.md)), and every file it mentions. Checked items (`- [x]`) are done: resume from the first unchecked one. On an adopted branch, where `git fetch origin main && git log --oneline origin/main..HEAD` lists commits before you change anything, run `git merge --no-edit origin/main` first and resolve any conflict as part of this phase. Record the merge commit and main SHA used; later validation must separate main's movement from this plan's changes. Then make a todo list.
 
 ## 2. Implement each phase: Red → Green → Refactor
 
 Finish each phase before the next, always in this order: **Red**, write the tests from the phase's "Tests First" section (or for its expected behaviour when it has none) and watch them fail; **Green**, write the minimum code from "Implementation" that passes them; **Refactor**, clean up with the tests green, applying the plan's refactoring notes.
 
-After each phase, run its success-criteria commands, fix what fails, check its items off in the plan file, and print the context status in [references/context-and-handoff.md](references/context-and-handoff.md), which sets when to hand off. Record friction worth fixing (a bug in adjacent code, a missing tool) the moment you see it, with `add-finding.sh` from [references/improvement-queue.md](references/improvement-queue.md).
+After each phase, run its success-criteria commands, fix what fails, check its items off in the plan file, and print the context status in [references/context-and-handoff.md](references/context-and-handoff.md), which sets when to hand off. Record friction worth fixing (a bug in adjacent code, a missing tool) the moment you see it, with `add-finding.sh` from [references/improvement-queue.md](references/improvement-queue.md). Follow the plan unless code evidence requires a departure. Record departures for `validate-plan` in `thoughts/shared/plans/<TICKET-ID>/deviations.json` using [references/deviations.md](references/deviations.md); write no file when the plan was followed.
 
 When the code has drifted and the plan cannot be followed, stop and present `Issue in Phase [N]:` with `Expected:` (what the plan says), `Found:` (the actual situation), `Why this matters:`, and `How should I proceed?`. With `--team`, or when the plan spans three or more independent domains, follow [references/team-mode.md](references/team-mode.md).
 
@@ -77,4 +77,3 @@ if [[ -n "${CATALYST_SESSION_ID:-}" && -x "$SESSION_SCRIPT" ]]; then
   "$SESSION_SCRIPT" end "$CATALYST_SESSION_ID" --status done
 fi
 ```
-

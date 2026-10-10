@@ -46,9 +46,12 @@ A plan path argument wins. When `CATALYST_PHASE` is set, never ask and wait: use
 
 ## 2. Gather evidence
 
-Read the plan whole, noting every file it expects to change and every success criterion. Then:
+Read the plan whole, noting every file it expects to change and every success criterion. At validation start, fetch `origin/main` and record the full `HEAD` SHA, branch, fetched main SHA, and `git merge-base <main-sha> HEAD`. The validation report must include these values as `git_commit`, `branch`, `git_main_sha`, and `git_merge_base` so a later repair can identify the exact reviewed source. Then:
 
-- Read `git log --oneline -n 20` and `git diff HEAD~N..HEAD`, N covering the implementation commits.
+- Read `git log --oneline -n 20` and define the review scopes before judging findings. For the whole branch, use `git diff "$(git merge-base "$VALIDATION_MAIN_SHA" HEAD)" HEAD`; this is the ticket branch's change against the main SHA recorded at validation start. Never use live `origin/main` after recording that SHA, and do not report files or hunks brought in from main as this ticket's changes.
+- Report main movement since the plan in a separate section with `git log <plan.git_merge_base>..<validation-main-sha>`. Compare the changed paths in that range with plan-referenced files; when main changed one, name the file and the main commit. Keep those changes out of plan-conformance findings.
+- For a repair after a failed validation, use the exact prior failed head `H1` with `git diff H1 HEAD` as the repair scope, even when main was merged between H1 and the repair. Never replace H1 with `git merge-base H1 HEAD`. Identify main-only movement separately and do not attribute its lines to the repair.
+- Read `thoughts/shared/plans/<TICKET-ID>/deviations.json` when present. It uses the implementer's cloud-compatible shape `{"deviations":[{"plan_ref":"…","planned":"…","actual":"…","reason":"…","evidence":"…"}]}`. Match each declared entry against the diff and its evidence, including the full main commit SHA when main forced the departure. List unmatched code changes as undeclared deviations and cite their file and line; list a declaration as declared only when its actual change and evidence match.
 - Run the repo's own check and test commands from its root (its `package.json` scripts or `Makefile` targets), recording each command's real exit code.
 - Spawn parallel tasks comparing planned with actual: database changes; code changes, file by file; tests, and whether each phase's tests were committed before or with its code (TDD).
 - If you implemented it, check your todo list too and name every shortcut or unfinished item.
@@ -67,6 +70,13 @@ Render the report as your response; this skill writes no file.
 **Plan**: `thoughts/shared/plans/YYYY-MM-DD-PROJ-XXXX-feature.md`
 **Validated**: {date}
 **Validation Status**: {PASS/FAIL/PARTIAL}
+
+## Validation Source
+
+- `git_commit`: {full SHA}
+- `branch`: {branch}
+- `git_main_sha`: {full main SHA captured at validation start}
+- `git_merge_base`: {full merge-base of git_main_sha and git_commit}
 
 ## 📊 Context Status
 Current usage: {X}% ({Y}K/{Z}K tokens)
