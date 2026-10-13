@@ -22,14 +22,43 @@ function run(name, args, f) {
     encoding: "utf8",
   });
 }
+const ladder = '```catalyst-validation-ladder\n{"version":1,"steps":[{"step":"plan-conformance","verdict":"PASS"},{"step":"type-safety","verdict":"PASS"},{"step":"code-review","verdict":"PASS"},{"step":"security-review","verdict":"PASS"},{"step":"security-audit","verdict":"SKIPPED"}]}\n```\n';
 function doc(kind, ticket = "CTC-1234", ref = "src/logic.ts:1") {
   const sections = {
     research: "## Research Question\nWhy?\n\n## Summary\nAnswer.\n\n## Detailed Findings\nFound `" + ref + "`.\n",
     plan: "## Overview\nGoal.\n\n## Implementation Steps\nChange `" + ref + "`.\n\n## Verification\nRun tests.\n\n## Files in scope\n- src/logic.ts\n",
-    validation: "## Summary\nPass.\n\n## Plan Conformance\nGood.\n\n## Type Safety\nGood.\n\n## Review\nGood.\n\n## Security\nGood.\n\n## Gate\n`" + ref + "` resolves.\n",
+    validation: "## Summary\nPass.\n\n## Plan Conformance\nGood.\n\n## Review\nGood.\n\n## Gate\n`" + ref + "` resolves.\n" + ladder,
   };
   return `---\nsource_ticket: ${ticket}\nrepository: catalyst-cloud\ntype: ${kind}\n---\n\n# ${kind}\n\n${sections[kind]}`;
 }
+test("verifiers accept the delegated create-plan and validate-plan report shapes", () => {
+  const f = fixture();
+  const plan = join(f.artifacts, "plan.md");
+  writeFileSync(plan, `---\nsource_ticket: CTC-1234\nrepository: catalyst-cloud\n---\n\n# Implementation Plan\n\n## Overview\nTask.\n\n## Implementation Approach\nChange \`src/logic.ts:1\`.\n\n## Phase 1: Change\nDo it.\n\n## Testing Strategy (TDD)\nTest.\n\n## Files in scope\n- src/logic.ts\n`);
+  expect(run("verify-plan", [plan], f).status).toBe(0);
+  const validation = join(f.artifacts, "validation.md");
+  writeFileSync(validation, `---\nsource_ticket: CTC-1234\nrepository: catalyst-cloud\n---\n\n# Validation Report\n\n## Validation Source\n\`src/logic.ts:1\`\n\n### Implementation Status\nComplete.\n\n### Automated Verification Results\nPassed.\n\n### Code Review Findings\nClear.\n\n${ladder}`);
+  expect(run("verify-validation", [validation], f).status).toBe(0);
+  writeFileSync(validation, readFileSync(validation, "utf8").replace('"security-review","verdict":"PASS"', '"security-review"'));
+  expect(run("verify-validation", [validation], f).status).not.toBe(0);
+});
+test("verifiers accept adapted documents extracted from the real sub-skill templates", () => {
+  const f = fixture();
+  const planTemplate = readFileSync(resolve(skill, "../create-plan/references/plan-template.md"), "utf8");
+  const planBody = /````markdown\n([\s\S]*?)\n````/.exec(planTemplate)?.[1];
+  expect(planBody).toBeTruthy();
+  const plan = join(f.artifacts, "plan.md");
+  writeFileSync(plan, planBody.replace("repository: { REPO_NAME }", "repository: catalyst-cloud").replace("source_ticket: { TICKET-ID or null }", "source_ticket: CTC-1234") + "\n\n## Files in scope\n\n- `src/logic.ts:1`\n");
+  expect(run("verify-plan", [plan], f).status).toBe(0);
+  const validateSkill = readFileSync(resolve(skill, "../validate-plan/SKILL.md"), "utf8");
+  const report = /```markdown\n(# Validation Report:[\s\S]*?)\n```/.exec(validateSkill)?.[1];
+  const realLadder = /```catalyst-validation-ladder\n([\s\S]*?)\n```/.exec(validateSkill)?.[0];
+  expect(report).toBeTruthy();
+  expect(realLadder).toBeTruthy();
+  const validation = join(f.artifacts, "validation.md");
+  writeFileSync(validation, `---\nsource_ticket: CTC-1234\nrepository: catalyst-cloud\n---\n\n${report}\n\nEvidence: \`src/logic.ts:1\`\n\n${realLadder}\n`);
+  expect(run("verify-validation", [validation], f).status).toBe(0);
+});
 for (const kind of ["research", "plan", "validation"]) {
   test(`${kind} verifier accepts a complete doc and rejects missing ticket and broken reference`, () => {
     const f = fixture();
@@ -114,6 +143,16 @@ test("thoughts put stores only in artifact dir and latest sees ticket doc", () =
   const put = run("thoughts", ["put", "research", join(thoughts, "2026-10-12-CTC-1234-example.md")], f);
   expect(put.status).toBe(0);
   expect(readFileSync(join(f.artifacts, "research.md"), "utf8")).toContain("source_ticket: CTC-1234");
+});
+test("latest chooses the newest same-day handoff timestamp, regardless of filename suffix", () => {
+  const f = fixture();
+  const folder = join(f.root, "thoughts", "shared", "handoffs");
+  mkdirSync(folder, { recursive: true });
+  const older = join(folder, "2026-10-12-CTC-1234-z-research.md");
+  const newer = join(folder, "2026-10-12-CTC-1234-a-plan.md");
+  writeFileSync(older, "---\nsource_ticket: CTC-1234\nupdated_at: 2026-10-12T10:00:00Z\n---\n# Old\n");
+  writeFileSync(newer, "---\nsource_ticket: CTC-1234\nupdated_at: 2026-10-12T11:00:00Z\n---\n# New\n");
+  expect(run("thoughts", ["latest", "CTC-1234", "handoff"], f).stdout.trim().endsWith("2026-10-12-CTC-1234-a-plan.md")).toBe(true);
 });
 test("thoughts search limits repository scope in a shared pool", () => {
   const f = fixture();

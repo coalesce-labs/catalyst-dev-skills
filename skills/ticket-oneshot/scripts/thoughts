@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 import { readdirSync, readFileSync, existsSync, statSync } from "node:fs";
-import { join, resolve, basename } from "node:path";
+import { join, resolve } from "node:path";
 import { artifactDir, atomicWrite, readFrontmatter } from "./lib.mjs";
 
 const folders = { research: "research", plan: "plans", validation: "validations", handoff: "handoffs", pr: "prs" };
@@ -15,6 +15,14 @@ function allFiles(dir) {
 }
 function matches(path, ticket) {
   try { return readFrontmatter(readFileSync(path, "utf8")).source_ticket === ticket; } catch { return false; }
+}
+function documentTime(path) {
+  try {
+    const fields = readFrontmatter(readFileSync(path, "utf8"));
+    const stamp = Date.parse(fields.updated_at ?? fields.date ?? "");
+    if (Number.isFinite(stamp)) return stamp;
+  } catch { /* Older documents may have no frontmatter. */ }
+  return statSync(path).mtimeMs;
 }
 function repository() {
   if (process.env.CATALYST_REPOSITORY) return process.env.CATALYST_REPOSITORY;
@@ -35,7 +43,7 @@ try {
     if (!/^[A-Z]+-\d+$/.test(ticket ?? "")) throw new Error("ticket id is required");
     const kind = action === "latest" ? arg2 : (process.argv.includes("--kind") ? process.argv[process.argv.indexOf("--kind") + 1] : null);
     if (kind && !folders[kind]) throw new Error(`unknown thoughts kind: ${kind}`);
-    const paths = (kind ? [kind] : Object.keys(folders)).flatMap((name) => allFiles(join(root, folders[name]))).filter((path) => matches(path, ticket)).sort((a, b) => basename(b).localeCompare(basename(a)));
+    const paths = (kind ? [kind] : Object.keys(folders)).flatMap((name) => allFiles(join(root, folders[name]))).filter((path) => matches(path, ticket)).sort((a, b) => documentTime(b) - documentTime(a) || b.localeCompare(a));
     if (!paths.length) process.exitCode = 3;
     process.stdout.write((action === "latest" ? paths.slice(0, 1) : paths).join("\n") + (paths.length ? "\n" : ""));
   } else if (action === "search") {

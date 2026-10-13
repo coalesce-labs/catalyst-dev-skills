@@ -24,7 +24,7 @@ function completed(dir) {
 function handoff(dir, stage, artifact) {
   const index = stageIndex.get(stage);
   const next = catalog.stages[index + 1]?.stage ?? "complete";
-  atomicWrite(join(dir, "handoff.md"), `---\nsource_ticket: ${ticket()}\ncompleted_stage: ${stage}\nnext_stage: ${next}\nhead_sha: ${headSha() ?? "none"}\n---\n\n# Handoff: ${ticket()}\n\n## Resume contract\n\n- Completed stage: ${stage}\n- Next stage: ${next}\n- Last artifact: ${artifact}\n- Resume by running \`scripts/stage next --resume\`; keep completed artifacts untouched.\n`);
+  atomicWrite(join(dir, "handoff.md"), `---\nsource_ticket: ${ticket()}\nupdated_at: ${new Date().toISOString()}\ncompleted_stage: ${stage}\nnext_stage: ${next}\nhead_sha: ${headSha() ?? "none"}\n---\n\n# Handoff: ${ticket()}\n\n## Resume contract\n\n- Completed stage: ${stage}\n- Next stage: ${next}\n- Last artifact: ${artifact}\n- Resume by running \`scripts/stage next --resume\`; keep completed artifacts untouched.\n`);
 }
 try {
   const [action, stage] = process.argv.slice(2);

@@ -40,9 +40,9 @@ export function readFrontmatter(doc) {
   return fields;
 }
 const headings = {
-  research: [["Research Question"], ["Summary"], ["Detailed Findings"]],
-  plan: [["Overview"], ["Implementation Steps", "Implementation Plan", "Phases"], ["Verification", "Success Criteria", "Testing"], ["Files in scope"]],
-  validation: [["Summary", "Verdict"], ["Plan Conformance"], ["Type Safety"], ["Review"], ["Security"], ["Gate"]],
+  research: [/^## Research Question\s*$/im, /^## Summary\s*$/im, /^## Detailed Findings\s*$/im],
+  plan: [/^## Overview\s*$/im, /^## (?:Implementation Steps|Implementation Plan|Implementation Approach|Phases|Phase\s+\d+\b.*)$/im, /^## (?:Verification|Success Criteria|Testing(?: Strategy.*)?)\s*$/im, /^## Files in scope\s*$/im],
+  validation: [/^## (?:Summary|Verdict|Validation Source)\s*$/im, /^(?:##|###) (?:Plan Conformance|Implementation Status)\s*$/im, /^(?:##|###) (?:Review|Code Review Findings)\s*$/im, /^(?:##|###) (?:Gate|Automated Verification Results)\s*$/im],
 };
 export function verifyDoc(kind, path, root = process.cwd()) {
   const errors = [];
@@ -52,8 +52,19 @@ export function verifyDoc(kind, path, root = process.cwd()) {
   try { fields = readFrontmatter(doc); } catch (error) { errors.push(error.message); fields = {}; }
   if (fields.source_ticket !== ticket()) errors.push(`source_ticket must be ${ticket()}`);
   if (!fields.repository) errors.push("missing repository frontmatter");
-  for (const group of headings[kind] ?? []) {
-    if (!group.some((heading) => new RegExp(`^## ${heading}\\s*$`, "im").test(doc))) errors.push(`missing required section: ${group.join(" or ")}`);
+  for (const heading of headings[kind] ?? []) {
+    if (!heading.test(doc)) errors.push(`missing required section: ${heading.source}`);
+  }
+  if (kind === "validation") {
+    const ladder = /```catalyst-validation-ladder\s*\n([\s\S]*?)\n```/.exec(doc);
+    if (!ladder) errors.push("missing catalyst-validation-ladder verdict");
+    else {
+      try {
+        const steps = JSON.parse(ladder[1]).steps;
+        const required = ["plan-conformance", "type-safety", "code-review", "security-review", "security-audit"];
+        if (!Array.isArray(steps) || required.some((name) => !steps.some((item) => item.step === name && item.verdict))) errors.push("incomplete catalyst-validation-ladder verdict");
+      } catch { errors.push("invalid catalyst-validation-ladder JSON"); }
+    }
   }
   const refs = [...doc.matchAll(/`([^`\n]+\.[a-zA-Z0-9]+:\d+(?:-\d+)?)`/g)].map((match) => match[1]);
   if (refs.length === 0) errors.push("missing file:line reference");

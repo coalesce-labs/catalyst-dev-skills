@@ -18,9 +18,9 @@ Run in the ticket's isolated code worktree. Resolve this skill's directory as `S
 | Stage | Required artifact in `$CATALYST_ARTIFACT_DIR` | Before `stage done` |
 | --- | --- | --- |
 | research | `research.md` | Run `scripts/verify-research research.md`. |
-| plan | `plan.md` | Run `scripts/verify-plan plan.md`; include `## Files in scope`. |
+| plan | `plan.md` | Copy the `create-plan` output into the artifact directory, add `## Files in scope` with the real changed paths, then run `scripts/verify-plan plan.md`. The template's `## Phase 1` and `## Testing Strategy (TDD)` headings are accepted. |
 | implement | `implement.md` | Commit the implementation, run the repository's full gate, and record command, exit status, head SHA and result in the artifact. |
-| validate | `validation.md` | Run `validate-plan`, type-safety and independent code/security review; record verdicts and run `scripts/verify-validation validation.md`. Repair real findings, at most two rounds. |
+| validate | `validation.md` | Run `validate-plan`, type-safety and independent code/security review. Copy the report into the artifact directory, add `source_ticket` and `repository` frontmatter, keep its `catalyst-validation-ladder` verdict, add a resolved file:line reference, and run `scripts/verify-validation validation.md`. Repair real findings, at most two rounds. |
 | pr | `pr.md` | Push the branch and open or update a draft PR with the real description and ticket link. Record its URL and head SHA. |
 
 After the artifact and gate exist, call `node "$SKILL_DIR/scripts/stage" done <stage>`. The helper checks document stages, writes the `phase.<stage>.complete` marker, then refreshes `handoff.md`. Persist the handoff and finished docs through the available thoughts publisher before starting the next stage. The helper writes only into the artifact directory; the runner or seat bridge owns publication, receipts, card moves and comments.
