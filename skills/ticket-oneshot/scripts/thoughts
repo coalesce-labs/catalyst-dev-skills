@@ -13,8 +13,11 @@ function allFiles(dir) {
     return entry.isFile() && entry.name.endsWith(".md") ? [path] : [];
   });
 }
-function matches(path, ticket) {
-  try { return readFrontmatter(readFileSync(path, "utf8")).source_ticket === ticket; } catch { return false; }
+function matches(path, ticket, repo = null) {
+  try {
+    const fields = readFrontmatter(readFileSync(path, "utf8"));
+    return fields.source_ticket === ticket && (repo === null || fields.repository === repo);
+  } catch { return false; }
 }
 function documentTime(path) {
   try {
@@ -43,7 +46,8 @@ try {
     if (!/^[A-Z]+-\d+$/.test(ticket ?? "")) throw new Error("ticket id is required");
     const kind = action === "latest" ? arg2 : (process.argv.includes("--kind") ? process.argv[process.argv.indexOf("--kind") + 1] : null);
     if (kind && !folders[kind]) throw new Error(`unknown thoughts kind: ${kind}`);
-    const paths = (kind ? [kind] : Object.keys(folders)).flatMap((name) => allFiles(join(root, folders[name]))).filter((path) => matches(path, ticket)).sort((a, b) => documentTime(b) - documentTime(a) || b.localeCompare(a));
+    const repo = action === "latest" ? repository() : null;
+    const paths = (kind ? [kind] : Object.keys(folders)).flatMap((name) => allFiles(join(root, folders[name]))).filter((path) => matches(path, ticket, repo)).sort((a, b) => documentTime(b) - documentTime(a) || b.localeCompare(a));
     if (!paths.length) process.exitCode = 3;
     process.stdout.write((action === "latest" ? paths.slice(0, 1) : paths).join("\n") + (paths.length ? "\n" : ""));
   } else if (action === "search") {

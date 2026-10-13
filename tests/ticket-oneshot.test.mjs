@@ -343,9 +343,14 @@ test("latest chooses the newest same-day handoff timestamp, regardless of filena
   mkdirSync(folder, { recursive: true });
   const older = join(folder, "2026-10-12-CTC-1234-z-research.md");
   const newer = join(folder, "2026-10-12-CTC-1234-a-plan.md");
-  writeFileSync(older, "---\nsource_ticket: CTC-1234\nupdated_at: 2026-10-12T10:00:00Z\n---\n# Old\n");
-  writeFileSync(newer, "---\nsource_ticket: CTC-1234\nupdated_at: 2026-10-12T11:00:00Z\n---\n# New\n");
+  writeFileSync(older, "---\nsource_ticket: CTC-1234\nrepository: catalyst-cloud\nupdated_at: 2026-10-12T10:00:00Z\ncompleted_stage: none\nnext_stage: research\n---\n# Old\n");
+  writeFileSync(newer, "---\nsource_ticket: CTC-1234\nrepository: catalyst-cloud\nupdated_at: 2026-10-12T11:00:00Z\ncompleted_stage: none\nnext_stage: research\n---\n# New\n");
   expect(run("thoughts", ["latest", "CTC-1234", "handoff"], f).stdout.trim().endsWith("2026-10-12-CTC-1234-a-plan.md")).toBe(true);
+  const foreign = join(folder, "2026-10-12-CTC-1234-other.md");
+  writeFileSync(foreign, "---\nsource_ticket: CTC-1234\nrepository: catalyst-other\nupdated_at: 2026-10-12T12:00:00Z\ncompleted_stage: none\nnext_stage: research\n---\n# Other\n");
+  const selected = run("thoughts", ["latest", "CTC-1234", "handoff"], f);
+  expect(selected.stdout.trim().endsWith("2026-10-12-CTC-1234-a-plan.md")).toBe(true);
+  expect(run("stage", ["next", "--resume", "--handoff", selected.stdout.trim()], f).stdout.trim()).toBe("research");
 });
 test("thoughts search limits repository scope in a shared pool", () => {
   const f = fixture();
