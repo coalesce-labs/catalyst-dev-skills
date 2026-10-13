@@ -93,6 +93,14 @@ test("document verifiers reject zero and out-of-bounds reference ranges", () => 
   writeFileSync(join(f.root, "Dockerfile"), "FROM scratch\n");
   writeFileSync(path, doc("research", "CTC-1234", "Dockerfile:1"));
   expect(run("verify-research", [path], f).status).toBe(0);
+  mkdirSync(join(f.root, "app", "[id]"), { recursive: true });
+  writeFileSync(join(f.root, "app", "[id]", "page.tsx"), "export default function Page() {}\n");
+  writeFileSync(path, doc("research", "CTC-1234", "app/[id]/page.tsx:1"));
+  expect(run("verify-research", [path], f).status).toBe(0);
+  writeFileSync(path, doc("research", "CTC-1234", "app/[missing]/page.tsx:1"));
+  const missingRoute = run("verify-research", [path], f);
+  expect(missingRoute.status).not.toBe(0);
+  expect(missingRoute.stderr).toContain("app/[missing]/page.tsx:1");
 });
 test("stage markers enforce order, preserve completed docs and resume from handoff", () => {
   const f = fixture();

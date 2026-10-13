@@ -71,7 +71,9 @@ export function verifyDoc(kind, path, root = process.cwd()) {
       } catch { errors.push("invalid catalyst-validation-ladder JSON"); }
     }
   }
-  const refs = [...doc.matchAll(/`([A-Za-z._/-][A-Za-z0-9._/-]*:\d+(?:-\d+)?)`/g)].map((match) => match[1]);
+  const refs = [...doc.matchAll(/`([^`\n]+)`/g)]
+    .map((match) => match[1])
+    .filter((value) => /^[^:\s]+:\d+(?:-\d+)?$/.test(value));
   if (refs.length === 0) errors.push("missing file:line reference");
   for (const ref of refs) {
     const [, file, line, endLine] = /^(.+):(\d+)(?:-(\d+))?$/.exec(ref) ?? [];
