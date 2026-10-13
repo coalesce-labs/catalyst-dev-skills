@@ -90,6 +90,9 @@ test("document verifiers reject zero and out-of-bounds reference ranges", () => 
   }
   writeFileSync(path, doc("research", "CTC-1234", "src/logic.ts:1-1"));
   expect(run("verify-research", [path], f).status).toBe(0);
+  writeFileSync(join(f.root, "Dockerfile"), "FROM scratch\n");
+  writeFileSync(path, doc("research", "CTC-1234", "Dockerfile:1"));
+  expect(run("verify-research", [path], f).status).toBe(0);
 });
 test("stage markers enforce order, preserve completed docs and resume from handoff", () => {
   const f = fixture();
@@ -141,10 +144,23 @@ test("wait deadline is normalized to the CTC-5742 UTC wire format", () => {
   const wait = JSON.parse(readFileSync(join(f.artifacts, "wait.json"), "utf8"));
   expect(wait.deadline).toBe("2026-10-13T06:00:00.000Z");
   expect(wait.resume_from).toBe("research");
-  expect(readFileSync(join(f.artifacts, "handoff.md"), "utf8")).toContain("repository: catalyst-cloud");
+  expect(readFileSync(join(f.artifacts, "handoff.md"), "utf8")).toContain('repository: "catalyst-cloud"');
   const fresh = fixture();
   expect(run("stage", ["wait", "review", "--key", "pr:94", "--deadline", "2026-10-13T06:00:00Z", "--resume-from", "pr"], fresh).status).not.toBe(0);
   expect(existsSync(join(fresh.artifacts, "handoff.md"))).toBe(false);
+});
+test("a scoped package name is a valid handoff repository and is checked before completion", () => {
+  const f = fixture();
+  const env = { ...process.env, CATALYST_TICKET: "CTC-1234", CATALYST_ARTIFACT_DIR: f.artifacts };
+  delete env.CATALYST_REPOSITORY;
+  const stage = (...args) => spawnSync("node", [join(skill, "scripts", "stage"), ...args], { cwd: f.root, env, encoding: "utf8" });
+  writeFileSync(join(f.artifacts, "research.md"), doc("research"));
+  expect(stage("start", "research").status).toBe(0);
+  expect(stage("done", "research").status).not.toBe(0);
+  expect(existsSync(join(f.artifacts, "stages", "1-research.done.json"))).toBe(false);
+  writeFileSync(join(f.root, "package.json"), '{"name":"@example/service"}\n');
+  expect(stage("done", "research").status).toBe(0);
+  expect(readFileSync(join(f.artifacts, "handoff.md"), "utf8")).toContain('repository: "@example/service"');
 });
 test("stage done refuses a missing or invalid artifact", () => {
   const f = fixture();

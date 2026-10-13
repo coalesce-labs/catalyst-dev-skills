@@ -9,7 +9,7 @@ function fail(message) { process.stderr.write(`${message}\n`); process.exitCode 
 function headSha() { const result = spawnSync("git", ["rev-parse", "HEAD"], { encoding: "utf8" }); return result.status === 0 ? result.stdout.trim() : null; }
 function repository() {
   const value = process.env.CATALYST_REPOSITORY ?? (existsSync("package.json") ? JSON.parse(readFileSync("package.json", "utf8")).name : null);
-  if (typeof value !== "string" || !/^[A-Za-z0-9._/-]+$/.test(value)) throw new Error("CATALYST_REPOSITORY is required for handoffs");
+  if (typeof value !== "string" || !/^@?[A-Za-z0-9._/-]+$/.test(value)) throw new Error("CATALYST_REPOSITORY is required for handoffs");
   return value;
 }
 function save(dir, stage, state, data) {
@@ -33,7 +33,7 @@ function completed(dir) {
 function handoff(dir, stage, artifact) {
   const index = stageIndex.get(stage);
   const next = catalog.stages[index + 1]?.stage ?? "complete";
-  atomicWrite(join(dir, "handoff.md"), `---\nsource_ticket: ${ticket()}\nrepository: ${repository()}\nupdated_at: ${new Date().toISOString()}\ncompleted_stage: ${stage}\nnext_stage: ${next}\nhead_sha: ${headSha() ?? "none"}\n---\n\n# Handoff: ${ticket()}\n\n## Resume contract\n\n- Completed stage: ${stage}\n- Next stage: ${next}\n- Last artifact: ${artifact}\n- Resume by running \`scripts/stage next --resume\`; keep completed artifacts untouched.\n`);
+  atomicWrite(join(dir, "handoff.md"), `---\nsource_ticket: ${ticket()}\nrepository: ${JSON.stringify(repository())}\nupdated_at: ${new Date().toISOString()}\ncompleted_stage: ${stage}\nnext_stage: ${next}\nhead_sha: ${headSha() ?? "none"}\n---\n\n# Handoff: ${ticket()}\n\n## Resume contract\n\n- Completed stage: ${stage}\n- Next stage: ${next}\n- Last artifact: ${artifact}\n- Resume by running \`scripts/stage next --resume\`; keep completed artifacts untouched.\n`);
 }
 function pausedHandoff(dir, resumeFrom, wait = null) {
   const index = stageIndex.get(resumeFrom);
@@ -44,7 +44,7 @@ function pausedHandoff(dir, resumeFrom, wait = null) {
   const lastStart = readMarker(dir, resumeFrom, "start");
   const lastFail = readMarker(dir, resumeFrom, "fail");
   const failure = lastFail?.attempt === lastStart?.attempt ? lastFail : null;
-  atomicWrite(join(dir, "handoff.md"), `---\nsource_ticket: ${ticket()}\nrepository: ${repository()}\nupdated_at: ${new Date().toISOString()}\ncompleted_stage: ${previous?.stage ?? "none"}\nnext_stage: ${resumeFrom}\nhead_sha: ${headSha() ?? "none"}\n---\n\n# Handoff: ${ticket()}\n\n## Resume contract\n\n- Completed stage: ${previous?.stage ?? "none"}\n- Resume stage: ${resumeFrom}\n- Last completed artifact: ${previous?.artifact ?? "none"}\n${failure ? `- Failed attempt: ${failure.attempt} (${failure.class}): ${failure.reason}\n` : ""}${wait ? `- Wait: ${wait.kind} ${wait.key} until ${wait.deadline}\n` : ""}- Resume by running \`scripts/stage next --resume\`; keep completed artifacts untouched.\n`);
+  atomicWrite(join(dir, "handoff.md"), `---\nsource_ticket: ${ticket()}\nrepository: ${JSON.stringify(repository())}\nupdated_at: ${new Date().toISOString()}\ncompleted_stage: ${previous?.stage ?? "none"}\nnext_stage: ${resumeFrom}\nhead_sha: ${headSha() ?? "none"}\n---\n\n# Handoff: ${ticket()}\n\n## Resume contract\n\n- Completed stage: ${previous?.stage ?? "none"}\n- Resume stage: ${resumeFrom}\n- Last completed artifact: ${previous?.artifact ?? "none"}\n${failure ? `- Failed attempt: ${failure.attempt} (${failure.class}): ${failure.reason}\n` : ""}${wait ? `- Wait: ${wait.kind} ${wait.key} until ${wait.deadline}\n` : ""}- Resume by running \`scripts/stage next --resume\`; keep completed artifacts untouched.\n`);
 }
 try {
   const [action, stage] = process.argv.slice(2);
@@ -78,6 +78,7 @@ try {
     const progress = completed(dir);
     const resumeIndex = stageIndex.get(resumeFrom);
     if (resumeIndex !== progress && !(progress === catalog.stages.length && resumeIndex === progress - 1)) throw new Error(`cannot resume ${resumeFrom} before prior stages complete`);
+    repository();
     const waiting = { kind, key, deadline: new Date(deadline).toISOString(), resume_from: resumeFrom, ticket: id };
     atomicWrite(join(dir, "wait.json"), JSON.stringify(waiting, null, 2) + "\n");
     pausedHandoff(dir, resumeFrom, waiting);
@@ -106,6 +107,7 @@ try {
         const result = verifyDoc(stage === "validate" ? "validation" : stage, path);
         if (!result.ok) throw new Error(result.errors.join("; "));
       }
+      repository();
       if (!readMarker(dir, stage, "done")) save(dir, stage, "done", { stage, attempt: lastStart.attempt, at: new Date().toISOString(), artifact: item.artifact, ...(headSha() ? { head_sha: headSha() } : {}), ticket: id, event: `phase.${stage}.complete` });
       handoff(dir, stage, item.artifact);
     } else {
@@ -113,6 +115,7 @@ try {
       const reason = option("reason");
       const failureClass = option("class");
       if (!reason || !["code", "environment", "scope", "question"].includes(failureClass)) throw new Error("fail requires --reason and --class code|environment|scope|question");
+      repository();
       save(dir, stage, "fail", { stage, attempt: readMarker(dir, stage, "start").attempt, at: new Date().toISOString(), reason, class: failureClass, ticket: id, event: `phase.${stage}.failed` });
       pausedHandoff(dir, stage);
     }
