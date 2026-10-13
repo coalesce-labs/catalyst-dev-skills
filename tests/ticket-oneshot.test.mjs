@@ -57,6 +57,8 @@ test("verifiers accept adapted documents extracted from the real sub-skill templ
   expect(realLadder).toBeTruthy();
   const validation = join(f.artifacts, "validation.md");
   writeFileSync(validation, `---\nsource_ticket: CTC-1234\nrepository: catalyst-cloud\n---\n\n${report}\n\nEvidence: \`src/logic.ts:1\`\n\n${realLadder}\n`);
+  expect(run("verify-validation", [validation], f).status).not.toBe(0);
+  writeFileSync(validation, readFileSync(validation, "utf8").replace('"step":"code-review","verdict":"FAIL"', '"step":"code-review","verdict":"PASS"'));
   expect(run("verify-validation", [validation], f).status).toBe(0);
 });
 for (const kind of ["research", "plan", "validation"]) {
@@ -138,6 +140,36 @@ test("validate stage refuses a document that fails its verifier", () => {
   const result = run("stage", ["done", "validate"], f);
   expect(result.status).not.toBe(0);
   expect(result.stderr).toContain("missing required section");
+});
+test("validation cannot complete with failed or unavailable ladder verdicts", () => {
+  const f = fixture();
+  const path = join(f.artifacts, "validation.md");
+  writeFileSync(path, doc("validation").replace('"plan-conformance","verdict":"PASS"', '"plan-conformance","verdict":"FAIL"'));
+  expect(run("verify-validation", [path], f).status).not.toBe(0);
+  writeFileSync(path, doc("validation").replace('"code-review","verdict":"PASS"', '"code-review","verdict":"UNAVAILABLE"'));
+  expect(run("verify-validation", [path], f).status).not.toBe(0);
+  writeFileSync(path, doc("validation"));
+  expect(run("verify-validation", [path], f).status).toBe(0);
+});
+test("a failed stage and wait leave a cold-resumable handoff", () => {
+  const first = fixture();
+  expect(run("stage", ["start", "research"], first).status).toBe(0);
+  expect(run("stage", ["fail", "research", "--reason", "needs answer", "--class", "question"], first).status).toBe(0);
+  expect(run("stage", ["wait", "answer", "--key", "CTC-9999", "--deadline", "2026-10-13T06:00:00Z"], first).status).toBe(0);
+  const handoff = join(first.artifacts, "handoff.md");
+  expect(readFileSync(handoff, "utf8")).toContain("completed_stage: none");
+  expect(readFileSync(handoff, "utf8")).toContain("Wait: answer CTC-9999");
+  const fresh = fixture();
+  expect(run("stage", ["next", "--resume", "--handoff", handoff], fresh).stdout.trim()).toBe("research");
+  writeFileSync(join(first.artifacts, "research.md"), doc("research"));
+  expect(run("stage", ["start", "research"], first).status).toBe(0);
+  expect(run("stage", ["done", "research"], first).status).toBe(0);
+  expect(run("stage", ["start", "plan"], first).status).toBe(0);
+  expect(run("stage", ["fail", "plan", "--reason", "blocked", "--class", "scope"], first).status).toBe(0);
+  expect(readFileSync(handoff, "utf8")).toContain("completed_stage: research");
+  expect(readFileSync(handoff, "utf8")).toContain("Resume stage: plan");
+  const next = fixture();
+  expect(run("stage", ["next", "--resume", "--handoff", handoff], next).stdout.trim()).toBe("plan");
 });
 test("cold resume uses a published handoff and starts at implement without rewriting research or plan", () => {
   const first = fixture();

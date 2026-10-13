@@ -62,7 +62,12 @@ export function verifyDoc(kind, path, root = process.cwd()) {
       try {
         const steps = JSON.parse(ladder[1]).steps;
         const required = ["plan-conformance", "type-safety", "code-review", "security-review", "security-audit"];
-        if (!Array.isArray(steps) || required.some((name) => !steps.some((item) => item.step === name && item.verdict))) errors.push("incomplete catalyst-validation-ladder verdict");
+        if (!Array.isArray(steps) || required.some((name) => {
+          const matches = steps.filter((item) => item?.step === name);
+          return matches.length !== 1 || !(
+            matches[0].verdict === "PASS" || (name !== "plan-conformance" && matches[0].verdict === "SKIPPED")
+          );
+        })) errors.push("catalyst-validation-ladder has missing or unsuccessful verdicts");
       } catch { errors.push("invalid catalyst-validation-ladder JSON"); }
     }
   }
