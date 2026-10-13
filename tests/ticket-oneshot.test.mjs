@@ -215,6 +215,9 @@ test("a failed stage and wait leave a cold-resumable handoff", () => {
   expect(readFileSync(handoff, "utf8")).toContain("Wait: answer CTC-9999");
   const fresh = fixture();
   expect(run("stage", ["next", "--resume", "--handoff", handoff], fresh).stdout.trim()).toBe("research");
+  expect(JSON.parse(readFileSync(join(fresh.artifacts, "stages", "1-research.fail.json"), "utf8")).class).toBe("question");
+  expect(run("stage", ["start", "research", "--resume"], fresh).status).toBe(0);
+  expect(JSON.parse(readFileSync(join(fresh.artifacts, "stages", "2-research.start.json"), "utf8")).attempt).toBe(2);
   expect(run("stage", ["start", "research"], first).status).toBe(0);
   writeFileSync(join(first.artifacts, "research.md"), doc("research"));
   expect(run("stage", ["done", "research"], first).status).toBe(0);
@@ -224,6 +227,18 @@ test("a failed stage and wait leave a cold-resumable handoff", () => {
   expect(readFileSync(handoff, "utf8")).toContain("Resume stage: plan");
   const next = fixture();
   expect(run("stage", ["next", "--resume", "--handoff", handoff], next).stdout.trim()).toBe("plan");
+  expect(run("stage", ["start", "plan", "--resume"], next).status).toBe(0);
+  expect(JSON.parse(readFileSync(join(next.artifacts, "stages", "2-plan.start.json"), "utf8")).attempt).toBe(2);
+});
+test("cold resume preserves an open attempt marker", () => {
+  const first = fixture();
+  expect(run("stage", ["start", "research"], first).status).toBe(0);
+  expect(run("stage", ["wait", "review", "--key", "pr:94", "--deadline", "2026-10-13T06:00:00Z"], first).status).toBe(0);
+  const fresh = fixture();
+  expect(run("stage", ["next", "--resume", "--handoff", join(first.artifacts, "handoff.md")], fresh).stdout.trim()).toBe("research");
+  expect(run("stage", ["start", "research", "--resume"], fresh).status).toBe(0);
+  expect(readFileSync(join(fresh.artifacts, "stages", "1-research.start.json"), "utf8")).toBe(readFileSync(join(first.artifacts, "stages", "1-research.start.json"), "utf8"));
+  expect(existsSync(join(fresh.artifacts, "stages", "2-research.start.json"))).toBe(false);
 });
 test("cold resume rejects another ticket's first-stage handoff before persisting it", () => {
   const first = fixture();
