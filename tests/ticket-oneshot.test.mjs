@@ -36,7 +36,7 @@ for (const kind of ["research", "plan", "validation"]) {
     const path = join(f.artifacts, `${kind}.md`);
     writeFileSync(path, doc(kind));
     expect(run(`verify-${kind}`, [path], f).status).toBe(0);
-    writeFileSync(path, doc(kind, "CTC-9999"));
+    writeFileSync(path, doc(kind).replace("source_ticket: CTC-1234\n", ""));
     const wrongTicket = run(`verify-${kind}`, [path], f);
     expect(wrongTicket.status).not.toBe(0);
     expect(wrongTicket.stderr).toContain("source_ticket");
@@ -68,6 +68,19 @@ test("stage done refuses a missing or invalid artifact", () => {
   writeFileSync(join(f.artifacts, "research.md"), doc("research", "CTC-9999"));
   expect(run("stage", ["done", "research"], f).status).not.toBe(0);
   expect(existsSync(join(f.artifacts, "stages", "1-research.done.json"))).toBe(false);
+});
+test("validate stage refuses a document that fails its verifier", () => {
+  const f = fixture();
+  for (const stage of ["research", "plan", "implement"]) {
+    writeFileSync(join(f.artifacts, `${stage}.md`), stage === "implement" ? "gate passed\n" : doc(stage));
+    expect(run("stage", ["start", stage], f).status).toBe(0);
+    expect(run("stage", ["done", stage], f).status).toBe(0);
+  }
+  writeFileSync(join(f.artifacts, "validation.md"), "---\nsource_ticket: CTC-1234\nrepository: catalyst-cloud\n---\n\n# Empty validation\n");
+  expect(run("stage", ["start", "validate"], f).status).toBe(0);
+  const result = run("stage", ["done", "validate"], f);
+  expect(result.status).not.toBe(0);
+  expect(result.stderr).toContain("missing required section");
 });
 test("cold resume uses a published handoff and starts at implement without rewriting research or plan", () => {
   const first = fixture();

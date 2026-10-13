@@ -63,6 +63,7 @@ The `npx skills` install reads this repository's `skills/` tree; it does not pub
 **Linear and coordination**
 - `unsticker`: investigate one open ask, move it when the stall is mechanical, and record the verdict with its reasoning. In a Catalyst Cloud `triage` container it only reads and writes its record. `ask-triage` is its old name, kept as an alias.
 - `create-handoff`, `resume-handoff`: hand work to another session and pick it up.
+- `ticket-oneshot`: run a ticket through research, planning, implementation, validation and a draft PR in one session, with a handoff after each stage.
 - `compound-estimate`, `ticket-compound`, `ticket-retro`: the post-merge learning loop.
 
 **In a Catalyst Cloud phase container** (`CATALYST_PHASE` set), every skill that uses `linearis` skips those calls, because the runner owns the ticket write-back there. They also skip when the `linearis` CLI is not installed.
