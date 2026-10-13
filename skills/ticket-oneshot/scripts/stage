@@ -23,6 +23,7 @@ function completed(dir) {
   if (existsSync(path)) {
     const fields = readFrontmatter(readFileSync(path, "utf8"));
     if (fields.source_ticket !== ticket()) throw new Error("handoff source_ticket does not match this ticket");
+    if (fields.repository !== repository()) throw new Error("handoff repository does not match this repository");
     const index = stageIndex.get(fields.completed_stage);
     if (fields.completed_stage !== "none" && index === undefined) throw new Error("handoff has an unknown completed_stage");
     count = fields.completed_stage === "none" ? 0 : index + 1;

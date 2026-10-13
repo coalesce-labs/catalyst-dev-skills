@@ -56,11 +56,12 @@ export function verifyDoc(kind, path, root = process.cwd()) {
     if (!heading.test(doc)) errors.push(`missing required section: ${heading.source}`);
   }
   if (kind === "validation") {
-    const ladder = /```catalyst-validation-ladder\s*\n([\s\S]*?)\n```/.exec(doc);
-    if (!ladder) errors.push("missing catalyst-validation-ladder verdict");
+    const ladders = [...doc.matchAll(/```catalyst-validation-ladder\s*\n([\s\S]*?)\n```/g)];
+    if (ladders.length === 0) errors.push("missing catalyst-validation-ladder verdict");
+    else if (ladders.length !== 1) errors.push("multiple catalyst-validation-ladder verdicts");
     else {
       try {
-        const steps = JSON.parse(ladder[1]).steps;
+        const steps = JSON.parse(ladders[0][1]).steps;
         const required = ["plan-conformance", "type-safety", "code-review", "security-review", "security-audit"];
         if (!Array.isArray(steps) || required.some((name) => {
           const matches = steps.filter((item) => item?.step === name);

@@ -204,6 +204,10 @@ test("validation cannot complete with failed or unavailable ladder verdicts", ()
   expect(run("verify-validation", [path], f).status).not.toBe(0);
   writeFileSync(path, doc("validation"));
   expect(run("verify-validation", [path], f).status).toBe(0);
+  writeFileSync(path, `${doc("validation")}\nUpdated review:\n${ladder.replace('"code-review","verdict":"PASS"', '"code-review","verdict":"FAIL"')}`);
+  const duplicate = run("verify-validation", [path], f);
+  expect(duplicate.status).not.toBe(0);
+  expect(duplicate.stderr).toContain("multiple catalyst-validation-ladder");
 });
 test("a failed stage and wait leave a cold-resumable handoff", () => {
   const first = fixture();
@@ -239,6 +243,19 @@ test("cold resume preserves an open attempt marker", () => {
   expect(run("stage", ["start", "research", "--resume"], fresh).status).toBe(0);
   expect(readFileSync(join(fresh.artifacts, "stages", "1-research.start.json"), "utf8")).toBe(readFileSync(join(first.artifacts, "stages", "1-research.start.json"), "utf8"));
   expect(existsSync(join(fresh.artifacts, "stages", "2-research.start.json"))).toBe(false);
+});
+test("local resume refuses a handoff from another repository", () => {
+  const f = fixture();
+  expect(run("stage", ["start", "research"], f).status).toBe(0);
+  expect(run("stage", ["wait", "answer", "--key", "CTC-9999", "--deadline", "2026-10-13T06:00:00Z"], f).status).toBe(0);
+  const foreign = spawnSync("node", [join(skill, "scripts", "stage"), "next", "--resume"], {
+    cwd: f.root,
+    env: { ...process.env, CATALYST_TICKET: "CTC-1234", CATALYST_ARTIFACT_DIR: f.artifacts, CATALYST_REPOSITORY: "other-repo" },
+    encoding: "utf8",
+  });
+  expect(foreign.status).not.toBe(0);
+  expect(foreign.stderr).toContain("handoff repository does not match");
+  expect(run("stage", ["next", "--resume"], f).stdout.trim()).toBe("research");
 });
 test("cold resume rejects another ticket's first-stage handoff before persisting it", () => {
   const first = fixture();
