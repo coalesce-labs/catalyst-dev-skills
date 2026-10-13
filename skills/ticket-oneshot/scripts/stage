@@ -57,7 +57,9 @@ try {
       if (existsSync(join(dir, "handoff.md"))) throw new Error("local handoff already exists");
       if (!existsSync(source)) throw new Error(`missing handoff: ${source}`);
       const handoffBytes = readFileSync(source);
-      if (readFrontmatter(handoffBytes.toString()).source_ticket !== id) throw new Error(`handoff source_ticket must be ${id}`);
+      const imported = readFrontmatter(handoffBytes.toString());
+      if (imported.source_ticket !== id) throw new Error(`handoff source_ticket must be ${id}`);
+      if (imported.repository !== repository()) throw new Error(`handoff repository must be ${repository()}`);
       atomicWrite(join(dir, "handoff.md"), handoffBytes);
     }
     const count = completed(dir);

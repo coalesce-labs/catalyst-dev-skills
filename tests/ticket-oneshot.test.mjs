@@ -237,6 +237,32 @@ test("cold resume rejects another ticket's first-stage handoff before persisting
   expect(result.stderr).toContain("source_ticket must be CTC-1234");
   expect(existsSync(join(fresh.artifacts, "handoff.md"))).toBe(false);
 });
+test("cold resume rejects another repository's handoff for the same ticket", () => {
+  const first = fixture();
+  expect(run("stage", ["start", "research"], first).status).toBe(0);
+  expect(run("stage", ["fail", "research", "--reason", "question", "--class", "question"], first).status).toBe(0);
+  const foreign = join(first.artifacts, "foreign-repo-handoff.md");
+  writeFileSync(foreign, readFileSync(join(first.artifacts, "handoff.md"), "utf8").replace("repository: \"catalyst-cloud\"", "repository: \"catalyst-other\""));
+  const fresh = fixture();
+  const result = run("stage", ["next", "--resume", "--handoff", foreign], fresh);
+  expect(result.status).not.toBe(0);
+  expect(result.stderr).toContain("handoff repository must be catalyst-cloud");
+  expect(existsSync(join(fresh.artifacts, "handoff.md"))).toBe(false);
+});
+test("a PR wait handoff cold-resumes at complete after every stage is done", () => {
+  const first = fixture();
+  for (const stage of ["research", "plan", "implement", "validate", "pr"]) {
+    const artifact = stage === "validate" ? "validation.md" : `${stage}.md`;
+    writeFileSync(join(first.artifacts, artifact), ["research", "plan", "validate"].includes(stage) ? doc(stage === "validate" ? "validation" : stage) : `${stage} complete\n`);
+    expect(run("stage", ["start", stage], first).status).toBe(0);
+    expect(run("stage", ["done", stage], first).status).toBe(0);
+  }
+  expect(run("stage", ["wait", "review", "--key", "pr:94", "--deadline", "2026-10-13T06:00:00Z", "--resume-from", "pr"], first).status).toBe(0);
+  const handoff = join(first.artifacts, "handoff.md");
+  expect(readFileSync(handoff, "utf8")).toContain("completed_stage: pr\nnext_stage: complete");
+  const fresh = fixture();
+  expect(run("stage", ["next", "--resume", "--handoff", handoff], fresh).stdout.trim()).toBe("complete");
+});
 test("resume rejects a stale handoff behind completed local markers", () => {
   const f = fixture();
   for (const stage of ["research", "plan"]) {
