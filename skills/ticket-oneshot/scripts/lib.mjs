@@ -62,7 +62,9 @@ export function verifyDoc(kind, path, root = process.cwd()) {
     if (!file || file.includes("://") || file.startsWith("/") || file.split("/").includes("..")) { errors.push(`invalid file:line reference: ${ref}`); continue; }
     const full = resolve(root, file);
     if (!existsSync(full) || !statSync(full).isFile()) { errors.push(`unresolved file:line reference: ${ref}`); continue; }
-    if (readFileSync(full, "utf8").split(/\r?\n/).length < Number(line)) errors.push(`line outside file: ${ref}`);
+    const content = readFileSync(full, "utf8");
+    const lines = content ? content.split(/\r?\n/).length - (content.endsWith("\n") ? 1 : 0) : 0;
+    if (lines < Number(line)) errors.push(`line outside file: ${ref}`);
   }
   return { ok: errors.length === 0, errors };
 }

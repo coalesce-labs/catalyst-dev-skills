@@ -16,6 +16,12 @@ function allFiles(dir) {
 function matches(path, ticket) {
   try { return readFrontmatter(readFileSync(path, "utf8")).source_ticket === ticket; } catch { return false; }
 }
+function repository() {
+  if (process.env.CATALYST_REPOSITORY) return process.env.CATALYST_REPOSITORY;
+  const packagePath = resolve("package.json");
+  if (existsSync(packagePath)) return JSON.parse(readFileSync(packagePath, "utf8")).name;
+  throw new Error("CATALYST_REPOSITORY is required for repository-scoped search");
+}
 try {
   const [action, arg1, arg2] = process.argv.slice(2);
   const root = resolve(process.env.CATALYST_THOUGHTS_ROOT ?? "thoughts/shared");
@@ -41,9 +47,15 @@ try {
     if (!["ticket", "repo", "team"].includes(scope)) throw new Error("scope must be ticket, repo or team");
     const ticket = process.env.CATALYST_TICKET;
     if (scope === "ticket" && !ticket) throw new Error("CATALYST_TICKET is required for ticket scope");
+    const repo = scope === "repo" ? repository() : null;
     const paths = Object.values(folders).flatMap((folder) => allFiles(join(root, folder))).filter((path) => {
       const content = readFileSync(path, "utf8");
-      return content.toLowerCase().includes(query.toLowerCase()) && (scope !== "ticket" || matches(path, ticket));
+      if (!content.toLowerCase().includes(query.toLowerCase())) return false;
+      if (scope === "ticket") return matches(path, ticket);
+      if (scope === "repo") {
+        try { return readFrontmatter(content).repository === repo; } catch { return false; }
+      }
+      return true;
     }).slice(0, limit);
     process.stdout.write(paths.join("\n") + (paths.length ? "\n" : ""));
   } else throw new Error("usage: thoughts latest <ticket> <kind> | list <ticket> [--kind K] | search <query> [--scope S] [--limit N] | put <kind> <file>");

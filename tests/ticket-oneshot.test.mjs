@@ -18,7 +18,7 @@ function fixture() {
 function run(name, args, f) {
   return spawnSync("node", [join(skill, "scripts", name), ...args], {
     cwd: f.root,
-    env: { ...process.env, CATALYST_TICKET: "CTC-1234", CATALYST_ARTIFACT_DIR: f.artifacts },
+    env: { ...process.env, CATALYST_TICKET: "CTC-1234", CATALYST_ARTIFACT_DIR: f.artifacts, CATALYST_REPOSITORY: "catalyst-cloud" },
     encoding: "utf8",
   });
 }
@@ -44,6 +44,10 @@ for (const kind of ["research", "plan", "validation"]) {
     const badRef = run(`verify-${kind}`, [path], f);
     expect(badRef.status).not.toBe(0);
     expect(badRef.stderr).toContain("src/missing.ts:8");
+    writeFileSync(path, doc(kind, "CTC-1234", "src/logic.ts:2"));
+    const outsideLine = run(`verify-${kind}`, [path], f);
+    expect(outsideLine.status).not.toBe(0);
+    expect(outsideLine.stderr).toContain("line outside file: src/logic.ts:2");
   });
 }
 test("stage markers enforce order, preserve completed docs and resume from handoff", () => {
@@ -110,5 +114,18 @@ test("thoughts put stores only in artifact dir and latest sees ticket doc", () =
   const put = run("thoughts", ["put", "research", join(thoughts, "2026-10-12-CTC-1234-example.md")], f);
   expect(put.status).toBe(0);
   expect(readFileSync(join(f.artifacts, "research.md"), "utf8")).toContain("source_ticket: CTC-1234");
+});
+test("thoughts search limits repository scope in a shared pool", () => {
+  const f = fixture();
+  const thoughts = join(f.root, "thoughts", "shared", "research");
+  mkdirSync(thoughts, { recursive: true });
+  writeFileSync(join(thoughts, "2026-10-12-CTC-1234-cloud.md"), doc("research").replace("Answer.", "Needle."));
+  writeFileSync(join(thoughts, "2026-10-12-CTL-1234-other.md"), doc("research").replace("repository: catalyst-cloud", "repository: catalyst").replace("Answer.", "Needle."));
+  const repo = run("thoughts", ["search", "Needle", "--scope", "repo"], f);
+  expect(repo.status).toBe(0);
+  expect(repo.stdout).toContain("cloud.md");
+  expect(repo.stdout).not.toContain("other.md");
+  const team = run("thoughts", ["search", "Needle", "--scope", "team"], f);
+  expect(team.stdout).toContain("other.md");
 });
 process.on("exit", () => { for (const folder of folders) rmSync(folder, { recursive: true, force: true }); });
