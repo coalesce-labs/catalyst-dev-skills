@@ -237,6 +237,19 @@ test("cold resume rejects another ticket's first-stage handoff before persisting
   expect(result.stderr).toContain("source_ticket must be CTC-1234");
   expect(existsSync(join(fresh.artifacts, "handoff.md"))).toBe(false);
 });
+test("resume rejects a stale handoff behind completed local markers", () => {
+  const f = fixture();
+  for (const stage of ["research", "plan"]) {
+    writeFileSync(join(f.artifacts, `${stage}.md`), doc(stage));
+    expect(run("stage", ["start", stage], f).status).toBe(0);
+    expect(run("stage", ["done", stage], f).status).toBe(0);
+    if (stage === "research") writeFileSync(join(f.artifacts, "stale.md"), readFileSync(join(f.artifacts, "handoff.md")));
+  }
+  writeFileSync(join(f.artifacts, "handoff.md"), readFileSync(join(f.artifacts, "stale.md")));
+  const stale = run("stage", ["next", "--resume"], f);
+  expect(stale.status).not.toBe(0);
+  expect(stale.stderr).toContain("handoff progress does not match");
+});
 test("cold resume uses a published handoff and starts at implement without rewriting research or plan", () => {
   const first = fixture();
   for (const stage of ["research", "plan"]) {

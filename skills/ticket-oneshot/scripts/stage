@@ -44,7 +44,7 @@ function pausedHandoff(dir, resumeFrom, wait = null) {
   const lastStart = readMarker(dir, resumeFrom, "start");
   const lastFail = readMarker(dir, resumeFrom, "fail");
   const failure = lastFail?.attempt === lastStart?.attempt ? lastFail : null;
-  atomicWrite(join(dir, "handoff.md"), `---\nsource_ticket: ${ticket()}\nrepository: ${JSON.stringify(repository())}\nupdated_at: ${new Date().toISOString()}\ncompleted_stage: ${previous?.stage ?? "none"}\nnext_stage: ${resumeFrom}\nhead_sha: ${headSha() ?? "none"}\n---\n\n# Handoff: ${ticket()}\n\n## Resume contract\n\n- Completed stage: ${previous?.stage ?? "none"}\n- Resume stage: ${resumeFrom}\n- Last completed artifact: ${previous?.artifact ?? "none"}\n${failure ? `- Failed attempt: ${failure.attempt} (${failure.class}): ${failure.reason}\n` : ""}${wait ? `- Wait: ${wait.kind} ${wait.key} until ${wait.deadline}\n` : ""}- Resume by running \`scripts/stage next --resume\`; keep completed artifacts untouched.\n`);
+  atomicWrite(join(dir, "handoff.md"), `---\nsource_ticket: ${ticket()}\nrepository: ${JSON.stringify(repository())}\nupdated_at: ${new Date().toISOString()}\ncompleted_stage: ${previous?.stage ?? "none"}\nnext_stage: ${catalog.stages[count]?.stage ?? "complete"}\nhead_sha: ${headSha() ?? "none"}\n---\n\n# Handoff: ${ticket()}\n\n## Resume contract\n\n- Completed stage: ${previous?.stage ?? "none"}\n- Resume stage: ${resumeFrom}\n- Last completed artifact: ${previous?.artifact ?? "none"}\n${failure ? `- Failed attempt: ${failure.attempt} (${failure.class}): ${failure.reason}\n` : ""}${wait ? `- Wait: ${wait.kind} ${wait.key} until ${wait.deadline}\n` : ""}- Resume by running \`scripts/stage next --resume\`; keep completed artifacts untouched.\n`);
 }
 try {
   const [action, stage] = process.argv.slice(2);
@@ -61,12 +61,12 @@ try {
       atomicWrite(join(dir, "handoff.md"), handoffBytes);
     }
     const count = completed(dir);
-    if (process.argv.includes("--resume") && count > 0) {
+    if (process.argv.includes("--resume") && existsSync(join(dir, "handoff.md"))) {
       const path = join(dir, "handoff.md");
-      if (!existsSync(path)) throw new Error("resume requires handoff.md");
       const fields = readFrontmatter(readFileSync(path, "utf8"));
-      const last = catalog.stages[count - 1].stage;
-      if (fields.source_ticket !== id || stageIndex.get(fields.completed_stage) > stageIndex.get(last)) throw new Error(`handoff does not match completed stage ${last}`);
+      const last = catalog.stages[count - 1]?.stage ?? "none";
+      const next = catalog.stages[count]?.stage ?? "complete";
+      if (fields.source_ticket !== id || fields.completed_stage !== last || fields.next_stage !== next) throw new Error(`handoff progress does not match completed stage ${last} and next stage ${next}`);
     }
     process.stdout.write(`${catalog.stages[count]?.stage ?? "complete"}\n`);
   } else if (action === "wait") {
