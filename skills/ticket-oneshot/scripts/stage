@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-import { readFileSync, existsSync } from "node:fs";
+import { readFileSync, existsSync, statSync } from "node:fs";
 import { join } from "node:path";
 import { spawnSync } from "node:child_process";
 import { artifactDir, atomicWrite, catalog, markerPath, readMarker, readFrontmatter, stageIndex, ticket, verifyDoc } from "./lib.mjs";
@@ -56,7 +56,9 @@ try {
       if (!process.argv.includes("--resume")) throw new Error("--handoff requires --resume");
       if (existsSync(join(dir, "handoff.md"))) throw new Error("local handoff already exists");
       if (!existsSync(source)) throw new Error(`missing handoff: ${source}`);
-      atomicWrite(join(dir, "handoff.md"), readFileSync(source));
+      const handoffBytes = readFileSync(source);
+      if (readFrontmatter(handoffBytes.toString()).source_ticket !== id) throw new Error(`handoff source_ticket must be ${id}`);
+      atomicWrite(join(dir, "handoff.md"), handoffBytes);
     }
     const count = completed(dir);
     if (process.argv.includes("--resume") && count > 0) {
@@ -103,6 +105,7 @@ try {
       const item = catalog.stages[index];
       const path = join(dir, item.artifact);
       if (!existsSync(path)) throw new Error(`missing stage artifact: ${path}`);
+      if (lastStart.attempt > 1 && statSync(path).mtimeMs < Date.parse(lastStart.at)) throw new Error(`stage ${stage} retry requires fresh artifact evidence`);
       if (["research", "plan", "validate"].includes(stage)) {
         const result = verifyDoc(stage === "validate" ? "validation" : stage, path);
         if (!result.ok) throw new Error(result.errors.join("; "));

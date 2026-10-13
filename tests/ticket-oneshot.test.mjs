@@ -131,6 +131,10 @@ test("failed stage retry uses the next attempt number without replacing prior ma
   expect(run("stage", ["start", "research"], f).status).toBe(0);
   expect(JSON.parse(readFileSync(join(f.artifacts, "stages", "2-research.start.json"), "utf8")).attempt).toBe(2);
   expect(readFileSync(join(f.artifacts, "stages", "1-research.start.json"), "utf8")).toBe(firstStart);
+  const stale = run("stage", ["done", "research"], f);
+  expect(stale.status).not.toBe(0);
+  expect(stale.stderr).toContain("fresh artifact evidence");
+  writeFileSync(join(f.artifacts, "research.md"), doc("research"));
   expect(run("stage", ["done", "research"], f).status).toBe(0);
   expect(JSON.parse(readFileSync(join(f.artifacts, "stages", "2-research.done.json"), "utf8")).attempt).toBe(2);
 });
@@ -211,8 +215,8 @@ test("a failed stage and wait leave a cold-resumable handoff", () => {
   expect(readFileSync(handoff, "utf8")).toContain("Wait: answer CTC-9999");
   const fresh = fixture();
   expect(run("stage", ["next", "--resume", "--handoff", handoff], fresh).stdout.trim()).toBe("research");
-  writeFileSync(join(first.artifacts, "research.md"), doc("research"));
   expect(run("stage", ["start", "research"], first).status).toBe(0);
+  writeFileSync(join(first.artifacts, "research.md"), doc("research"));
   expect(run("stage", ["done", "research"], first).status).toBe(0);
   expect(run("stage", ["start", "plan"], first).status).toBe(0);
   expect(run("stage", ["fail", "plan", "--reason", "blocked", "--class", "scope"], first).status).toBe(0);
@@ -220,6 +224,18 @@ test("a failed stage and wait leave a cold-resumable handoff", () => {
   expect(readFileSync(handoff, "utf8")).toContain("Resume stage: plan");
   const next = fixture();
   expect(run("stage", ["next", "--resume", "--handoff", handoff], next).stdout.trim()).toBe("plan");
+});
+test("cold resume rejects another ticket's first-stage handoff before persisting it", () => {
+  const first = fixture();
+  expect(run("stage", ["start", "research"], first).status).toBe(0);
+  expect(run("stage", ["fail", "research", "--reason", "question", "--class", "question"], first).status).toBe(0);
+  const foreign = join(first.artifacts, "foreign-handoff.md");
+  writeFileSync(foreign, readFileSync(join(first.artifacts, "handoff.md"), "utf8").replace("source_ticket: CTC-1234", "source_ticket: CTC-9999"));
+  const fresh = fixture();
+  const result = run("stage", ["next", "--resume", "--handoff", foreign], fresh);
+  expect(result.status).not.toBe(0);
+  expect(result.stderr).toContain("source_ticket must be CTC-1234");
+  expect(existsSync(join(fresh.artifacts, "handoff.md"))).toBe(false);
 });
 test("cold resume uses a published handoff and starts at implement without rewriting research or plan", () => {
   const first = fixture();
