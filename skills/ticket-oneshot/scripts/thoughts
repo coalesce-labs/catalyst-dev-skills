@@ -1,0 +1,50 @@
+#!/usr/bin/env node
+import { readdirSync, readFileSync, existsSync, statSync } from "node:fs";
+import { join, resolve, basename } from "node:path";
+import { artifactDir, atomicWrite, readFrontmatter } from "./lib.mjs";
+
+const folders = { research: "research", plan: "plans", validation: "validations", handoff: "handoffs", pr: "prs" };
+const artifacts = { research: "research.md", plan: "plan.md", validation: "validation.md", handoff: "handoff.md", pr: "pr.md" };
+function allFiles(dir) {
+  if (!existsSync(dir)) return [];
+  return readdirSync(dir, { withFileTypes: true }).flatMap((entry) => {
+    const path = join(dir, entry.name);
+    if (entry.isDirectory()) return allFiles(path);
+    return entry.isFile() && entry.name.endsWith(".md") ? [path] : [];
+  });
+}
+function matches(path, ticket) {
+  try { return readFrontmatter(readFileSync(path, "utf8")).source_ticket === ticket; } catch { return false; }
+}
+try {
+  const [action, arg1, arg2] = process.argv.slice(2);
+  const root = resolve(process.env.CATALYST_THOUGHTS_ROOT ?? "thoughts/shared");
+  if (action === "put") {
+    if (!artifacts[arg1] || !arg2 || !existsSync(arg2) || !statSync(arg2).isFile()) throw new Error("put requires a kind and an existing file");
+    const destination = join(artifactDir(), artifacts[arg1]);
+    atomicWrite(destination, readFileSync(arg2));
+    process.stdout.write(`${destination}\n`);
+  } else if (action === "latest" || action === "list") {
+    const ticket = arg1;
+    if (!/^[A-Z]+-\d+$/.test(ticket ?? "")) throw new Error("ticket id is required");
+    const kind = action === "latest" ? arg2 : (process.argv.includes("--kind") ? process.argv[process.argv.indexOf("--kind") + 1] : null);
+    if (kind && !folders[kind]) throw new Error(`unknown thoughts kind: ${kind}`);
+    const paths = (kind ? [kind] : Object.keys(folders)).flatMap((name) => allFiles(join(root, folders[name]))).filter((path) => matches(path, ticket)).sort((a, b) => basename(b).localeCompare(basename(a)));
+    if (!paths.length) process.exitCode = 3;
+    process.stdout.write((action === "latest" ? paths.slice(0, 1) : paths).join("\n") + (paths.length ? "\n" : ""));
+  } else if (action === "search") {
+    const query = arg1;
+    if (!query) throw new Error("search query is required");
+    const limit = Number(process.argv.includes("--limit") ? process.argv[process.argv.indexOf("--limit") + 1] : 20);
+    if (!Number.isInteger(limit) || limit < 1 || limit > 100) throw new Error("limit must be 1..100");
+    const scope = process.argv.includes("--scope") ? process.argv[process.argv.indexOf("--scope") + 1] : "repo";
+    if (!["ticket", "repo", "team"].includes(scope)) throw new Error("scope must be ticket, repo or team");
+    const ticket = process.env.CATALYST_TICKET;
+    if (scope === "ticket" && !ticket) throw new Error("CATALYST_TICKET is required for ticket scope");
+    const paths = Object.values(folders).flatMap((folder) => allFiles(join(root, folder))).filter((path) => {
+      const content = readFileSync(path, "utf8");
+      return content.toLowerCase().includes(query.toLowerCase()) && (scope !== "ticket" || matches(path, ticket));
+    }).slice(0, limit);
+    process.stdout.write(paths.join("\n") + (paths.length ? "\n" : ""));
+  } else throw new Error("usage: thoughts latest <ticket> <kind> | list <ticket> [--kind K] | search <query> [--scope S] [--limit N] | put <kind> <file>");
+} catch (error) { process.stderr.write(`${error.message}\n`); process.exitCode = 2; }
