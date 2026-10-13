@@ -124,6 +124,11 @@
       "scope": "home"
     },
     {
+      "dir": "ticket-oneshot",
+      "name": "ticket-oneshot",
+      "scope": "home"
+    },
+    {
       "dir": "ticket-retro",
       "name": "ticket-retro",
       "scope": "home"

@@ -1,0 +1,135 @@
+#!/usr/bin/env node
+import { readFileSync, existsSync, statSync } from "node:fs";
+import { join } from "node:path";
+import { spawnSync } from "node:child_process";
+import { artifactDir, atomicWrite, catalog, markerPath, readMarker, readFrontmatter, stageIndex, ticket, verifyDoc } from "./lib.mjs";
+
+function option(name) { const index = process.argv.indexOf(`--${name}`); return index < 0 ? null : process.argv[index + 1]; }
+function fail(message) { process.stderr.write(`${message}\n`); process.exitCode = 1; }
+function headSha() { const result = spawnSync("git", ["rev-parse", "HEAD"], { encoding: "utf8" }); return result.status === 0 ? result.stdout.trim() : null; }
+function repository() {
+  const value = process.env.CATALYST_REPOSITORY ?? (existsSync("package.json") ? JSON.parse(readFileSync("package.json", "utf8")).name : null);
+  if (typeof value !== "string" || !/^@?[A-Za-z0-9._/-]+$/.test(value)) throw new Error("CATALYST_REPOSITORY is required for handoffs");
+  return value;
+}
+function save(dir, stage, state, data) {
+  const path = markerPath(dir, stage, state, data.attempt);
+  if (existsSync(path)) throw new Error(`marker already exists: ${path}`);
+  atomicWrite(path, JSON.stringify(data, null, 2) + "\n");
+}
+function completed(dir) {
+  const path = join(dir, "handoff.md");
+  let count = 0;
+  if (existsSync(path)) {
+    const fields = readFrontmatter(readFileSync(path, "utf8"));
+    if (fields.source_ticket !== ticket()) throw new Error("handoff source_ticket does not match this ticket");
+    if (fields.repository !== repository()) throw new Error("handoff repository does not match this repository");
+    const index = stageIndex.get(fields.completed_stage);
+    if (fields.completed_stage !== "none" && index === undefined) throw new Error("handoff has an unknown completed_stage");
+    count = fields.completed_stage === "none" ? 0 : index + 1;
+  }
+  while (count < catalog.stages.length && readMarker(dir, catalog.stages[count].stage, "done")) count++;
+  return count;
+}
+function handoff(dir, stage, artifact) {
+  const index = stageIndex.get(stage);
+  const next = catalog.stages[index + 1]?.stage ?? "complete";
+  atomicWrite(join(dir, "handoff.md"), `---\nsource_ticket: ${ticket()}\nrepository: ${JSON.stringify(repository())}\nupdated_at: ${new Date().toISOString()}\ncompleted_stage: ${stage}\nnext_stage: ${next}\nhead_sha: ${headSha() ?? "none"}\n---\n\n# Handoff: ${ticket()}\n\n## Resume contract\n\n- Completed stage: ${stage}\n- Next stage: ${next}\n- Last artifact: ${artifact}\n- Resume by running \`scripts/stage next --resume\`; keep completed artifacts untouched.\n`);
+}
+function pausedHandoff(dir, resumeFrom, wait = null) {
+  const index = stageIndex.get(resumeFrom);
+  if (index === undefined) throw new Error(`unknown resume stage: ${resumeFrom}`);
+  const count = completed(dir);
+  if (index !== count && !(count === catalog.stages.length && index === count - 1)) throw new Error(`cannot resume ${resumeFrom} before prior stages complete`);
+  const previous = catalog.stages[count - 1];
+  const lastStart = readMarker(dir, resumeFrom, "start");
+  const lastFail = readMarker(dir, resumeFrom, "fail");
+  const failure = lastFail?.attempt === lastStart?.attempt ? lastFail : null;
+  atomicWrite(join(dir, "handoff.md"), `---\nsource_ticket: ${ticket()}\nrepository: ${JSON.stringify(repository())}\nupdated_at: ${new Date().toISOString()}\ncompleted_stage: ${previous?.stage ?? "none"}\nnext_stage: ${catalog.stages[count]?.stage ?? "complete"}\nresume_stage: ${resumeFrom}\nresume_start: ${JSON.stringify(lastStart)}\nresume_fail: ${JSON.stringify(failure)}\nhead_sha: ${headSha() ?? "none"}\n---\n\n# Handoff: ${ticket()}\n\n## Resume contract\n\n- Completed stage: ${previous?.stage ?? "none"}\n- Resume stage: ${resumeFrom}\n- Last completed artifact: ${previous?.artifact ?? "none"}\n${failure ? `- Failed attempt: ${failure.attempt} (${failure.class}): ${failure.reason}\n` : ""}${wait ? `- Wait: ${wait.kind} ${wait.key} until ${wait.deadline}\n` : ""}- Resume by running \`scripts/stage next --resume\`; keep completed artifacts untouched.\n`);
+}
+try {
+  const [action, stage] = process.argv.slice(2);
+  const dir = artifactDir();
+  const id = ticket();
+  if (action === "next") {
+    const source = option("handoff");
+    if (source) {
+      if (!process.argv.includes("--resume")) throw new Error("--handoff requires --resume");
+      if (existsSync(join(dir, "handoff.md"))) throw new Error("local handoff already exists");
+      if (!existsSync(source)) throw new Error(`missing handoff: ${source}`);
+      const document = readFileSync(source, "utf8");
+      const fields = readFrontmatter(document);
+      if (fields.source_ticket !== id) throw new Error(`handoff source_ticket must be ${id}`);
+      if (fields.repository !== repository()) throw new Error(`handoff repository must be ${repository()}`);
+      const start = JSON.parse(fields.resume_start ?? "null");
+      const failed = JSON.parse(fields.resume_fail ?? "null");
+      const stageName = fields.resume_stage ?? fields.next_stage;
+      if ((start || failed) && (!stageIndex.has(stageName) || start?.stage !== stageName || start.ticket !== id || !Number.isSafeInteger(start.attempt) || start.attempt < 1 || (failed && (failed.stage !== stageName || failed.ticket !== id || failed.attempt !== start.attempt)))) throw new Error("handoff has invalid resume markers");
+      if (start) save(dir, stageName, "start", start);
+      if (failed) save(dir, stageName, "fail", failed);
+      atomicWrite(join(dir, "handoff.md"), document);
+    }
+    const count = completed(dir);
+    if (process.argv.includes("--resume") && existsSync(join(dir, "handoff.md"))) {
+      const path = join(dir, "handoff.md");
+      const fields = readFrontmatter(readFileSync(path, "utf8"));
+      const last = catalog.stages[count - 1]?.stage ?? "none";
+      const next = catalog.stages[count]?.stage ?? "complete";
+      if (fields.source_ticket !== id || fields.completed_stage !== last || fields.next_stage !== next) throw new Error(`handoff progress does not match completed stage ${last} and next stage ${next}`);
+    }
+    process.stdout.write(`${catalog.stages[count]?.stage ?? "complete"}\n`);
+  } else if (action === "wait") {
+    const kind = stage;
+    if (!["ci", "review", "answer", "timer"].includes(kind)) throw new Error("wait kind must be ci, review, answer or timer");
+    const key = option("key");
+    const deadline = option("deadline");
+    if (!key || !deadline || Number.isNaN(Date.parse(deadline))) throw new Error("wait requires --key and ISO --deadline");
+    const resumeFrom = option("resume-from") ?? catalog.stages[completed(dir)]?.stage ?? "pr";
+    if (!stageIndex.has(resumeFrom)) throw new Error(`unknown resume stage: ${resumeFrom}`);
+    const progress = completed(dir);
+    const resumeIndex = stageIndex.get(resumeFrom);
+    if (resumeIndex !== progress && !(progress === catalog.stages.length && resumeIndex === progress - 1)) throw new Error(`cannot resume ${resumeFrom} before prior stages complete`);
+    repository();
+    const waiting = { kind, key, deadline: new Date(deadline).toISOString(), resume_from: resumeFrom, ticket: id };
+    atomicWrite(join(dir, "wait.json"), JSON.stringify(waiting, null, 2) + "\n");
+    pausedHandoff(dir, resumeFrom, waiting);
+  } else if (["start", "done", "fail"].includes(action)) {
+    const index = stageIndex.get(stage);
+    if (index === undefined) throw new Error(`unknown stage: ${stage}`);
+    if (completed(dir) !== index && !(action === "done" && completed(dir) === index + 1)) throw new Error(`stage ${stage} is out of order; next is ${catalog.stages[completed(dir)]?.stage ?? "complete"}`);
+    if (action === "start") {
+      if (readMarker(dir, stage, "done")) throw new Error(`stage ${stage} is already complete`);
+      const lastStart = readMarker(dir, stage, "start");
+      const lastFail = readMarker(dir, stage, "fail");
+      if (lastStart && lastFail?.attempt !== lastStart.attempt) {
+        if (!process.argv.includes("--resume")) throw new Error(`stage ${stage} attempt ${lastStart.attempt} is still open; use --resume to continue it`);
+      } else {
+        const attempt = (lastStart?.attempt ?? 0) + 1;
+        save(dir, stage, "start", { stage, at: new Date().toISOString(), attempt, ticket: id, event: `phase.${stage}.started` });
+      }
+    } else if (action === "done") {
+      const lastStart = readMarker(dir, stage, "start");
+      if (!lastStart) throw new Error(`stage ${stage} has no start marker`);
+      if (readMarker(dir, stage, "fail")?.attempt === lastStart.attempt) throw new Error(`stage ${stage} attempt ${lastStart.attempt} already failed`);
+      const item = catalog.stages[index];
+      const path = join(dir, item.artifact);
+      if (!existsSync(path)) throw new Error(`missing stage artifact: ${path}`);
+      if (lastStart.attempt > 1 && statSync(path).mtimeMs < Date.parse(lastStart.at)) throw new Error(`stage ${stage} retry requires fresh artifact evidence`);
+      if (["research", "plan", "validate"].includes(stage)) {
+        const result = verifyDoc(stage === "validate" ? "validation" : stage, path);
+        if (!result.ok) throw new Error(result.errors.join("; "));
+      }
+      repository();
+      if (!readMarker(dir, stage, "done")) save(dir, stage, "done", { stage, attempt: lastStart.attempt, at: new Date().toISOString(), artifact: item.artifact, ...(headSha() ? { head_sha: headSha() } : {}), ticket: id, event: `phase.${stage}.complete` });
+      handoff(dir, stage, item.artifact);
+    } else {
+      if (!readMarker(dir, stage, "start")) throw new Error(`stage ${stage} has no start marker`);
+      const reason = option("reason");
+      const failureClass = option("class");
+      if (!reason || !["code", "environment", "scope", "question"].includes(failureClass)) throw new Error("fail requires --reason and --class code|environment|scope|question");
+      repository();
+      save(dir, stage, "fail", { stage, attempt: readMarker(dir, stage, "start").attempt, at: new Date().toISOString(), reason, class: failureClass, ticket: id, event: `phase.${stage}.failed` });
+      pausedHandoff(dir, stage);
+    }
+  } else throw new Error("usage: stage start|done|fail <stage> | next [--resume] | wait <kind> --key K --deadline ISO");
+} catch (error) { fail(error.message); }
