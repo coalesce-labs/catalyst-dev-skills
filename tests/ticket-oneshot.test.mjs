@@ -115,10 +115,14 @@ test("failed stage retry uses the next attempt number without replacing prior ma
 });
 test("wait deadline is normalized to the CTC-5742 UTC wire format", () => {
   const f = fixture();
-  expect(run("stage", ["wait", "review", "--key", "pr:94", "--deadline", "2026-10-13T01:00:00-05:00", "--resume-from", "pr"], f).status).toBe(0);
+  expect(run("stage", ["wait", "review", "--key", "pr:94", "--deadline", "2026-10-13T01:00:00-05:00", "--resume-from", "research"], f).status).toBe(0);
   const wait = JSON.parse(readFileSync(join(f.artifacts, "wait.json"), "utf8"));
   expect(wait.deadline).toBe("2026-10-13T06:00:00.000Z");
-  expect(wait.resume_from).toBe("pr");
+  expect(wait.resume_from).toBe("research");
+  expect(readFileSync(join(f.artifacts, "handoff.md"), "utf8")).toContain("repository: catalyst-cloud");
+  const fresh = fixture();
+  expect(run("stage", ["wait", "review", "--key", "pr:94", "--deadline", "2026-10-13T06:00:00Z", "--resume-from", "pr"], fresh).status).not.toBe(0);
+  expect(existsSync(join(fresh.artifacts, "handoff.md"))).toBe(false);
 });
 test("stage done refuses a missing or invalid artifact", () => {
   const f = fixture();

@@ -5,7 +5,7 @@ description: Carry one CTC ticket from research through a draft PR in one sessio
 
 # Ticket one-shot
 
-Run in the ticket's isolated code worktree. Resolve this skill's directory as `SKILL_DIR`; all commands below name files inside it. Set `CATALYST_TICKET` to the ticket id and `CATALYST_ARTIFACT_DIR` to a durable per-ticket directory. Refuse a missing input. Read the ticket and `stages.json` before starting.
+Run in the ticket's isolated code worktree. Resolve this skill's directory as `SKILL_DIR`; all commands below name files inside it. Set `CATALYST_TICKET` to the ticket id and `CATALYST_ARTIFACT_DIR` to a durable per-ticket directory. Set `CATALYST_REPOSITORY` to the repository name when `package.json` does not declare one, so handoffs appear in repository-scoped searches. Refuse a missing input. Read the ticket and `stages.json` before starting.
 
 ## Start or resume
 
