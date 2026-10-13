@@ -14,6 +14,11 @@
   },
   "skills": [
     {
+      "dir": "adapter-pstack",
+      "name": "adapter-pstack",
+      "scope": "home"
+    },
+    {
       "dir": "agent-browser",
       "name": "agent-browser",
       "scope": "home"

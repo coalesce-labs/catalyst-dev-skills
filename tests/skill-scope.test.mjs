@@ -41,8 +41,8 @@ describe("ownership manifest", () => {
   test("every skill in this repository is owned, at home scope", () => {
     const declared = readOwnership(repoRoot).skills;
     const actual = skillNames(repoRoot);
-    expect(declared.length).toBe(29);
-    expect(actual.length).toBe(29);
+    expect(declared.length).toBe(30);
+    expect(actual.length).toBe(30);
     expect(declared.every((s) => s.scope === "home")).toBe(true);
     expect(declared.find((s) => s.dir === "unsticker")?.name).toBe("unsticker");
     expect(ownershipProblems(declared, actual)).toEqual([]);

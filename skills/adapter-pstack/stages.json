@@ -1,0 +1,13 @@
+{
+  "playbook": "pstack-oneshot",
+  "revision": "1",
+  "entry": "poteto-mode",
+  "markers": "native",
+  "stages": [
+    { "stage": "research", "pstack": "Investigation", "artifact": "research.md", "thoughts_kind": "research", "verify": "verify-research" },
+    { "stage": "plan", "pstack": "Feature or Multi-phase plan", "artifact": "plan.md", "thoughts_kind": "plan", "verify": "verify-plan" },
+    { "stage": "implement", "pstack": "Build", "artifact": "implement.md", "thoughts_kind": null, "verify": "repo-gate" },
+    { "stage": "validate", "pstack": "Show me your work and validate-plan", "artifact": "validation.md", "thoughts_kind": "validation", "verify": "verify-validation" },
+    { "stage": "pr", "pstack": "Opening a PR", "artifact": "pr.md", "thoughts_kind": "pr", "verify": null }
+  ]
+}
