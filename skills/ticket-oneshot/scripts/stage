@@ -58,7 +58,7 @@ try {
     const deadline = option("deadline");
     if (!key || !deadline || Number.isNaN(Date.parse(deadline))) throw new Error("wait requires --key and ISO --deadline");
     const resumeFrom = option("resume-from") ?? catalog.stages[completed(dir)]?.stage ?? "pr";
-    atomicWrite(join(dir, "wait.json"), JSON.stringify({ kind, key, deadline, resume_from: resumeFrom, ticket: id }, null, 2) + "\n");
+    atomicWrite(join(dir, "wait.json"), JSON.stringify({ kind, key, deadline: new Date(deadline).toISOString(), resume_from: resumeFrom, ticket: id }, null, 2) + "\n");
   } else if (["start", "done", "fail"].includes(action)) {
     const index = stageIndex.get(stage);
     if (index === undefined) throw new Error(`unknown stage: ${stage}`);
