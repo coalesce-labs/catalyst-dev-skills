@@ -89,9 +89,12 @@ try {
       if (readMarker(dir, stage, "done")) throw new Error(`stage ${stage} is already complete`);
       const lastStart = readMarker(dir, stage, "start");
       const lastFail = readMarker(dir, stage, "fail");
-      if (lastStart && lastFail?.attempt !== lastStart.attempt) throw new Error(`stage ${stage} attempt ${lastStart.attempt} is still open`);
-      const attempt = (lastStart?.attempt ?? 0) + 1;
-      save(dir, stage, "start", { stage, at: new Date().toISOString(), attempt, ticket: id, event: `phase.${stage}.started` });
+      if (lastStart && lastFail?.attempt !== lastStart.attempt) {
+        if (!process.argv.includes("--resume")) throw new Error(`stage ${stage} attempt ${lastStart.attempt} is still open; use --resume to continue it`);
+      } else {
+        const attempt = (lastStart?.attempt ?? 0) + 1;
+        save(dir, stage, "start", { stage, at: new Date().toISOString(), attempt, ticket: id, event: `phase.${stage}.started` });
+      }
     } else if (action === "done") {
       const lastStart = readMarker(dir, stage, "start");
       if (!lastStart) throw new Error(`stage ${stage} has no start marker`);

@@ -74,13 +74,15 @@ export function verifyDoc(kind, path, root = process.cwd()) {
   const refs = [...doc.matchAll(/`([^`\n]+\.[a-zA-Z0-9]+:\d+(?:-\d+)?)`/g)].map((match) => match[1]);
   if (refs.length === 0) errors.push("missing file:line reference");
   for (const ref of refs) {
-    const [, file, line] = /^(.+):(\d+)(?:-\d+)?$/.exec(ref) ?? [];
+    const [, file, line, endLine] = /^(.+):(\d+)(?:-(\d+))?$/.exec(ref) ?? [];
     if (!file || file.includes("://") || file.startsWith("/") || file.split("/").includes("..")) { errors.push(`invalid file:line reference: ${ref}`); continue; }
     const full = resolve(root, file);
     if (!existsSync(full) || !statSync(full).isFile()) { errors.push(`unresolved file:line reference: ${ref}`); continue; }
     const content = readFileSync(full, "utf8");
     const lines = content ? content.split(/\r?\n/).length - (content.endsWith("\n") ? 1 : 0) : 0;
-    if (lines < Number(line)) errors.push(`line outside file: ${ref}`);
+    const first = Number(line);
+    const last = Number(endLine ?? line);
+    if (first < 1 || last < first || last > lines) errors.push(`line outside file: ${ref}`);
   }
   return { ok: errors.length === 0, errors };
 }

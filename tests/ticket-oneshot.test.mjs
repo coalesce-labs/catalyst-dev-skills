@@ -81,6 +81,16 @@ for (const kind of ["research", "plan", "validation"]) {
     expect(outsideLine.stderr).toContain("line outside file: src/logic.ts:2");
   });
 }
+test("document verifiers reject zero and out-of-bounds reference ranges", () => {
+  const f = fixture();
+  const path = join(f.artifacts, "research.md");
+  for (const ref of ["src/logic.ts:0", "src/logic.ts:1-999", "src/logic.ts:2-1"]) {
+    writeFileSync(path, doc("research", "CTC-1234", ref));
+    expect(run("verify-research", [path], f).status).not.toBe(0);
+  }
+  writeFileSync(path, doc("research", "CTC-1234", "src/logic.ts:1-1"));
+  expect(run("verify-research", [path], f).status).toBe(0);
+});
 test("stage markers enforce order, preserve completed docs and resume from handoff", () => {
   const f = fixture();
   writeFileSync(join(f.artifacts, "research.md"), doc("research"));
@@ -112,6 +122,18 @@ test("failed stage retry uses the next attempt number without replacing prior ma
   expect(readFileSync(join(f.artifacts, "stages", "1-research.start.json"), "utf8")).toBe(firstStart);
   expect(run("stage", ["done", "research"], f).status).toBe(0);
   expect(JSON.parse(readFileSync(join(f.artifacts, "stages", "2-research.done.json"), "utf8")).attempt).toBe(2);
+});
+test("resuming an open attempt preserves its start marker", () => {
+  const f = fixture();
+  expect(run("stage", ["start", "research"], f).status).toBe(0);
+  const marker = join(f.artifacts, "stages", "1-research.start.json");
+  const before = readFileSync(marker, "utf8");
+  expect(run("stage", ["wait", "answer", "--key", "CTC-9999", "--deadline", "2026-10-13T06:00:00Z"], f).status).toBe(0);
+  expect(run("stage", ["next", "--resume"], f).stdout.trim()).toBe("research");
+  expect(run("stage", ["start", "research", "--resume"], f).status).toBe(0);
+  expect(readFileSync(marker, "utf8")).toBe(before);
+  writeFileSync(join(f.artifacts, "research.md"), doc("research"));
+  expect(run("stage", ["done", "research"], f).status).toBe(0);
 });
 test("wait deadline is normalized to the CTC-5742 UTC wire format", () => {
   const f = fixture();
