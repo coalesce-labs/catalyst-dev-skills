@@ -7,7 +7,11 @@ import { artifactDir, atomicWrite, catalog, markerPath, readMarker, readFrontmat
 function option(name) { const index = process.argv.indexOf(`--${name}`); return index < 0 ? null : process.argv[index + 1]; }
 function fail(message) { process.stderr.write(`${message}\n`); process.exitCode = 1; }
 function headSha() { const result = spawnSync("git", ["rev-parse", "HEAD"], { encoding: "utf8" }); return result.status === 0 ? result.stdout.trim() : null; }
-function save(dir, stage, state, data) { atomicWrite(markerPath(dir, stage, state), JSON.stringify(data, null, 2) + "\n"); }
+function save(dir, stage, state, data) {
+  const path = markerPath(dir, stage, state, data.attempt);
+  if (existsSync(path)) throw new Error(`marker already exists: ${path}`);
+  atomicWrite(path, JSON.stringify(data, null, 2) + "\n");
+}
 function completed(dir) {
   const path = join(dir, "handoff.md");
   let count = 0;
@@ -72,14 +76,14 @@ try {
         const result = verifyDoc(stage === "validate" ? "validation" : stage, path);
         if (!result.ok) throw new Error(result.errors.join("; "));
       }
-      if (!readMarker(dir, stage, "done")) save(dir, stage, "done", { stage, at: new Date().toISOString(), artifact: item.artifact, head_sha: headSha(), ticket: id, event: `phase.${stage}.complete` });
+      if (!readMarker(dir, stage, "done")) save(dir, stage, "done", { stage, attempt: readMarker(dir, stage, "start").attempt, at: new Date().toISOString(), artifact: item.artifact, ...(headSha() ? { head_sha: headSha() } : {}), ticket: id, event: `phase.${stage}.complete` });
       handoff(dir, stage, item.artifact);
     } else {
       if (!readMarker(dir, stage, "start")) throw new Error(`stage ${stage} has no start marker`);
       const reason = option("reason");
       const failureClass = option("class");
       if (!reason || !["code", "environment", "scope", "question"].includes(failureClass)) throw new Error("fail requires --reason and --class code|environment|scope|question");
-      save(dir, stage, "fail", { stage, at: new Date().toISOString(), reason, class: failureClass, ticket: id, event: `phase.${stage}.failed` });
+      save(dir, stage, "fail", { stage, attempt: readMarker(dir, stage, "start").attempt, at: new Date().toISOString(), reason, class: failureClass, ticket: id, event: `phase.${stage}.failed` });
     }
   } else throw new Error("usage: stage start|done|fail <stage> | next [--resume] | wait <kind> --key K --deadline ISO");
 } catch (error) { fail(error.message); }

@@ -1,4 +1,4 @@
-import { readFileSync, existsSync, statSync, writeFileSync, renameSync, mkdirSync } from "node:fs";
+import { readFileSync, existsSync, statSync, writeFileSync, renameSync, mkdirSync, readdirSync } from "node:fs";
 import { resolve, dirname, relative, isAbsolute, join } from "node:path";
 import { randomUUID } from "node:crypto";
 import { fileURLToPath } from "node:url";
@@ -79,12 +79,17 @@ export function verifyDoc(kind, path, root = process.cwd()) {
   }
   return { ok: errors.length === 0, errors };
 }
-export function markerPath(dir, stage, state) {
-  const index = stageIndex.get(stage);
-  if (index === undefined) throw new Error(`unknown stage: ${stage}`);
-  return join(dir, "stages", `${index + 1}-${stage}.${state}.json`);
+export function markerPath(dir, stage, state, attempt) {
+  if (!stageIndex.has(stage)) throw new Error(`unknown stage: ${stage}`);
+  if (!["start", "done", "fail"].includes(state) || !Number.isSafeInteger(attempt) || attempt < 1) throw new Error("invalid marker state or attempt");
+  return join(dir, "stages", `${attempt}-${stage}.${state}.json`);
 }
 export function readMarker(dir, stage, state) {
-  const path = markerPath(dir, stage, state);
-  return existsSync(path) ? JSON.parse(readFileSync(path, "utf8")) : null;
+  if (!stageIndex.has(stage) || !["start", "done", "fail"].includes(state)) throw new Error("unknown marker stage or state");
+  const folder = join(dir, "stages");
+  if (!existsSync(folder)) return null;
+  const attempts = readdirSync(folder).map((name) => new RegExp(`^([1-9][0-9]*)-${stage}\\.${state}\\.json$`).exec(name)).filter(Boolean).map((match) => Number(match[1]));
+  if (!attempts.length) return null;
+  const path = markerPath(dir, stage, state, Math.max(...attempts));
+  return JSON.parse(readFileSync(path, "utf8"));
 }

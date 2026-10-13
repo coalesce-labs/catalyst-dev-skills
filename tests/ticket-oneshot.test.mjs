@@ -93,6 +93,21 @@ test("stage markers enforce order, preserve completed docs and resume from hando
   expect(run("stage", ["next", "--resume"], f).stdout.trim()).toBe("plan");
   expect(statSync(join(f.artifacts, "research.md")).mtimeMs).toBe(before);
   expect(readFileSync(join(f.artifacts, "handoff.md"), "utf8")).toContain("completed_stage: research");
+  expect(run("stage", ["start", "plan"], f).status).toBe(0);
+  const planStart = JSON.parse(readFileSync(join(f.artifacts, "stages", "1-plan.start.json"), "utf8"));
+  expect(planStart.attempt).toBe(1);
+});
+test("failed stage retry uses the next attempt number without replacing prior markers", () => {
+  const f = fixture();
+  expect(run("stage", ["start", "research"], f).status).toBe(0);
+  expect(run("stage", ["fail", "research", "--reason", "transient gate", "--class", "environment"], f).status).toBe(0);
+  const firstStart = readFileSync(join(f.artifacts, "stages", "1-research.start.json"), "utf8");
+  expect(run("stage", ["start", "research"], f).status).toBe(0);
+  expect(JSON.parse(readFileSync(join(f.artifacts, "stages", "2-research.start.json"), "utf8")).attempt).toBe(2);
+  expect(readFileSync(join(f.artifacts, "stages", "1-research.start.json"), "utf8")).toBe(firstStart);
+  writeFileSync(join(f.artifacts, "research.md"), doc("research"));
+  expect(run("stage", ["done", "research"], f).status).toBe(0);
+  expect(JSON.parse(readFileSync(join(f.artifacts, "stages", "2-research.done.json"), "utf8")).attempt).toBe(2);
 });
 test("stage done refuses a missing or invalid artifact", () => {
   const f = fixture();
