@@ -65,10 +65,15 @@ try {
     if (completed(dir) !== index && !(action === "done" && completed(dir) === index + 1)) throw new Error(`stage ${stage} is out of order; next is ${catalog.stages[completed(dir)]?.stage ?? "complete"}`);
     if (action === "start") {
       if (readMarker(dir, stage, "done")) throw new Error(`stage ${stage} is already complete`);
-      const attempt = (readMarker(dir, stage, "start")?.attempt ?? 0) + 1;
+      const lastStart = readMarker(dir, stage, "start");
+      const lastFail = readMarker(dir, stage, "fail");
+      if (lastStart && lastFail?.attempt !== lastStart.attempt) throw new Error(`stage ${stage} attempt ${lastStart.attempt} is still open`);
+      const attempt = (lastStart?.attempt ?? 0) + 1;
       save(dir, stage, "start", { stage, at: new Date().toISOString(), attempt, ticket: id, event: `phase.${stage}.started` });
     } else if (action === "done") {
-      if (!readMarker(dir, stage, "start")) throw new Error(`stage ${stage} has no start marker`);
+      const lastStart = readMarker(dir, stage, "start");
+      if (!lastStart) throw new Error(`stage ${stage} has no start marker`);
+      if (readMarker(dir, stage, "fail")?.attempt === lastStart.attempt) throw new Error(`stage ${stage} attempt ${lastStart.attempt} already failed`);
       const item = catalog.stages[index];
       const path = join(dir, item.artifact);
       if (!existsSync(path)) throw new Error(`missing stage artifact: ${path}`);
@@ -76,7 +81,7 @@ try {
         const result = verifyDoc(stage === "validate" ? "validation" : stage, path);
         if (!result.ok) throw new Error(result.errors.join("; "));
       }
-      if (!readMarker(dir, stage, "done")) save(dir, stage, "done", { stage, attempt: readMarker(dir, stage, "start").attempt, at: new Date().toISOString(), artifact: item.artifact, ...(headSha() ? { head_sha: headSha() } : {}), ticket: id, event: `phase.${stage}.complete` });
+      if (!readMarker(dir, stage, "done")) save(dir, stage, "done", { stage, attempt: lastStart.attempt, at: new Date().toISOString(), artifact: item.artifact, ...(headSha() ? { head_sha: headSha() } : {}), ticket: id, event: `phase.${stage}.complete` });
       handoff(dir, stage, item.artifact);
     } else {
       if (!readMarker(dir, stage, "start")) throw new Error(`stage ${stage} has no start marker`);
