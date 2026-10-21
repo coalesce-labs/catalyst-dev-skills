@@ -68,7 +68,7 @@ Reviewer signals are spread across reviews, issue comments and reactions:
 - `eyes` means acknowledged or in progress. It is not a verdict; do not merge on it.
 - Review threads with severity badges are findings.
 
-A connector switched to request-only reviews nothing until asked. Request once for a PR that has never been reviewed (`@codex review` or the repo's equivalent), and never after a remediation push (reference rule 10).
+A connector switched to request-only reviews nothing until asked. Request once for a PR that has never been reviewed (`@codex review` or the repo's equivalent), and never after a remediation push (reference rule 10). The exception is a repository whose review asks Catalyst Cloud manages: its merged pull requests carry a `Review Evidence` check (merge-pr's `gh-signal-traps.md`, `mirror_manages_reviews`). There, never request. Name the missing review as the blocker and report it.
 
 ## 1d. Is the base branch itself green?
 
