@@ -18,7 +18,7 @@ A change is **deep** when it is a one-way door: hard to undo once merged, such a
 
 3. **The default list**, when the repository declares nothing: migrations, a Prisma schema, GitHub workflows, Dockerfiles, Wrangler config, Terraform, `install.sh`, `auth`/`crypto`/`billing`/`payments` directories, and `.mergify.yml`. The script prints each match.
 
-It fails closed. An empty change list, or a declaration it cannot read, is deep.
+It fails closed. An empty change list is deep, and so is a declaration it cannot read or one the cloud would refuse: no entries, more than 32, a repeated entry, or an entry that is empty, longer than 2048 characters or not a valid regular expression.
 
 ## What each depth changes
 

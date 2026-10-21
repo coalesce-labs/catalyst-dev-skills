@@ -101,6 +101,17 @@ export function declaredOneWayPaths(toml) {
   }
 }
 
+// Throws unless the list is one the cloud accepts: 1 to 32 unique entries of 1 to 2048 characters,
+// each a valid JavaScript regular expression. An empty list would make every change light.
+export function checkDeclaredOneWayPaths(declared) {
+  if (declared.length < 1 || declared.length > 32) throw new Error(`one_way_paths holds ${declared.length} entries, not 1 to 32`);
+  if (new Set(declared).size !== declared.length) throw new Error("one_way_paths repeats an entry");
+  for (const p of declared) {
+    if (p.length < 1 || p.length > 2048) throw new Error("one_way_paths holds an entry that is not 1 to 2048 characters");
+    new RegExp(p);
+  }
+}
+
 // { depth, source, matches } for a change list and the patterns that apply to it.
 export function reviewDepth(changedFiles, patterns, source) {
   if (changedFiles.length === 0) return { depth: "deep", source: `${source} (no changed paths listed)`, matches: [] };
@@ -144,7 +155,7 @@ function main(argv) {
     try {
       const declared = declaredOneWayPaths(readFileSync(config, "utf8"));
       if (declared !== undefined) {
-        declared.forEach((p) => new RegExp(p));
+        checkDeclaredOneWayPaths(declared);
         patterns = declared;
         source = `${config} [review] one_way_paths`;
       }

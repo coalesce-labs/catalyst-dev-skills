@@ -7,6 +7,7 @@ import { resolve } from "node:path";
 
 import {
   DEFAULT_ONE_WAY_PATHS,
+  checkDeclaredOneWayPaths,
   declaredOneWayPaths,
   reviewDepth,
 } from "../skills/review-and-verify/scripts/review-depth.mjs";
@@ -41,6 +42,22 @@ describe("declaredOneWayPaths reads [review] one_way_paths from a settings file"
     expect(() => declaredOneWayPaths("[review]\none_way_paths = '^x/'\n")).toThrow();
     expect(() => declaredOneWayPaths("[review]\none_way_paths = [1]\n")).toThrow();
     expect(() => declaredOneWayPaths("[review]\none_way_paths = ['^x/'\n")).toThrow();
+  });
+});
+
+describe("checkDeclaredOneWayPaths refuses a declaration the cloud would refuse", () => {
+  test("an empty list, a repeat, an empty or overlong entry and a bad pattern throw", () => {
+    expect(() => checkDeclaredOneWayPaths([])).toThrow();
+    expect(() => checkDeclaredOneWayPaths(["^db/", "^db/"])).toThrow();
+    expect(() => checkDeclaredOneWayPaths([""])).toThrow();
+    expect(() => checkDeclaredOneWayPaths(["a".repeat(2049)])).toThrow();
+    expect(() => checkDeclaredOneWayPaths(Array.from({ length: 33 }, (_, i) => `^p${i}/`))).toThrow();
+    expect(() => checkDeclaredOneWayPaths(["(unclosed"])).toThrow();
+  });
+
+  test("1 to 32 unique valid entries pass", () => {
+    expect(() => checkDeclaredOneWayPaths(["^db/migrations/"])).not.toThrow();
+    expect(() => checkDeclaredOneWayPaths(Array.from({ length: 32 }, (_, i) => `^p${i}/`))).not.toThrow();
   });
 });
 
