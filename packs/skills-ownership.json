@@ -104,6 +104,11 @@
       "scope": "home"
     },
     {
+      "dir": "review-and-verify",
+      "name": "review-and-verify",
+      "scope": "home"
+    },
+    {
       "dir": "review-code",
       "name": "review-code",
       "scope": "home"
