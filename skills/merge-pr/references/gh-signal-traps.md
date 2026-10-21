@@ -58,7 +58,7 @@ A THIRD trap sits inside that second one: you can't fix it by comparing the reac
 
 **Fix: scope to the specific automated reviewer, exclude an explicit rejection, and use a BASELINE of prior reaction ids — never a timestamp — to prove a reaction is new.** Three mechanical requirements this snippet has to get right: `gh api --jq` takes exactly one query string and has no `--arg`/`--argjson` of its own (those are `jq`'s flags, not `gh api`'s — pipe to a separate `jq` invocation instead); the baseline snapshot must be taken AFTER the push lands, not before, since a review of the still-in-flight OLD head can complete in the gap between an earlier snapshot and the push actually landing; and, because a bounded-poll wait can itself span a LATER push (a remediation or update-branch commit landing mid-wait), the baseline must be re-captured every time `HEAD_SHA` changes, never taken once and reused for the rest of the wait.
 
-**Capturing a baseline never asks for a review.** Asking is a separate, guarded step, `request_review_once`. On a repository whose review asks are managed by the Catalyst Cloud mirror, you never ask: the mirror asks the reviewer once per head and publishes a `Review Evidence` check run on that head, which is how you detect it. Elsewhere you ask at most once per head, and not at all when the reviewer already reviewed that head: every extra ask can restart the reviewer on a head it already passed, raise a fresh finding and dequeue the PR.
+**Capturing a baseline never asks for a review.** Asking is a separate, guarded step, `request_review_once`. On a repository whose review asks are managed by the Catalyst Cloud mirror, you never ask: the mirror decides which heads get a reviewer and asks once per head, and it publishes a `Review Evidence` check run on every pull request it manages. Decide this for the repository, not the head: a draft or a just-pushed head has no `Review Evidence` yet, so a per-head check falls through and asks on a repository that never wanted it. If the review you are waiting for does not come, report the PR as waiting on its review to whoever coordinates your work; do not post a review request yourself. Elsewhere you ask at most once per head, and not at all when the reviewer already reviewed that head: every extra ask can restart the reviewer on a head it already passed, raise a fresh finding and dequeue the PR.
 
 ```bash
 BOT_LOGIN="chatgpt-codex-connector[bot]"   # the automated reviewer configured for this repo — the GitHub App suffix is part of the login, verify with: gh api repos/{owner}/{repo}/pulls/{n}/reviews --jq '[.[].user.login] | unique'
@@ -71,11 +71,24 @@ snapshot_baseline() {
     | jq --arg bot "$BOT_LOGIN" '[.[] | select(.content == "+1" and .user.login == $bot) | .id]')
 }
 
+mirror_manages_reviews() {
+  # True when any of the repository's last 5 merged pull requests carries a Review Evidence check at its head.
+  # A read failure counts as managed: a missed ask is reported, an extra ask restarts the reviewer.
+  local shas sha
+  shas=$(gh pr list --repo "$REPO" --state merged --limit 5 --json headRefOid --jq '.[].headRefOid') || return 0
+  for sha in $shas; do
+    if [ "$(gh api "repos/${REPO}/commits/${sha}/check-runs?check_name=Review%20Evidence" --jq '.total_count')" != "0" ]; then
+      return 0
+    fi
+  done
+  return 1
+}
+
 request_review_once() {
   # Guarded ask. Never on a mirror-managed repo, never twice for one head, never for a head the reviewer already reviewed.
   local head="$1"
-  if [ "$(gh api "repos/${REPO}/commits/${head}/check-runs?check_name=Review%20Evidence" --jq '.total_count')" -gt 0 ]; then
-    return 0   # the mirror asks the reviewer once per head on this repo; asking again restarts it
+  if mirror_manages_reviews; then
+    return 0   # the mirror decides and asks on this repo, even before this PR's first Review Evidence
   fi
   [ "${ASKED_HEAD:-}" = "$head" ] && return 0
   if [ "$(gh api "repos/${REPO}/pulls/${PR_NUMBER}/reviews" | jq --arg sha "$head" --arg bot "$BOT_LOGIN" '[.[] | select(.user.login == $bot and .commit_id == $sha)] | length')" -gt 0 ]; then
