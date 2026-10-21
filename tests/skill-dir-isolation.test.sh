@@ -18,7 +18,7 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO_ROOT="$(cd "${SCRIPT_DIR}/.." && pwd)"
 SKILLS_ROOT="${REPO_ROOT}/skills"
 
-SKILLS="adapter-pstack agent-browser commit compound-estimate create-handoff create-plan create-pr create-worktree describe-pr fix-typescript gherkin-ticket implement-plan iterate-plan merge-pr prune-worktrees remediate-plan research-codebase resume-handoff review-code review-comments review-security scan-reward-hacking ticket-compound ticket-oneshot ticket-retro triage-aging-prs unslop unsticker validate-plan validate-type-safety"
+SKILLS="adapter-pstack agent-browser commit compound-estimate create-handoff create-plan create-pr create-worktree describe-pr fix-typescript gherkin-ticket implement-plan iterate-plan merge-pr prune-worktrees remediate-plan research-codebase resume-handoff review-and-verify review-code review-comments review-security scan-reward-hacking ticket-compound ticket-oneshot ticket-retro triage-aging-prs unslop unsticker validate-plan validate-type-safety"
 
 PASS=0
 FAIL=0
@@ -218,6 +218,12 @@ run_isolated_expect "prune-worktrees: no declared root refuses and names why" pr
   "$PW_ENV"' bun "$CLAUDE_SKILL_DIR/scripts/prune-worktrees.mjs" apply'
 run_isolated "prune-worktrees: no declared root exits 2" prune-worktrees \
   "$PW_ENV"' bun "$CLAUDE_SKILL_DIR/scripts/prune-worktrees.mjs" apply 2>/dev/null; test $? -eq 2'
+
+# review-and-verify picks its depth from a lone copy; a caller's door needs no git checkout.
+run_isolated_expect "review-and-verify: a one-way door is a deep review" review-and-verify "depth: deep" \
+  'node "$CLAUDE_SKILL_DIR/scripts/review-depth.mjs" --door one-way'
+run_isolated "review-and-verify: carries the findings rulebook" review-and-verify \
+  'test -s "$CLAUDE_SKILL_DIR/assets/references/resolving-review-findings.md"'
 
 for agent in codebase-locator codebase-analyzer codebase-pattern-finder thoughts-locator thoughts-analyzer external-research; do
   for skill in research-codebase create-plan; do
