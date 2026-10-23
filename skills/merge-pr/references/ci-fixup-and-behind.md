@@ -12,7 +12,7 @@ git merge --no-ff --no-edit "origin/${BASE_BRANCH}"
 git -c core.hooksPath=/dev/null push
 ```
 
-The push is a plain fast-forward. If it is rejected because the branch moved, `git pull --no-rebase` and push again; never add `--force` or `--force-with-lease`.
+The push is a plain fast-forward. If it is rejected because the branch moved, `git pull --no-rebase` and push again; never add `--force` or `--force-with-lease`. This is the same handling the branch waiter's conflict wake performs, through the guarded helper — see [`../assets/references/branch-waiter.md`](../assets/references/branch-waiter.md).
 
 On merge conflict: `git merge --abort` and report the conflicting files (`git diff --name-only --diff-filter=U`, read before the abort) rather than guessing at a resolution — same rule as `merge-blocker-diagnosis.md`'s `conflicts` entry.
 
