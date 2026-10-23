@@ -21,13 +21,16 @@ const TICKET_RE = /^[A-Z][A-Z0-9]*-[0-9]+$/;
 
 const iso = (ms) => (typeof ms === "number" && Number.isFinite(ms) ? new Date(ms).toISOString() : "unknown");
 
-// A name or title mentions the ticket when the id is not followed by another digit, so PROJ-1
-// never matches PROJ-10.
+// A name or title mentions the ticket when the id stands alone: no letter or digit before it and no
+// digit after it, so PROJ-1 never matches PROJ-10 and OPS-12 never matches DEVOPS-12.
 export function mentionsTicket(text, ticket) {
-  const at = String(text ?? "").toUpperCase().indexOf(ticket);
-  if (at < 0) return false;
-  const rest = String(text).toUpperCase().slice(at + ticket.length);
-  return !/^[0-9]/.test(rest) || mentionsTicket(rest, ticket);
+  const upper = String(text ?? "").toUpperCase();
+  for (let at = upper.indexOf(ticket); at >= 0; at = upper.indexOf(ticket, at + 1)) {
+    const before = at === 0 ? "" : upper[at - 1];
+    const after = upper[at + ticket.length] ?? "";
+    if (!/[A-Z0-9]/.test(before) && !/[0-9]/.test(after)) return true;
+  }
+  return false;
 }
 
 // The take's JSON → { code, lines }. Exit code 0 means this agent now holds the ticket.
@@ -56,8 +59,11 @@ export function leaseOutcome(result) {
     if (reason === "project_deleting") lines.push("retry at: never, the ticket's project is being deleted");
     return { code: 3, lines };
   }
-  if (result?.outcome === "rejected") {
-    return { code: 3, lines: [`lease: rejected by the cloud (HTTP ${result.status ?? "?"}), ${result.reason ?? "no reason given"}`] };
+  // Any other answer with an HTTP status (a 403, a 404 from an older cloud, a 429 write budget) is
+  // the cloud saying no, not a missing connection.
+  if (result?.outcome === "rejected" || typeof result?.status === "number") {
+    const why = result.reason ?? result.error ?? result.message ?? "no reason given";
+    return { code: 3, lines: [`lease: rejected by the cloud (HTTP ${result.status ?? "?"}), ${why}`] };
   }
   return { code: 2, lines: ["lease: the take printed no JSON this skill knows (not connected?); nothing was loaded"] };
 }

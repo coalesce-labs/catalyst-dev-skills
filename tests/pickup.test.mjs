@@ -60,6 +60,16 @@ describe("leaseOutcome reads the take's JSON", () => {
     });
   });
 
+  test("a status with no outcome (an older cloud's 404, a 429) is a rejection, not a lost connection", () => {
+    expect(leaseOutcome({ status: 404, error: "not_found" })).toEqual({
+      code: 3,
+      lines: ["lease: rejected by the cloud (HTTP 404), not_found"],
+    });
+    expect(leaseOutcome({ status: 429, message: "write budget spent" }).lines).toEqual([
+      "lease: rejected by the cloud (HTTP 429), write budget spent",
+    ]);
+  });
+
   test("no JSON (the CLI is not connected) is exit 2, never a grant", () => {
     expect(leaseOutcome(null).code).toBe(2);
     expect(leaseOutcome({}).code).toBe(2);
@@ -118,5 +128,11 @@ describe("mentionsTicket never matches a longer id", () => {
     expect(mentionsTicket("proj-1-thing", "PROJ-1")).toBe(true);
     expect(mentionsTicket("PROJ-10 then PROJ-1", "PROJ-1")).toBe(true);
     expect(mentionsTicket(null, "PROJ-1")).toBe(false);
+  });
+
+  test("OPS-12 is not DEVOPS-12, but is found after one", () => {
+    expect(mentionsTicket("devops-12-fix", "OPS-12")).toBe(false);
+    expect(mentionsTicket("DEVOPS-12 and OPS-12", "OPS-12")).toBe(true);
+    expect(mentionsTicket("feat/ops-12-thing", "OPS-12")).toBe(true);
   });
 });
