@@ -84,6 +84,11 @@
       "scope": "home"
     },
     {
+      "dir": "pickup",
+      "name": "pickup",
+      "scope": "home"
+    },
+    {
       "dir": "prune-worktrees",
       "name": "prune-worktrees",
       "scope": "home"
