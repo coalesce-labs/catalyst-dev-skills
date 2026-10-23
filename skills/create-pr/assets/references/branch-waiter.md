@@ -19,7 +19,9 @@ arm_branch_waiter() { # arm_branch_waiter REPO BRANCH PR — exactly one wait pe
     return 0
   }
   cursor=$(jq -r --arg ref "$ref" '.[$ref].cursor // empty' "$WAITER_STATE" 2>/dev/null || true)
-  [ -n "$cursor" ] || cursor=$(printf '%s' "$status" | jq -er '.head')
+  [ -n "$cursor" ] || cursor=$(printf '%s' "$status" | jq -er '.head // empty' 2>/dev/null)
+  [ -n "$cursor" ] || { echo "branch-waiter: cannot read the event head; not arming a waiter on ${ref}." >&2; return 0; }
+  [[ "$pr" =~ ^[0-9]+$ ]] || { echo "branch-waiter: no numeric PR number for ${ref}; not arming a waiter." >&2; return 0; }
   esc=$(printf '%s' "$ref" | sed 's/[][+.*?{}()|^$]/\\&/g')
   live=$(pgrep -f "catalyst events wait-for .* --ref ${esc} " 2>/dev/null | grep -v "^$$\$" || true)
   if [ -n "$live" ]; then
@@ -27,13 +29,14 @@ arm_branch_waiter() { # arm_branch_waiter REPO BRANCH PR — exactly one wait pe
     return 0
   fi
   mkdir -p .catalyst
+  if [ -s "$WAITER_STATE" ]; then
+    jq --arg ref "$ref" --argjson pr "$pr" --argjson cursor "$cursor" '.[$ref] = {pr: $pr, cursor: $cursor}' "$WAITER_STATE" > "${WAITER_STATE}.tmp" || { echo "branch-waiter: cannot record ${ref} in ${WAITER_STATE}; not arming." >&2; return 0; }
+    mv "${WAITER_STATE}.tmp" "$WAITER_STATE"
+  else
+    jq -n --arg ref "$ref" --argjson pr "$pr" --argjson cursor "$cursor" '{$ref: {pr: $pr, cursor: $cursor}}' > "$WAITER_STATE" || { echo "branch-waiter: cannot record ${ref} in ${WAITER_STATE}; not arming." >&2; return 0; }
+  fi
   slug=$(printf '%s' "$branch" | tr '/' '-')
   nohup bash -c "catalyst events wait-for --type pr.conflict.detected --type comms.message.posted --ref $ref --after $cursor --timeout 4h; printf 'waiter-rc %s\n' \"\$?\" >> .catalyst/waiter.$slug.log" > ".catalyst/waiter.${slug}.log" 2>&1 &
-  if [ -s "$WAITER_STATE" ]; then
-    jq --arg ref "$ref" --argjson pr "$pr" --argjson cursor "$cursor" '.[$ref] = {pr: $pr, cursor: $cursor}' "$WAITER_STATE" > "${WAITER_STATE}.tmp" && mv "${WAITER_STATE}.tmp" "$WAITER_STATE"
-  else
-    jq -n --arg ref "$ref" --argjson pr "$pr" --argjson cursor "$cursor" '{$ref: {pr: $pr, cursor: $cursor}}' > "$WAITER_STATE"
-  fi
   echo "branch-waiter: armed ${ref} after ${cursor} (pid $!); log .catalyst/waiter.${slug}.log"
 }
 ```
@@ -75,8 +78,9 @@ handle_waiter_wake() { # handle_waiter_wake REPO BRANCH LOGFILE — the table ab
     0) case "$type" in
       pr.conflict.detected)
         base=$(gh api "repos/${repo}/pulls/${pr}" --jq '.base.ref') || { echo "branch-waiter: cannot read the base of PR #${pr}; leaving ${ref} untouched." >&2; return 0; }
-        git fetch origin "$base" || return 0
-        if git log --format='%(trailers:key=Change-Id,valueonly)' "origin/${base}..HEAD" 2>/dev/null | grep -q .; then
+        if ! git fetch origin "$base"; then
+          echo "branch-waiter: cannot fetch origin/${base}; leaving ${ref} untouched." >&2
+        elif git log --format='%(trailers:key=Change-Id,valueonly)' "origin/${base}..HEAD" 2>/dev/null | grep -q .; then
           mergify stack sync && mergify stack push || echo "branch-waiter: stack resync for ${ref} failed; resolve it, then re-arm." >&2
         elif git merge --no-ff --no-edit "origin/${base}"; then
           source "${CLAUDE_SKILL_DIR}/scripts/lib/draft-pr.sh" && draft_pr_push_verify || echo "branch-waiter: guarded push for ${ref} failed; resolve it, then re-arm." >&2
