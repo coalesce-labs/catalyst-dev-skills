@@ -34,5 +34,8 @@ The flow is commit → rebase → push → create → describe → monitor.
 2. **Title, push, create.** The title prefers the first commit subject (`git log --no-merges`, `draft_pr_title`, the `<type>(<scope>): <ticket>` convention); with no commit, it runs `tr '-' ' '` on the branch slug. Push through `draft_pr_push_verify` (`git fetch`-verified, never forced; when the branch moved it replays only the unpublished commits onto the remote tip). The PR body gets the Linear sibling-skip guard from `linear-pr-skip.sh`'s `linear_sibling_skip_block_from_branch`, which references sibling tickets by **PR number**, never a bare token (the describe-pr skill's `linear-sibling-guard` reference explains why). Then run the `describe-pr` skill. See [push-and-create.md](references/push-and-create.md).
 3. **Monitor to a clean merge state:** CI, automated reviewers and blocker resolution. Use `catalyst events wait-for` after a successful `catalyst events status` probe. Only an absent CLI or failed probe permits bounded REST polling, with one line naming the reason. This step is required; "PR created" is not the end. Stop only at a clean or genuinely human-blocked state. See [monitoring-loop.md](references/monitoring-loop.md).
 4. **Report the real outcome.** See [outcomes-and-errors.md](references/outcomes-and-errors.md) for the final-state reports, error handling, examples, and how this fits with the `commit`, `describe-pr` and `merge-pr` skills.
+5. **Arm the branch waiter.** With a clean or human-blocked outcome, keep exactly one
+   background wait on the branch's conflicts and messages, and re-arm it after every wake.
+   See `${CLAUDE_SKILL_DIR}/assets/references/branch-waiter.md`.
 
 Acceptance evals and their runner are in [evals/README.md](evals/README.md).

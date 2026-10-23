@@ -9,3 +9,4 @@ files:
   - scripts/lib/linear-team-keys.sh
   - references/merge-blocker-diagnosis.md
   - references/review-thread-resolution.md
+  - references/branch-waiter.md

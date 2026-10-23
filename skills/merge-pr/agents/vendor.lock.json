@@ -1,10 +1,13 @@
 {
   "generatedBy": "catalyst-packaging vendor",
   "files": [
+    "assets/references/branch-waiter.md",
     "assets/references/merge-blocker-diagnosis.md",
     "assets/references/review-thread-resolution.md",
     "scripts/lib/canonical-event.sh",
     "scripts/lib/catalyst-paths.sh",
+    "scripts/lib/catalyst-secret-contract.sh",
+    "scripts/lib/draft-pr.sh",
     "scripts/lib/host-identity.sh",
     "scripts/pull-primary-worktree.sh"
   ]
