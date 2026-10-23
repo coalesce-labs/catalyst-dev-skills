@@ -424,64 +424,86 @@ export function missingBlocksFrom(blocks, readBack) {
 }
 
 /**
- * ⛔ THE LABEL SET FOLLOWS THE TARGET TEAM (CTCB-6 trap b).
- *
- * Linear issue labels are TEAM-SCOPED, and the ask label names exist on SEVERAL teams with
- * DIFFERENT ids. Measured 2026-08-18 across this fleet's own two teams: each name resolved to
- * a different uuid per team.
- *
- * Passing the NAMES let `linearis` resolve them against whichever team it picked — the
- * workspace's default one — so filing on the other team failed with "The label 'ask' is not
- * associated with the same team as the issue." That one at least failed loudly; the danger is
- * the other direction, where a name happens to resolve to the right team by luck and the tool
- * looks correct until someone files across teams.
- *
- * ⚠️ The local replica CANNOT answer this question: its `labels` table has no team column,
- * so both rows are visible and indistinguishable — exactly the `label-ambiguous` case the
- * write-proxy resolver names. The team scoping lives only in the API, so this is one of the
- * few reads that legitimately goes there.
- *
- * ⛔ CTL-2300: the id table that used to sit in this comment was two teams' uuids from ONE
- * workspace — a tenant-shaped literal shipped as documentation. Resolving per team is the fix;
- * writing down the answers for our own workspace was the drift.
+ * Resolve label IDs in the target team's scope first, then the workspace scope.
+ * Passing names lets the CLI choose a same-named label from the wrong team.
+ * The replica lacks label scope, so these lookups use the live API.
  */
 export const ASK_LABEL_NAMES = CONTRACT_ASK_LABEL_NAMES;
 
+/** Read a complete scope, refusing malformed pages and cursor cycles. */
+function listLabelScope(scopeArgs, runFn) {
+  const rows = new Map();
+  const cursors = new Set();
+  let after = null;
+  while (true) {
+    const args = ["labels", "list", ...scopeArgs, "--limit", "250"];
+    if (after !== null) args.push("--after", after);
+    const context = `linearis ${args.join(" ")}`;
+    const r = runFn("linearis", args);
+    if (r.code !== 0) {
+      return { ok: false, reason: "label-list-failed", detail: `${context}: ${r.stderr.slice(0, 200)}` };
+    }
+    const invalid = (detail) => ({ ok: false, reason: "label-list-unparseable", detail: `${context}: ${detail}` });
+    let doc;
+    try {
+      doc = JSON.parse(r.stdout);
+    } catch (err) {
+      return invalid(String(err?.message ?? err).slice(0, 200));
+    }
+    if (!Array.isArray(doc?.nodes)) return invalid("no nodes array");
+    for (const row of doc.nodes) {
+      if (!nonEmpty(row?.id) || !nonEmpty(row?.name)) return invalid("label needs a nonempty id and name");
+      if (rows.has(row.id) && rows.get(row.id).name !== row.name) return invalid("label id has conflicting names");
+      rows.set(row.id, row);
+    }
+    // Older CLI responses have nodes but no pagination metadata.
+    if (!("pageInfo" in doc)) break;
+    const info = doc.pageInfo;
+    if (!info || typeof info.hasNextPage !== "boolean" ||
+        !(info.endCursor === null || typeof info.endCursor === "string")) {
+      return invalid("invalid pageInfo");
+    }
+    if (!info.hasNextPage) break;
+    if (!nonEmpty(info.endCursor) || cursors.has(info.endCursor)) return invalid("pagination cursor did not advance");
+    cursors.add(info.endCursor);
+    after = info.endCursor;
+  }
+  return { ok: true, nodes: [...rows.values()] };
+}
+
 /**
- * resolveTeamLabelIds — map this tenant's ask label NAMES to ids ON THIS TEAM.
- *
- * ⛔ CTL-2300: the names now come from {@link resolveAskLabelNames} — env, then either config
- * layer, then the committed contract — not from a constant in this file. A tenant whose
- * decision label is called something else used to get `label-not-on-team` and no ask at all,
- * with our plugin as the only place the wrong name was written down.
- *
- * ALL-OR-NOTHING and three-valued. A partial set would file an ask carrying some of its
- * labels and silently dropping the rest, which reads as success at the call site and makes
- * the ask invisible to the very views that select on the ask label.
+ * Resolve configured ask names in order, preferring team IDs over workspace IDs.
+ * Resolution is all-or-nothing. A partial label set would hide the ask from views
+ * that select on the missing label. Never use an unscoped listing: its rows can
+ * belong to other teams and do not include ownership metadata.
  */
 export function resolveTeamLabelIds(team, { runFn = run, names = resolveAskLabelNames().names } = {}) {
-  const r = runFn("linearis", ["labels", "list", "--team", team, "--limit", "250"]);
-  if (r.code !== 0) {
-    return { ok: false, reason: "label-list-failed", detail: r.stderr.slice(0, 200) };
-  }
-  let nodes;
-  try {
-    nodes = JSON.parse(r.stdout)?.nodes;
-  } catch (err) {
-    return { ok: false, reason: "label-list-unparseable", detail: String(err?.message ?? err).slice(0, 200) };
-  }
-  if (!Array.isArray(nodes)) return { ok: false, reason: "label-list-unparseable", detail: "no nodes array" };
-
-  const ids = [];
+  const teamLabels = listLabelScope(["--team", team], runFn);
+  if (!teamLabels.ok) return teamLabels;
+  const selected = new Map();
+  const select = (name, nodes, scope) => {
+    const hits = nodes.filter((n) => n.name === name);
+    if (hits.length > 1) return { ok: false, reason: "label-ambiguous", detail: `${name} @ ${scope}` };
+    if (hits.length === 1) selected.set(name, hits[0].id);
+    return null;
+  };
   for (const name of names) {
-    // A `LIMIT 2`-style count, for the same reason the write-proxy resolver uses one:
-    // ambiguity must be DETECTED, not silently resolved to whichever row came first.
-    const hits = nodes.filter((n) => n?.name === name && typeof n?.id === "string");
-    if (hits.length === 0) return { ok: false, reason: "label-not-on-team", detail: `${name} @ ${team}` };
-    if (hits.length > 1) return { ok: false, reason: "label-ambiguous", detail: `${name} @ ${team}` };
-    ids.push(hits[0].id);
+    const refusal = select(name, teamLabels.nodes, `team ${team}`);
+    if (refusal) return refusal;
   }
-  return { ok: true, labelIds: ids };
+  const unresolved = names.filter((name) => !selected.has(name));
+  if (unresolved.length > 0) {
+    const workspaceLabels = listLabelScope(["--scope", "workspace"], runFn);
+    if (!workspaceLabels.ok) return workspaceLabels;
+    for (const name of unresolved) {
+      const refusal = select(name, workspaceLabels.nodes, "workspace");
+      if (refusal) return refusal;
+      if (!selected.has(name)) {
+        return { ok: false, reason: "label-not-found", detail: `${name} absent from team ${team} and workspace` };
+      }
+    }
+  }
+  return { ok: true, labelIds: names.map((name) => selected.get(name)) };
 }
 
 // ── CLI ────────────────────────────────────────────────────────────────────────────────
@@ -588,7 +610,7 @@ function cmdCreate(argv) {
   const why = argOf(argv, "--why");
   const options = argOf(argv, "--option", { many: true });
   const dflt = argOf(argv, "--default");
-  const blocks = argOf(argv, "--blocks", { many: true });
+  const blocks = [...new Set(argOf(argv, "--blocks", { many: true }))];
   const factArgs = argOf(argv, "--fact", { many: true });
   const priority = argOf(argv, "--priority") ?? "2";
   const dryRun = argv.includes("--dry-run");
@@ -683,15 +705,15 @@ function cmdCreate(argv) {
     );
     return 1;
   }
-  // ⛔ Resolve the labels ON THE TARGET TEAM before the dry-run returns, not after. A dry
+  // Resolve team labels with workspace fallback before the dry-run returns. A dry
   // run that skips the step which actually fails is not a rehearsal — it is the shape of
   // check that cannot fail, and it would have passed cleanly for the exact defect CTCB-6
   // hit. See resolveTeamLabelIds.
   const lbl = resolveTeamLabelIds(team);
   if (!lbl.ok) {
     console.error(
-      `ask create: REFUSING — could not resolve the ask labels on team ${team} ` +
-        `(${lbl.reason}: ${lbl.detail}). Labels are TEAM-SCOPED; filing without them would ` +
+      `ask create: REFUSING — could not resolve the ask labels for team ${team} or workspace ` +
+        `(${lbl.reason}: ${lbl.detail}). Filing without the required labels would ` +
         "hide the ask from every view that selects on this tenant's ask labels."
     );
     return 1;
@@ -745,7 +767,8 @@ function cmdCreate(argv) {
     "--description",
     body,
   ];
-  for (const b of blocks) args.push("--blocks", b);
+  // Some CLI versions retain only the last scalar --blocks option.
+  args.push("--blocks", blocks[0]);
   const created = run("linearis", args);
   if (created.code !== 0) {
     console.error(
@@ -772,11 +795,22 @@ function cmdCreate(argv) {
     return 2;
   }
 
+  // Each update adds one edge. Continue after failures so the final read can
+  // report every missing target without leaving later targets unattempted.
+  for (const target of blocks.slice(1)) {
+    const updated = run("linearis", ["issues", "update", id, "--blocks", target]);
+    if (updated.code !== 0) {
+      console.error(
+        `ask create: ${id} --blocks ${target} update failed (rc=${updated.code})\n${updated.stderr.slice(0, 400)}`
+      );
+    }
+  }
+
   // ── the round trip ──
   // ⚠️ This ONE read goes to the API rather than the replica, deliberately: the ticket was
   // created milliseconds ago, so a replica read cannot yet see it — it would answer
   // "absent" every time and the verifier would report a well-formed ask as unreadable.
-  // Every OTHER read in this file uses the replica.
+  // Label lookup also uses the API because the replica lacks label scope.
   const readBack = run("linearis", ["issues", "read", id]);
   if (readBack.code !== 0) {
     console.error(
@@ -806,8 +840,9 @@ function cmdCreate(argv) {
   // reporting it as "all missing" would be a lie about what Linear stored. It is its
   // own outcome, and it FAILS CLOSED: an automated caller must not record "filed and
   // wakeable" for an ask whose wake path was never proven.
-  const blocksVerified = missingBlocksOrNull !== null;
+  const relationsReadable = missingBlocksOrNull !== null;
   const missingBlocks = missingBlocksOrNull ?? [];
+  const blocksVerified = relationsReadable && missingBlocks.length === 0;
 
   console.log(
     JSON.stringify({
@@ -834,11 +869,11 @@ function cmdCreate(argv) {
   if (missingBlocks.length > 0) {
     console.error(
       `ask create: ⛔ ${id} filed, but these --blocks relations are NOT on it: ${missingBlocks.join(", ")} — ` +
-        "add them by hand (linearis keeps only the last --blocks on some versions). Until you do, " +
+        "repair these missing relations; each target was attempted separately. Until you do, " +
         "an answer on this ask will not wake the agents parked on them."
     );
   }
-  if (!blocksVerified) {
+  if (!relationsReadable) {
     console.error(
       `ask create: ⛔ ${id} filed, but the read-back carried NO relation field — cannot prove the ` +
         `--blocks relations (${blocks.join(", ")}) landed. Verify by hand; until then an answer on ` +
