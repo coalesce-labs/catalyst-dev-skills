@@ -7,5 +7,8 @@ files:
   - scripts/lib/canonical-event.sh
   - scripts/lib/catalyst-paths.sh
   - scripts/lib/host-identity.sh
+  - scripts/lib/draft-pr.sh
+  - scripts/lib/catalyst-secret-contract.sh
   - references/merge-blocker-diagnosis.md
   - references/review-thread-resolution.md
+  - references/branch-waiter.md

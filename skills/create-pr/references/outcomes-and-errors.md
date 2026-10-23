@@ -35,6 +35,10 @@ Still blocking:
   ❌ {specific blocker and exactly what's needed to resolve it}
 ```
 
+## Arm the branch waiter
+
+On a clean or a genuinely human-blocked outcome, run the arm snippet from [`../assets/references/branch-waiter.md`](../assets/references/branch-waiter.md): it keeps exactly one background wait on this branch's conflicts and messages and starts nothing when one already runs. The existing-PR path arms the same way — preflight's "D" (describe) choice leaves a PR open, so arm it after describing; "S" (skip) exits with no PR to watch, and skipping arms nothing. PENDING (the timeout ceiling) arms nothing too, and says why in one line: the monitoring ended without a terminal state, so there is no confirmed PR to wait on.
+
 ## Error handling
 
 **On main/master:** `❌ Cannot create PR from main branch.` — suggest `git checkout -b TICKET-123-feature-name`.

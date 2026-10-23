@@ -54,24 +54,24 @@ _draft_pr_config_str() {
   local file="$1" selector="$2" raw
   [[ -f "$file" ]] || return 1
   command -v jq >/dev/null 2>&1 || return 1
-  raw="$(jq -r "$selector" "$file" 2>/dev/null || true)"
+  raw="$(jq -r "$selector" "$file" 2>/dev/null)" || raw=""
   [[ -z "$raw" || "$raw" == "null" ]] && return 1
   printf '%s\n' "$raw"
 }
 
 _draft_pr_layer2_config_path() {
   local common root project_key contract base
-  common="$(git rev-parse --git-common-dir 2>/dev/null || true)"
+  common="$(git rev-parse --git-common-dir 2>/dev/null)" || common=""
   [[ -n "$common" ]] || return 1
-  root="$(cd "$(dirname "$common")" 2>/dev/null && pwd || true)"
+  root="$(cd "$(dirname "$common")" 2>/dev/null && pwd)" || root=""
   [[ -n "$root" ]] || return 1
-  project_key="$(_draft_pr_config_str "${root}/.catalyst/config.json" '.catalyst.projectKey // .projectKey' || true)"
+  project_key="$(_draft_pr_config_str "${root}/.catalyst/config.json" '.catalyst.projectKey // .projectKey')" || project_key=""
   [[ -n "$project_key" ]] || return 1
   local source_path
   if [[ -n "${ZSH_VERSION:-}" ]]; then
-    # This is zsh's current sourced-file expansion.
-    # shellcheck disable=SC2296
-    source_path="${(%):-%x}"
+    # This is zsh's current sourced-file expansion. eval keeps the zsh-only syntax out of
+    # the POSIX grammar the file is shellchecked against; the string is a fixed literal.
+    eval 'source_path="${(%):-%x}"'
   else
     source_path="${BASH_SOURCE[0]:-$0}"
   fi
@@ -79,7 +79,7 @@ _draft_pr_layer2_config_path() {
   [[ -r "$contract" ]] || return 1
   # shellcheck source=/dev/null
   source "$contract"
-  base="$(catalyst_secret_resolve_layer2_path 2>/dev/null || true)"
+  base="$(catalyst_secret_resolve_layer2_path 2>/dev/null)" || base=""
   [[ -n "$base" ]] || return 1
   printf '%s/config-%s.json\n' "$(dirname "$base")" "$project_key"
 }
@@ -88,20 +88,20 @@ _draft_pr_push_remote() {
   local candidate="" l2 common root
   [[ -n "${CATALYST_PUSH_REMOTE:-}" ]] && candidate="$CATALYST_PUSH_REMOTE"
   if [[ -z "$candidate" ]]; then
-    l2="$(_draft_pr_layer2_config_path 2>/dev/null || true)"
-    [[ -n "$l2" ]] && candidate="$(_draft_pr_config_str "$l2" '.catalyst.pr.pushRemote' || true)"
+    l2="$(_draft_pr_layer2_config_path 2>/dev/null)" || l2=""
+    [[ -z "$l2" ]] || candidate="$(_draft_pr_config_str "$l2" '.catalyst.pr.pushRemote')" || candidate=""
   fi
   if [[ -z "$candidate" ]]; then
-    common="$(git rev-parse --git-common-dir 2>/dev/null || true)"
+    common="$(git rev-parse --git-common-dir 2>/dev/null)" || common=""
     if [[ -n "$common" ]]; then
-      root="$(cd "$(dirname "$common")" 2>/dev/null && pwd || true)"
-      [[ -n "$root" ]] && candidate="$(_draft_pr_config_str "${root}/.catalyst/config.json" '.catalyst.pr.pushRemote' || true)"
+      root="$(cd "$(dirname "$common")" 2>/dev/null && pwd)" || root=""
+      [[ -z "$root" ]] || candidate="$(_draft_pr_config_str "${root}/.catalyst/config.json" '.catalyst.pr.pushRemote')" || candidate=""
     fi
   fi
-  [[ -z "$candidate" ]] && candidate="$(_draft_pr_config_str "${CATALYST_CONFIG_PATH:-.catalyst/config.json}" '.catalyst.pr.pushRemote' || true)"
+  [[ -n "$candidate" ]] || candidate="$(_draft_pr_config_str "${CATALYST_CONFIG_PATH:-.catalyst/config.json}" '.catalyst.pr.pushRemote')" || candidate=""
   if [[ -z "$candidate" ]]; then
     local upstream
-    upstream="$(git rev-parse --abbrev-ref --symbolic-full-name '@{u}' 2>/dev/null || true)"
+    upstream="$(git rev-parse --abbrev-ref --symbolic-full-name '@{u}' 2>/dev/null)" || upstream=""
     [[ -n "$upstream" ]] && candidate="${upstream%%/*}"
   fi
   [[ -z "$candidate" ]] && { printf 'origin\n'; return 0; }
@@ -172,9 +172,9 @@ _draft_pr_blast_radius_hit() {
   [[ -z "$base_tracked" || "$base_tracked" -eq 0 ]] && return 1
 
   local shortstat deletions insertions deleted_files
-  shortstat="$(git diff --shortstat "$range" -- 2>/dev/null || true)"
-  deletions="$(printf '%s' "$shortstat" | grep -oE '[0-9]+ deletion' | grep -oE '[0-9]+' || true)"
-  insertions="$(printf '%s' "$shortstat" | grep -oE '[0-9]+ insertion' | grep -oE '[0-9]+' || true)"
+  shortstat="$(git diff --shortstat "$range" -- 2>/dev/null)" || shortstat=""
+  deletions="$(printf '%s' "$shortstat" | grep -oE '[0-9]+ deletion' | grep -oE '[0-9]+')" || deletions=""
+  insertions="$(printf '%s' "$shortstat" | grep -oE '[0-9]+ insertion' | grep -oE '[0-9]+')" || insertions=""
   [[ -z "$deletions" ]] && deletions=0
   [[ -z "$insertions" ]] && insertions=0
   deleted_files="$(git diff --diff-filter=D --name-only "$range" -- 2>/dev/null | wc -l | tr -d ' ')"
@@ -275,7 +275,7 @@ draft_pr_push_token() {
 _draft_pr_default_base() {
   if command -v gh >/dev/null 2>&1; then
     local base
-    base="$(gh repo view --json defaultBranchRef -q .defaultBranchRef.name 2>/dev/null || true)"
+    base="$(gh repo view --json defaultBranchRef -q .defaultBranchRef.name 2>/dev/null)" || base=""
     [[ -n "$base" ]] && { printf '%s\n' "$base"; return 0; }
   fi
   printf 'main\n'
@@ -337,12 +337,12 @@ draft_pr_ensure() {
 
   # Idempotency: check for an existing open PR on this branch.
   local existing_json
-  existing_json="$(gh pr view --json number,url,isDraft 2>/dev/null || true)"
+  existing_json="$(gh pr view --json number,url,isDraft 2>/dev/null)" || existing_json=""
   if [[ -n "$existing_json" ]]; then
     local ex_num ex_url ex_draft
-    ex_num="$(printf '%s' "$existing_json" | jq -r '.number // empty' 2>/dev/null || true)"
-    ex_url="$(printf '%s' "$existing_json" | jq -r '.url // empty' 2>/dev/null || true)"
-    ex_draft="$(printf '%s' "$existing_json" | jq -r '.isDraft // false' 2>/dev/null || true)"
+    ex_num="$(printf '%s' "$existing_json" | jq -r '.number // empty' 2>/dev/null)" || ex_num=""
+    ex_url="$(printf '%s' "$existing_json" | jq -r '.url // empty' 2>/dev/null)" || ex_url=""
+    ex_draft="$(printf '%s' "$existing_json" | jq -r '.isDraft // false' 2>/dev/null)" || ex_draft=""
     if [[ -n "$ex_num" ]]; then
       printf '%s\t%s\t%s\n' "$ex_num" "$ex_url" "$ex_draft"
       return 0
@@ -351,26 +351,26 @@ draft_pr_ensure() {
 
   # Build PR title from first commit message (no Claude attribution).
   local branch commit_subj title body
-  branch="$(git rev-parse --abbrev-ref HEAD 2>/dev/null || true)"
-  commit_subj="$(git log --no-merges --format='%s' "origin/${base}..HEAD" 2>/dev/null | head -1 || true)"
+  branch="$(git rev-parse --abbrev-ref HEAD 2>/dev/null)" || branch=""
+  commit_subj="$(git log --no-merges --format='%s' "origin/${base}..HEAD" 2>/dev/null | head -1)" || commit_subj=""
   if [[ -z "$commit_subj" ]]; then
-    commit_subj="$(git log --no-merges --format='%s' --max-count=1 HEAD 2>/dev/null || true)"
+    commit_subj="$(git log --no-merges --format='%s' --max-count=1 HEAD 2>/dev/null)" || commit_subj=""
   fi
   title="$(draft_pr_title "${ticket}" "${commit_subj}")"
   [[ -z "$title" ]] && title="${ticket:-${branch}}"
 
   # Build PR body: commit list + "Refs: TICKET" — no Claude attribution.
   local commit_list
-  commit_list="$(git log --no-merges --oneline "origin/${base}..HEAD" 2>/dev/null | head -20 || true)"
-  [[ -z "$commit_list" ]] && commit_list="$(git log --no-merges --oneline --max-count=5 HEAD 2>/dev/null || true)"
+  commit_list="$(git log --no-merges --oneline "origin/${base}..HEAD" 2>/dev/null | head -20)" || commit_list=""
+  [[ -z "$commit_list" ]] && commit_list="$(git log --no-merges --oneline --max-count=5 HEAD 2>/dev/null)" || commit_list=""
   body="$(printf '%s\n\nRefs: %s' "${commit_list}" "${ticket:-}")"
 
   # Try --draft first.
   local create_out
   if create_out="$(gh pr create --draft --base "$base" --title "$title" --body "$body" 2>/dev/null)"; then
     local new_num new_url
-    new_url="$(printf '%s' "$create_out" | grep -oE 'https://[^ ]*/pull/[0-9]+' | head -1 || true)"
-    new_num="$(printf '%s' "$new_url" | grep -oE '[0-9]+$' || true)"
+    new_url="$(printf '%s' "$create_out" | grep -oE 'https://[^ ]*/pull/[0-9]+' | head -1)" || new_url=""
+    new_num="$(printf '%s' "$new_url" | grep -oE '[0-9]+$')" || new_num=""
     printf '%s\t%s\ttrue\n' "${new_num:-}" "${new_url:-}"
     return 0
   fi
@@ -379,8 +379,8 @@ draft_pr_ensure() {
   _draft_pr_warn "--draft rejected, retrying without --draft"
   if create_out="$(gh pr create --base "$base" --title "$title" --body "$body" 2>/dev/null)"; then
     local new_num new_url
-    new_url="$(printf '%s' "$create_out" | grep -oE 'https://[^ ]*/pull/[0-9]+' | head -1 || true)"
-    new_num="$(printf '%s' "$new_url" | grep -oE '[0-9]+$' || true)"
+    new_url="$(printf '%s' "$create_out" | grep -oE 'https://[^ ]*/pull/[0-9]+' | head -1)" || new_url=""
+    new_num="$(printf '%s' "$new_url" | grep -oE '[0-9]+$')" || new_num=""
     printf '%s\t%s\tfalse\n' "${new_num:-}" "${new_url:-}"
     return 0
   fi
@@ -393,10 +393,10 @@ draft_pr_ensure() {
 draft_pr_promote() {
   command -v gh >/dev/null 2>&1 || { _draft_pr_warn "gh unavailable"; return 1; }
   local pr_json is_draft num
-  pr_json="$(gh pr view --json number,isDraft 2>/dev/null || true)"
+  pr_json="$(gh pr view --json number,isDraft 2>/dev/null)" || pr_json=""
   [[ -z "$pr_json" ]] && { _draft_pr_warn "no PR found for current branch"; return 1; }
   is_draft="$(printf '%s' "$pr_json" | jq -r '.isDraft // false' 2>/dev/null || echo 'false')"
-  num="$(printf '%s' "$pr_json" | jq -r '.number // empty' 2>/dev/null || true)"
+  num="$(printf '%s' "$pr_json" | jq -r '.number // empty' 2>/dev/null)" || num=""
   if [[ -z "$num" ]]; then
     _draft_pr_warn "no PR found for current branch"
     return 1
@@ -422,7 +422,7 @@ _draft_pr_is_branch_moved_error() {
 # retries through it (CTL-1119).
 _draft_pr_push_ff() {
   local remote="$1" errf="$2"
-  if [[ -n "${CATALYST_WORKFLOW_GITHUB_TOKEN:-}" ]] && draft_pr_diff_touches_workflows; then
+  if [[ -n "${CATALYST_WORKFLOW_GITHUB_TOKEN:-}" ]] && draft_pr_diff_touches_workflows "$(_draft_pr_default_base)"; then
     _draft_pr_warn "workflow files + CATALYST_WORKFLOW_GITHUB_TOKEN set — routing through scoped token proactively"
     draft_pr_push_token "$CATALYST_WORKFLOW_GITHUB_TOKEN" -u "$remote" HEAD >/dev/null 2>"$errf" && return 0
     _draft_pr_is_branch_moved_error "$errf" && return 1
@@ -459,7 +459,7 @@ _draft_pr_replay_unpublished() {
     _draft_pr_warn "push failed and ${remote}/${branch} could not be fetched: $(head -n 3 "$errf" 2>/dev/null | tr '\n' ' ')"
     return 1
   fi
-  tip="$(git rev-parse --verify --quiet 'FETCH_HEAD^{commit}' 2>/dev/null || true)"
+  tip="$(git rev-parse --verify --quiet 'FETCH_HEAD^{commit}' 2>/dev/null)" || tip=""
   [[ -n "$tip" ]] || { _draft_pr_warn "cannot resolve the fetched ${remote}/${branch}"; return 1; }
   if git merge-base --is-ancestor "$tip" HEAD 2>/dev/null; then
     _draft_pr_warn "push failed but ${remote}/${branch} has not moved past HEAD: $(head -n 3 "$errf" 2>/dev/null | tr '\n' ' ')"
@@ -471,7 +471,7 @@ _draft_pr_replay_unpublished() {
     _draft_pr_warn "branch moved: ${remote}/${branch} is now ${tip}, and this is a stack-managed branch (Mergify Change-Id trailers). Nothing was replayed or pushed. The local stack is authoritative: resync it with \`mergify stack sync\`, then \`mergify stack push\`."
     return "$_DRAFT_PR_STACK_RC"
   fi
-  published="$(git merge-base HEAD "$tip" 2>/dev/null || true)"
+  published="$(git merge-base HEAD "$tip" 2>/dev/null)" || published=""
   [[ -n "$published" ]] || { _draft_pr_warn "branch moved: ${remote}/${branch} (${tip}) shares no history with HEAD; nothing pushed"; return 1; }
   if [[ -n "$(git rev-list --merges "${published}..HEAD" 2>/dev/null)" ]]; then
     _draft_pr_warn "branch moved: ${remote}/${branch} is now ${tip}, and the unpublished commits include a merge, which a replay would flatten. Nothing pushed. Merge ${remote}/${branch} into the branch, then push again."
@@ -513,7 +513,7 @@ draft_pr_push_verify() {
   command -v git >/dev/null 2>&1 || { _draft_pr_warn "git unavailable"; return 1; }
   _draft_pr_safety_gate || return "$_DRAFT_PR_SAFETY_GATE_RC"
   local branch local_sha remote remote_sha errf rc=0
-  branch="$(git rev-parse --abbrev-ref HEAD 2>/dev/null || true)"
+  branch="$(git rev-parse --abbrev-ref HEAD 2>/dev/null)" || branch=""
   [[ -z "$branch" || "$branch" == "HEAD" ]] && { _draft_pr_warn "detached HEAD; cannot push-verify"; return 1; }
   git rev-parse HEAD >/dev/null 2>&1 || { _draft_pr_warn "cannot resolve local HEAD"; return 1; }
   remote="$(_draft_pr_push_remote)"
@@ -531,9 +531,11 @@ draft_pr_push_verify() {
   rm -f "$errf"
   [[ $rc -eq 0 ]] || return "$rc"
 
-  local_sha="$(git rev-parse HEAD 2>/dev/null || true)"
-  git fetch --quiet "$remote" "$branch" 2>/dev/null || true
-  remote_sha="$(git rev-parse "${remote}/${branch}" 2>/dev/null || true)"
+  local_sha="$(git rev-parse HEAD 2>/dev/null)" || local_sha=""
+  if ! git fetch --quiet "$remote" "$branch" 2>/dev/null; then
+    _draft_pr_warn "post-push verify could not fetch ${remote}/${branch}; comparing against the last fetched tip"
+  fi
+  remote_sha="$(git rev-parse "${remote}/${branch}" 2>/dev/null)" || remote_sha=""
   if [[ -n "$remote_sha" && "$remote_sha" == "$local_sha" ]]; then
     printf '%s\n' "$local_sha"
     return 0
@@ -547,7 +549,7 @@ draft_pr_push_verify() {
 draft_pr_head_oid() {
   command -v gh >/dev/null 2>&1 || return 1
   local oid
-  oid="$(gh pr view --json headRefOid -q '.headRefOid' 2>/dev/null || true)"
+  oid="$(gh pr view --json headRefOid -q '.headRefOid' 2>/dev/null)" || oid=""
   [[ -n "$oid" ]] && { printf '%s\n' "$oid"; return 0; }
   return 1
 }
@@ -559,7 +561,7 @@ draft_pr_head_oid() {
 draft_pr_enabled() {
   local config_path="${CATALYST_CONFIG_PATH:-.catalyst/config.json}"
   local raw
-  raw="$(_draft_pr_config_str "$config_path" '.catalyst.orchestration.draftPr.enabled' || true)"
+  raw="$(_draft_pr_config_str "$config_path" '.catalyst.orchestration.draftPr.enabled')" || raw=""
   if [[ -n "$raw" ]]; then
     if [[ "$raw" == "false" ]]; then
       printf 'false\n'
