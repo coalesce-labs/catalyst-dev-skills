@@ -482,12 +482,9 @@ _csc_set_result() {
   # Exported side-channel breadcrumbs (mirrors CATALYST_DEPLOYMENT_MODE_RESOLVED's
   # convention in lib/catalyst-deployment-mode.sh) — a future consumer (not this PR) reads
   # these after calling catalyst_resolve_secret without needing to reparse the pipe-joined
-  # stdout. Unused WITHIN this file itself, hence the shellcheck disable.
-  # shellcheck disable=SC2034
+  # stdout. The printf below also reads them, so they are not dead assignments.
   CATALYST_SECRET_LAST_VALUE="$1"
-  # shellcheck disable=SC2034
   CATALYST_SECRET_LAST_SOURCE="$2"
-  # shellcheck disable=SC2034
   CATALYST_SECRET_LAST_PROVIDER="$3"
   # SECRET HYGIENE (#2924 post-merge Codex P2): the VALUE is deliberately NOT
   # exported — every reader is same-shell, and an exported value would be
@@ -499,9 +496,12 @@ _csc_set_result() {
   # Codex P2): a shell that inherited the variable already-exported (rolling
   # upgrade from the pre-fix lib, or any caller's own export) would keep
   # leaking the NEW value — so the attribute is cleared explicitly each time.
-  export -n CATALYST_SECRET_LAST_VALUE 2>/dev/null || true
+  if ! export -n CATALYST_SECRET_LAST_VALUE 2>/dev/null; then
+    # zsh has no export -n; there the value was never exported, so nothing to clear.
+    :
+  fi
   export CATALYST_SECRET_LAST_SOURCE CATALYST_SECRET_LAST_PROVIDER
-  printf '%s|%s|%s' "$1" "$2" "$3"
+  printf '%s|%s|%s' "$CATALYST_SECRET_LAST_VALUE" "$CATALYST_SECRET_LAST_SOURCE" "$CATALYST_SECRET_LAST_PROVIDER"
 }
 
 _csc_resolve_env_alias_only() {
@@ -569,7 +569,7 @@ _csc_resolve_legacy_per_team_path() {
   while [[ "$_dir" != "/" ]]; do
     _cfg="$_dir/.catalyst/config.json"
     if [[ -f "$_cfg" ]]; then
-      _key="$(jq -r '.catalyst.projectKey // .projectKey // empty' "$_cfg" 2>/dev/null)" || true
+      _key="$(jq -r '.catalyst.projectKey // .projectKey // empty' "$_cfg" 2>/dev/null)" || _key=""
       if [[ -n "$_key" ]]; then
         printf '%s/config-%s.json' "$(dirname "$(catalyst_secret_resolve_layer2_path)")" "$_key"
         return 0
@@ -803,10 +803,9 @@ catalyst_secret_cloud_token_name() {
     esac
   fi
   CATALYST_SECRET_TOKEN_NAME="$_env_var"
-  # shellcheck disable=SC2034
   CATALYST_SECRET_TOKEN_NAME_SOURCE="$_source"
   export CATALYST_SECRET_TOKEN_NAME CATALYST_SECRET_TOKEN_NAME_SOURCE
-  printf '%s|%s' "$_env_var" "$_source"
+  printf '%s|%s' "$CATALYST_SECRET_TOKEN_NAME" "$CATALYST_SECRET_TOKEN_NAME_SOURCE"
 }
 
 # _csc_resolve_cloud_token_name — cloud-token's two-step resolution: NAME (via
@@ -1075,12 +1074,9 @@ catalyst_arm_secret() {
 }
 
 _csc_set_arm_result() {
-  # shellcheck disable=SC2034
   CATALYST_SECRET_ARM_ARMED="$1"
-  # shellcheck disable=SC2034
   CATALYST_SECRET_ARM_ROTATED="$2"
-  # shellcheck disable=SC2034
   CATALYST_SECRET_ARM_RESTART_REQUIRED="$3"
   export CATALYST_SECRET_ARM_ARMED CATALYST_SECRET_ARM_ROTATED CATALYST_SECRET_ARM_RESTART_REQUIRED
-  printf '%s|%s|%s' "$1" "$2" "$3"
+  printf '%s|%s|%s' "$CATALYST_SECRET_ARM_ARMED" "$CATALYST_SECRET_ARM_ROTATED" "$CATALYST_SECRET_ARM_RESTART_REQUIRED"
 }

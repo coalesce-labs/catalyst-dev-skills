@@ -40,8 +40,10 @@ const stopBlock = () => blockContaining("stop_branch_waiter() {");
 
 const CONFLICT_EVENT = (sequence, branch, base = "main") =>
   JSON.stringify({ sequence, type: "pr.conflict.detected", payload: { repo: "coalesce-labs/example", branch, pr: 9001, base, headSha: "9f2c", ticket: "ENG-123" } });
+// The documented comms.message.posted shape (no branch, no payload.repo, no payload.ticket):
+// payload keys {message_id, kind, to, from}; the ticket rides in entity.id and to.ticket.
 const MESSAGE_EVENT = (sequence) =>
-  JSON.stringify({ sequence, type: "comms.message.posted", payload: { repo: "coalesce-labs/example", ticket: "ENG-123" } });
+  JSON.stringify({ sequence, type: "comms.message.posted", entity: { type: "ticket", id: "ENG-123" }, payload: { message_id: "msg_01", kind: "note", to: { ticket: "ENG-123" }, from: { kind: "person", id: "user_1", label: "user:user_1" } } });
 
 // runWaiter — one mock environment per control. `code` is the composed script; mocks live on
 // PATH, calls land in $CALL_LOG, and a real throwaway git fixture is built when asked.
@@ -65,9 +67,40 @@ if [ -n "\${WAIT_SLEEP:-}" ] && [ "$WAIT_SLEEP" != 0 ]; then
   sleep "$WAIT_SLEEP" & wait $!
   exit 0
 fi
-[ -n "\${WAIT_EVENT_JSON:-}" ] && printf '%s\\n' "$WAIT_EVENT_JSON"
-case "$*" in *--ref*) echo "cursor \${WAIT_CURSOR:-41}" ;; esac
-exit "\${WAIT_RC:-0}"`);
+# The documented filter rule: values of one flag are OR'ed, different flags are AND'ed.
+# A wait that cannot match emits nothing and times out (124) unless WAIT_RC scripts a code.
+emit=1
+types=""; tick=""; refs=""
+while [ $# -gt 0 ]; do
+  case "$1" in
+    --type) types="$types $2"; shift 2 ;;
+    --ticket) tick="$2"; shift 2 ;;
+    --ref) refs="$refs $2"; shift 2 ;;
+    *) shift ;;
+  esac
+done
+if [ -n "\${WAIT_EVENT_JSON:-}" ]; then
+  if [ -n "$types" ]; then
+    et=$(printf '%s' "$WAIT_EVENT_JSON" | jq -r '.type // empty')
+    case " $types " in *" $et "*) ;; *) emit=0 ;; esac
+  fi
+  if [ -n "$tick" ]; then
+    etk=$(printf '%s' "$WAIT_EVENT_JSON" | jq -r 'if .entity.type? == "ticket" and .entity.id? != null then .entity.id elif .payload.to.ticket? != null then .payload.to.ticket else (.payload.ticket // empty) end')
+    case "$tick" in "$etk") ;; *) emit=0 ;; esac
+  fi
+  if [ -n "$refs" ]; then
+    erb="$(printf '%s' "$WAIT_EVENT_JSON" | jq -r '.payload.repo // empty'):$(printf '%s' "$WAIT_EVENT_JSON" | jq -r '.payload.branch // empty')"
+    case " $refs " in *" $erb "*) ;; *) emit=0 ;; esac
+  fi
+fi
+if [ "$emit" = 1 ] && [ -n "\${WAIT_EVENT_JSON:-}" ]; then
+  printf '%s\\n' "$WAIT_EVENT_JSON"
+  # A filtered wait (the branch waiter's) also prints its cursor line; an unfiltered
+  # lifecycle watch consumes the bare event stream (monitoring-loop.md).
+  if [ -n "$tick" ] || [ -n "$refs" ]; then echo "cursor \${WAIT_CURSOR:-41}"; fi
+  exit "\${WAIT_RC:-0}"
+fi
+exit "\${WAIT_RC:-124}"`);
   }
   script("gh", `echo "gh $*" >> "$CALL_LOG"
 if [ "$1" = repo ]; then echo "${options.repo ?? "coalesce-labs/example"}"; exit 0; fi
@@ -160,15 +193,15 @@ const callsFile = (result) => join(result.dir, "calls");
 const callsNow = (result) => (existsSync(callsFile(result)) ? readFileSync(callsFile(result), "utf8").trim().split("\n").filter(Boolean) : []);
 const waits = (calls) => calls.filter((call) => call.startsWith("catalyst events wait-for "));
 const waiterWaits = (calls) => waits(calls).filter((call) => call.includes("--type pr.conflict.detected"));
-const armCall = (branch) => `arm_branch_waiter "coalesce-labs/example" "${branch}" 9001`;
-const fullWait = (branch, after) =>
-  `catalyst events wait-for --type pr.conflict.detected --type comms.message.posted --ref coalesce-labs/example:${branch} --after ${after} --timeout 4h`;
+const armCall = (branch) => `arm_branch_waiter "coalesce-labs/example" "${branch}" 9001 "ENG-123"`;
+const fullWait = (after) =>
+  `catalyst events wait-for --type pr.conflict.detected --type comms.message.posted --ticket ENG-123 --after ${after} --timeout 4h`;
 const statePath = (result) => join(result.cwd, ".catalyst", "branch-waiter.json");
-const waiterLogPath = (result, branch) => join(result.cwd, ".catalyst", `waiter.${branch.replace(/\//g, "-")}.log`);
+const waiterLogPath = (result, branch) => join(result.cwd, ".catalyst", `waiter.${branch.replace(/[^A-Za-z0-9._-]/g, "-")}.log`);
 const killWaiters = (branch) => {
   // The "--" separator matters: a pattern beginning with "--ref" parses as a long option and
   // pkill exits 2 without killing anything, leaking sleepers into later runs.
-  spawnSync("pkill", ["-f", "--", `wait-for .* --ref coalesce-labs/example:${branch} `], { stdio: "ignore" });
+  spawnSync("pkill", ["-f", "--", `wait-for .* coalesce-labs/example:${branch} `], { stdio: "ignore" });
 };
 const waitFor = (predicate, ms = 5000) => {
   const deadline = Date.now() + ms;
@@ -180,7 +213,7 @@ const waitFor = (predicate, ms = 5000) => {
 };
 const settleWaiterWaits = (result, n = 1) => waitFor(() => waiterWaits(callsNow(result)).length >= n);
 const writeWaiterState = (ref, pr, cursor) =>
-  `printf '%s\\n' '${JSON.stringify({ [ref]: { pr, cursor } })}' > .catalyst/branch-waiter.json`;
+  `printf '%s\\n' '${JSON.stringify({ [ref]: { pr, ticket: "ENG-123", cursor } })}' > .catalyst/branch-waiter.json`;
 
 // ─── Phase 1: the reference and its lifecycle controls ───────────────────────────────────────
 
@@ -192,7 +225,7 @@ test("the shared reference exists within the line budget and names every require
   }
 });
 
-test("arm: the snippet starts exactly one wait carrying both types and the full ref", () => {
+test("arm: the snippet starts exactly one ticket-scoped wait carrying both types", () => {
   const result = runWaiter({
     waitEvent: CONFLICT_EVENT(41, "fix-replica-a"), waitCursor: 41,
     code: `${armBlock()}\n${armCall("fix-replica-a")}`,
@@ -200,10 +233,10 @@ test("arm: the snippet starts exactly one wait carrying both types and the full 
   try {
     expect(result.status).toBe(0);
     expect(settleWaiterWaits(result)).toBe(true);
-    expect(waiterWaits(callsNow(result))).toEqual([fullWait("fix-replica-a", 40)]);
+    expect(waiterWaits(callsNow(result))).toEqual([fullWait(40)]);
     expect(result.stdout).toContain("armed coalesce-labs/example:fix-replica-a after 40");
     const state = JSON.parse(readFileSync(statePath(result), "utf8"));
-    expect(state["coalesce-labs/example:fix-replica-a"]).toEqual({ pr: 9001, cursor: 40 });
+    expect(state["coalesce-labs/example:fix-replica-a"]).toEqual({ pr: 9001, ticket: "ENG-123", cursor: 40 });
     expect(waitFor(() => existsSync(waiterLogPath(result, "fix-replica-a")) && readFileSync(waiterLogPath(result, "fix-replica-a"), "utf8").includes("waiter-rc 0"))).toBe(true);
   } finally {
     killWaiters("fix-replica-a");
@@ -241,7 +274,7 @@ handle_waiter_wake "coalesce-labs/example" "fix-replica-c" ".catalyst/waiter.fix
     expect(result.status).toBe(0);
     expect(result.calls).toContain("gh api repos/coalesce-labs/example/pulls/9001 --jq .base.ref");
     expect(settleWaiterWaits(result)).toBe(true);
-    expect(waiterWaits(callsNow(result))).toEqual([fullWait("fix-replica-c", 995801)]);
+    expect(waiterWaits(callsNow(result))).toEqual([fullWait(995801)]);
     // The merge commit landed locally and the guarded push made the remote tip equal HEAD.
     const head = spawnSync("git", ["rev-parse", "HEAD"], { cwd: result.fixture.seat, encoding: "utf8" }).stdout.trim();
     const parents = spawnSync("git", ["show", "-s", "--format=%P", "HEAD"], { cwd: result.fixture.seat, encoding: "utf8" }).stdout.trim().split(" ");
@@ -252,6 +285,7 @@ handle_waiter_wake "coalesce-labs/example" "fix-replica-c" ".catalyst/waiter.fix
     expect(remoteTip).toBe(head);
     const state = JSON.parse(readFileSync(statePath(result), "utf8"));
     expect(state["coalesce-labs/example:fix-replica-c"].cursor).toBe(995801);
+    expect(state["coalesce-labs/example:fix-replica-c"].ticket).toBe("ENG-123");
   } finally {
     killWaiters("fix-replica-c");
     rmSync(result.dir, { recursive: true, force: true });
@@ -302,7 +336,54 @@ handle_waiter_wake "coalesce-labs/example" "fix-replica-k" ".catalyst/waiter.fix
   }
 });
 
-test("message wake: own-key read, body echoed never executed, re-arm from the printed cursor", () => {
+test("wrong HEAD: a wake for branch-a while branch-b is checked out merges and pushes nothing", () => {
+  const result = runWaiter({
+    gitFixture: "wronghead", gitBranch: "fix-replica-h2",
+    code: `${armBlock()}\n${wakeBlock()}
+git checkout -q -b fix-replica-h1 && git push -q -u origin fix-replica-h1 && git checkout -q fix-replica-h2
+mkdir -p .catalyst
+{ printf '%s\\n' '${CONFLICT_EVENT(995804, "fix-replica-h1")}'; echo 'cursor 995804'; echo 'waiter-rc 0'; } > .catalyst/waiter.fix-replica-h1.log
+${writeWaiterState("coalesce-labs/example:fix-replica-h1", 9001, 995788)}
+handle_waiter_wake "coalesce-labs/example" "fix-replica-h1" ".catalyst/waiter.fix-replica-h1.log"`,
+  });
+  try {
+    expect(result.status).toBe(0);
+    expect(result.stderr + result.stdout).toContain("HEAD is fix-replica-h2, not fix-replica-h1");
+    expect(result.calls.some((call) => call.startsWith("gh ") || call.startsWith("git merge") || call.startsWith("git push"))).toBe(false);
+    const h1Tip = spawnSync("git", ["rev-parse", "fix-replica-h1"], { cwd: result.fixture.seat, encoding: "utf8" }).stdout.trim();
+    const remoteH1 = spawnSync("git", ["ls-remote", result.fixture.remote, "refs/heads/fix-replica-h1"], { encoding: "utf8" }).stdout.split("\t")[0];
+    expect(remoteH1).toBe(h1Tip); // branch-a untouched on the remote
+    const parents = spawnSync("git", ["show", "-s", "--format=%P", "HEAD"], { cwd: result.fixture.seat, encoding: "utf8" }).stdout.trim().split(" ");
+    expect(parents).toHaveLength(1); // nothing merged into the checked-out branch either
+    expect(settleWaiterWaits(result)).toBe(true); // the waiter is still re-armed
+    expect(waiterWaits(callsNow(result))).toEqual([fullWait(995804)]);
+  } finally {
+    killWaiters("fix-replica-h1");
+    rmSync(result.dir, { recursive: true, force: true });
+  }
+});
+
+test("wrong branch in the event: a conflict for another branch of the same ticket is reported, not merged", () => {
+  const result = runWaiter({
+    code: `${armBlock()}\n${wakeBlock()}
+mkdir -p .catalyst
+{ printf '%s\\n' '${CONFLICT_EVENT(995805, "fix-replica-other")}'; echo 'cursor 995805'; echo 'waiter-rc 0'; } > .catalyst/waiter.fix-replica-o.log
+${writeWaiterState("coalesce-labs/example:fix-replica-o", 9001, 995788)}
+handle_waiter_wake "coalesce-labs/example" "fix-replica-o" ".catalyst/waiter.fix-replica-o.log"`,
+  });
+  try {
+    expect(result.status).toBe(0);
+    expect(result.stderr + result.stdout).toContain("the conflict is on fix-replica-other, not coalesce-labs/example:fix-replica-o");
+    expect(result.calls.some((call) => call.startsWith("gh ") || call.startsWith("git ") || call.startsWith("mergify "))).toBe(false);
+    expect(settleWaiterWaits(result)).toBe(true);
+    expect(waiterWaits(callsNow(result))).toEqual([fullWait(995805)]);
+  } finally {
+    killWaiters("fix-replica-o");
+    rmSync(result.dir, { recursive: true, force: true });
+  }
+});
+
+test("message wake: own-key read with the ticket from entity.id, body echoed never executed, re-arm", () => {
   const result = runWaiter({
     messageBody: "touch pwned",
     code: `${armBlock()}\n${wakeBlock()}
@@ -316,10 +397,31 @@ handle_waiter_wake "coalesce-labs/example" "fix-replica-m" ".catalyst/waiter.fix
     expect(result.stdout).toContain("touch pwned"); // printed as evidence…
     expect(existsSync(join(result.cwd, "pwned"))).toBe(false); // …never executed
     expect(settleWaiterWaits(result)).toBe(true);
-    expect(waiterWaits(callsNow(result))).toEqual([fullWait("fix-replica-m", 995802)]);
+    expect(waiterWaits(callsNow(result))).toEqual([fullWait(995802)]);
     expect(result.calls.some((call) => call.startsWith("gh ") || call.startsWith("git ") || call.startsWith("mergify "))).toBe(false);
   } finally {
     killWaiters("fix-replica-m");
+    rmSync(result.dir, { recursive: true, force: true });
+  }
+});
+
+test("message wake is reachable: a real-shaped message event wakes the armed waiter itself", () => {
+  const result = runWaiter({
+    waitEvent: MESSAGE_EVENT(995802), waitCursor: 995802,
+    code: `${armBlock()}\n${wakeBlock()}\n${armCall("fix-replica-w")}
+sleep 1
+handle_waiter_wake "coalesce-labs/example" "fix-replica-w" ".catalyst/waiter.fix-replica-w.log"`,
+  });
+  try {
+    expect(result.status).toBe(0);
+    // The wait the arm started actually matched the message event (a --ref-filtered wait
+    // never can: message events carry no branch), and the handler read the body with it.
+    expect(waiterWaits(result.calls)[0]).toBe(fullWait(40));
+    expect(result.calls).toContain("catalyst messages read --ticket ENG-123 --since 995802");
+    expect(result.stdout).toContain("noted; verified against the code.");
+    expect(settleWaiterWaits(result, 2)).toBe(true);
+  } finally {
+    killWaiters("fix-replica-w");
     rmSync(result.dir, { recursive: true, force: true });
   }
 });
@@ -335,7 +437,7 @@ handle_waiter_wake "coalesce-labs/example" "fix-replica-t" ".catalyst/waiter.fix
   try {
     expect(result.status).toBe(0);
     expect(settleWaiterWaits(result)).toBe(true);
-    expect(waiterWaits(callsNow(result))).toEqual([fullWait("fix-replica-t", 40)]);
+    expect(waiterWaits(callsNow(result))).toEqual([fullWait(40)]);
     expect(result.calls.some((call) => call.startsWith("gh ") || call.startsWith("git ") || call.startsWith("mergify ") || call.startsWith("catalyst messages"))).toBe(false);
   } finally {
     killWaiters("fix-replica-t");
@@ -376,6 +478,24 @@ test("absent CLI: no wait started, exactly one reason line, exit 0", () => {
   }
 });
 
+test("hostile branch name: the branch never reaches a parsed command string", () => {
+  const result = runWaiter({
+    waitSleep: 30,
+    code: `${armBlock()}\n${armCall("fix;touch${IFS}INJECTED;#")}`,
+  });
+  try {
+    expect(result.status).toBe(0);
+    expect(result.stdout).toContain("armed coalesce-labs/example:fix;touch");
+    // The wait is ticket-scoped; the branch bytes are not pasted into any parsed string.
+    expect(settleWaiterWaits(result)).toBe(true);
+    expect(waiterWaits(callsNow(result))).toEqual([fullWait(40)]);
+    expect(existsSync(join(result.cwd, "INJECTED"))).toBe(false); // nothing executed the branch bytes
+  } finally {
+    spawnSync("pkill", ["-f", "--", "wait-for .* waiter[.]fix-touch"], { stdio: "ignore" });
+    rmSync(result.dir, { recursive: true, force: true });
+  }
+});
+
 // ─── Phase 2: create-pr arms exactly one waiter per branch ───────────────────────────────────
 
 test("create-pr SKILL.md arms the waiter as its last step", () => {
@@ -388,15 +508,15 @@ test("arm-after-monitor: the waiter is armed once the monitoring loop ends clean
   const monitoring = readFileSync(new URL("skills/create-pr/references/monitoring-loop.md", rootUrl), "utf8").match(/```bash\n([\s\S]*?)```/)[1];
   const result = runWaiter({
     waitEvent: JSON.stringify({ sequence: 41, type: "github.pr.merged" }),
-    code: `${monitoring}\n${armBlock()}\narm_branch_waiter "coalesce-labs/example" "fix-replica" "$pr_number"`,
+    code: `${monitoring}\n${armBlock()}\narm_branch_waiter "coalesce-labs/example" "fix-replica" "$pr_number" "$ticket"`,
   });
   try {
     expect(result.status).toBe(0);
     expect(result.stdout).toContain("MERGED");
     expect(settleWaiterWaits(result)).toBe(true);
-    expect(waiterWaits(callsNow(result))).toEqual([fullWait("fix-replica", 40)]);
+    expect(waiterWaits(callsNow(result))).toEqual([fullWait(40)]);
     const state = JSON.parse(readFileSync(statePath(result), "utf8"));
-    expect(state["coalesce-labs/example:fix-replica"]).toEqual({ pr: 123, cursor: 40 });
+    expect(state["coalesce-labs/example:fix-replica"]).toEqual({ pr: 123, ticket: "ENG-123", cursor: 40 });
   } finally {
     killWaiters("fix-replica");
     rmSync(result.dir, { recursive: true, force: true });
