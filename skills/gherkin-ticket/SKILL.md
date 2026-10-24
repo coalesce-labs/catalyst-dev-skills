@@ -44,6 +44,7 @@ A starting shape, not a formula: `<Actor> should <outcome> [when <condition>] [s
 - Write the shortest title that carries the context and the expected outcome. Keep `so that` only when the benefit adds information and `when` only when the trigger is the point. Vary the phrasing across tickets. Soft cap about 120 characters, exceeded only to remove ambiguity.
 - Name the outcome, never the mechanism: no symbol, function, event, file or flag names (`bootReplay`, `--label-mode`) and no unexplained acronyms. If the outcome needs a mechanism to state, work out what the change is *for* and write that. Deep-internals work still makes something better for someone; name them.
 - Put the component in a Linear label. The title carries no `[API]`-style prefix.
+- When classifying a new ticket's work type or components, read the installed `catalyst-linear` skill's `references/ticket-classification.md`; in a project with `.agents/references/ticket-labels.json`, use that project's definitions and existing-label names. Classification is advisory until the writer resolves live label scope and IDs.
 
 ## The body: tiered Gherkin
 
