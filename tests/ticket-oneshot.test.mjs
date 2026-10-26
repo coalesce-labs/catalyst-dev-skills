@@ -365,4 +365,40 @@ test("thoughts search limits repository scope in a shared pool", () => {
   const team = run("thoughts", ["search", "Needle", "--scope", "team"], f);
   expect(team.stdout).toContain("other.md");
 });
+function runAs(ticket, name, args, f) {
+  return spawnSync("node", [join(skill, "scripts", name), ...args], {
+    cwd: f.root,
+    env: { ...process.env, CATALYST_TICKET: ticket, CATALYST_ARTIFACT_DIR: f.artifacts, CATALYST_REPOSITORY: "catalyst-cloud" },
+    encoding: "utf8",
+  });
+}
+test("stage markers accept a ticket whose team key contains digits", () => {
+  const f = fixture();
+  writeFileSync(join(f.artifacts, "research.md"), doc("research", "ABC2-17"));
+  expect(runAs("ABC2-17", "stage", ["start", "research"], f).status).toBe(0);
+  expect(existsSync(join(f.artifacts, "stages", "1-research.start.json"))).toBe(true);
+  expect(runAs("ABC2-17", "stage", ["done", "research"], f).status).toBe(0);
+  expect(JSON.parse(readFileSync(join(f.artifacts, "stages", "1-research.done.json"), "utf8")).event).toBe("phase.research.complete");
+});
+test("thoughts latest finds the handoff of a ticket whose team key contains digits", () => {
+  const f = fixture();
+  const folder = join(f.root, "thoughts", "shared", "handoffs");
+  mkdirSync(folder, { recursive: true });
+  writeFileSync(join(folder, "2026-10-26-ABC2-17-handoff.md"), "---\nsource_ticket: ABC2-17\nrepository: catalyst-cloud\nupdated_at: 2026-10-26T20:00:00Z\ncompleted_stage: none\nnext_stage: research\n---\n# Handoff\n");
+  const latest = runAs("ABC2-17", "thoughts", ["latest", "ABC2-17", "handoff"], f);
+  expect(latest.status).toBe(0);
+  expect(latest.stdout.trim().endsWith("2026-10-26-ABC2-17-handoff.md")).toBe(true);
+});
+for (const bad of ["abc2-17", "2ABC-17", "ABC2-", "ABC2_17"]) {
+  test(`stage and thoughts refuse ${JSON.stringify(bad)} as a ticket id`, () => {
+    const f = fixture();
+    const start = runAs(bad, "stage", ["start", "research"], f);
+    expect(start.status).not.toBe(0);
+    expect(start.stderr).toContain("CATALYST_TICKET must be a ticket id");
+    expect(existsSync(join(f.artifacts, "stages", "1-research.start.json"))).toBe(false);
+    const latest = runAs(bad, "thoughts", ["latest", bad, "handoff"], f);
+    expect(latest.status).not.toBe(0);
+    expect(latest.stderr).toContain("ticket id is required");
+  });
+}
 process.on("exit", () => { for (const folder of folders) rmSync(folder, { recursive: true, force: true }); });

@@ -8,7 +8,7 @@ export const catalog = JSON.parse(readFileSync(join(skillRoot, "stages.json"), "
 export const stageIndex = new Map(catalog.stages.map((item, index) => [item.stage, index]));
 export function ticket() {
   const value = process.env.CATALYST_TICKET;
-  if (!/^[A-Z]+-\d+$/.test(value ?? "")) throw new Error("CATALYST_TICKET must be a ticket id such as CTC-1234");
+  if (!/^[A-Z][A-Z0-9]*-\d+$/.test(value ?? "")) throw new Error("CATALYST_TICKET must be a ticket id such as CTC-1234");
   return value;
 }
 export function artifactDir() {
