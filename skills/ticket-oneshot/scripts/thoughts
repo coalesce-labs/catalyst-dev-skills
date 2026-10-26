@@ -43,7 +43,7 @@ try {
     process.stdout.write(`${destination}\n`);
   } else if (action === "latest" || action === "list") {
     const ticket = arg1;
-    if (!/^[A-Z]+-\d+$/.test(ticket ?? "")) throw new Error("ticket id is required");
+    if (!/^[A-Z][A-Z0-9]*-\d+$/.test(ticket ?? "")) throw new Error("ticket id is required");
     const kind = action === "latest" ? arg2 : (process.argv.includes("--kind") ? process.argv[process.argv.indexOf("--kind") + 1] : null);
     if (kind && !folders[kind]) throw new Error(`unknown thoughts kind: ${kind}`);
     const repo = action === "latest" ? repository() : null;
