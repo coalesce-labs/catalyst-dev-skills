@@ -51,6 +51,9 @@ jobs:
           git clone -q --depth 1 https://github.com/coalesce-labs/catalyst-pm-skills "$RUNNER_TEMP/catalyst-pm-skills"
           node scripts/check-name-collisions.mjs "$RUNNER_TEMP/catalyst-cloud-skills" "$RUNNER_TEMP/catalyst-pm-skills"
 
+      - name: Development pack is on the shared release line
+        run: node scripts/check-release-line.mjs "$RUNNER_TEMP/catalyst-cloud-skills"
+
       - name: Install smoke (skills@1.5.26 into a scratch HOME, three harnesses)
         run: bash scripts/install-smoke.sh
 
