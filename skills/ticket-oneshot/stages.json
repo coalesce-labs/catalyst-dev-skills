@@ -4,7 +4,7 @@
   "stages": [
     { "stage": "research", "skill": "research-codebase", "artifact": "research.md", "thoughts_kind": "research", "verify": "scripts/verify-research" },
     { "stage": "plan", "skill": "create-plan", "artifact": "plan.md", "thoughts_kind": "plan", "verify": "scripts/verify-plan" },
-    { "stage": "implement", "skill": "implement-plan", "artifact": "implement.md", "thoughts_kind": null, "verify": "repo-gate" },
+    { "stage": "implement", "skill": "implement-plan", "artifact": "implement.md", "owner": "runner", "thoughts_kind": null, "verify": "repo-gate" },
     { "stage": "validate", "skill": "validate-plan", "artifact": "validation.md", "thoughts_kind": "validation", "verify": "scripts/verify-validation" },
     { "stage": "pr", "skill": "create-pr", "artifact": "pr.md", "thoughts_kind": "pr", "verify": null }
   ],
