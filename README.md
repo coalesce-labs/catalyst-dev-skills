@@ -38,7 +38,7 @@ Without `--all` the installer asks which skills to take and which agents to inst
 
 The installed folder takes the skill's frontmatter `name`, which is always its directory name.
 
-The `npx skills` install reads this repository's `skills/` tree; it does not publish an npm package, so a Git commit identifies the exact skills installed. `package.json` records the development pack's release version, and CI checks that `.claude-plugin/plugin.json` has the same number. This version is independent of the Cloud pack's and of the deprecated `catalyst` plugin's.
+The `npx skills` install reads this repository's `skills/` tree; it does not publish an npm package, so a Git commit identifies the exact skills installed. `package.json` records the development pack's release version, and CI checks that `.claude-plugin/plugin.json` has the same number. The version is on Catalyst's shared release line: its MAJOR.MINOR is the line the `catalyst` CLI and the Cloud pack are on, and only the patch number is the pack's own. Each release is tagged `dev-skills-v<version>` on the exact commit it ships, so `git ls-remote --tags https://github.com/coalesce-labs/catalyst-dev-skills 'dev-skills-v*'` lists every release and its commit.
 
 ## What's inside
 
@@ -106,8 +106,14 @@ CI also runs:
 - `scripts/install-smoke.sh`, which installs the repository with `skills@1.5.26` into a scratch HOME and checks all three harness paths;
 - `scripts/install-scope-smoke.sh`, which runs the documented install command for real with `cwd` and `$HOME` as two different directories and proves the repository directory stays empty;
 - a skill-name collision check against the Cloud pack and the other Catalyst skill packs;
+- `scripts/check-release-line.mjs`, which fails when `package.json`'s version is off the release line in the Cloud pack's `release-train.json`;
 - gitleaks;
 - `scripts/scan-internal.sh`, which refuses internal hosts, paths and tokens in this public repository.
+
+**Releases.** The pack's version follows Catalyst's shared release line, which the Cloud pack's `release-train.json` declares. A change ships as a patch on that line; the MAJOR.MINOR moves only when the whole line moves.
+1. Bump `version` in `package.json`, then run `npm run version:sync`. CI checks the new version against the declared line.
+2. After the pull request merges, tag the merged commit on `main`: `node scripts/release-tag.mjs <commit> --train <cloud-pack checkout>` checks that the commit is on `main`, that both version files carry the same version on the line, and that no newer release tag exists, then creates the annotated tag `dev-skills-v<version>` locally.
+3. Push that one tag with `git push origin refs/tags/dev-skills-v<version>`. The `release tag` workflow re-reads it and fails when the tag does not name a `main` commit carrying its version.
 
 ## License
 

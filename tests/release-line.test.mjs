@@ -101,3 +101,11 @@ test("CI checks the line against the Cloud pack it already clones", () => {
 test("a release is tagged dev-skills-v<version>", () => {
   expect(devSkillsTag("0.16.0")).toBe("dev-skills-v0.16.0");
 });
+
+test("the README says the version is on the shared line and how a release is tagged", () => {
+  const readme = readFileSync(join(repoRoot, "README.md"), "utf8");
+  expect(readme).toContain("The version is on Catalyst's shared release line");
+  expect(readme).toContain("`dev-skills-v<version>`");
+  expect(readme).toContain("node scripts/release-tag.mjs <commit> --train <cloud-pack checkout>");
+  expect(readme).not.toContain("independent of the Cloud pack's");
+});
