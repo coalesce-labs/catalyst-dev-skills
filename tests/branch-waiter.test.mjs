@@ -603,6 +603,6 @@ test("both skills carry the reference byte-identical, and merge-pr carries the g
 test("the pack version is bumped in lockstep", () => {
   const pkg = JSON.parse(readFileSync(new URL("package.json", rootUrl), "utf8"));
   const plugin = JSON.parse(readFileSync(new URL(".claude-plugin/plugin.json", rootUrl), "utf8"));
-  expect(pkg.version).toBe("15.0.1");
+  expect(pkg.version).toBe("0.16.0");
   expect(plugin.version).toBe(pkg.version);
 });
