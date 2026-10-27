@@ -19,11 +19,11 @@ Run in the ticket's isolated code worktree. Resolve this skill's directory as `S
 | --- | --- | --- |
 | research | `research.md` | Run `scripts/verify-research "$CATALYST_ARTIFACT_DIR/research.md"`. |
 | plan | `plan.md` | Copy the `create-plan` output into the artifact directory, add `## Files in scope` with the real changed paths, then run `scripts/verify-plan "$CATALYST_ARTIFACT_DIR/plan.md"`. The template's `## Phase 1` and `## Testing Strategy (TDD)` headings are accepted. |
-| implement | `implement.md` | Commit the implementation, run the repository's full gate, and record command, exit status, head SHA and result in the artifact. |
+| implement | `implement.md` (written by the runner) | Make the change and run the repository's full gate. The runner commits, pushes and writes `implement.md` after the done marker, so do not write it yourself. |
 | validate | `validation.md` | Run `validate-plan`, type-safety and independent code/security review. Copy the report into the artifact directory, add `source_ticket` and `repository` frontmatter, keep its `catalyst-validation-ladder` verdict, add a resolved file:line reference, and run `scripts/verify-validation "$CATALYST_ARTIFACT_DIR/validation.md"`. Repair real findings, at most two rounds. |
 | pr | `pr.md` | Push the branch and open or update a draft PR with the real description and ticket link. Record its URL and head SHA. |
 
-After the artifact and gate exist, call `node "$SKILL_DIR/scripts/stage" done <stage>`. The helper checks document stages, writes the `phase.<stage>.complete` marker, then refreshes `handoff.md`. Persist the handoff and finished docs through the available thoughts publisher before starting the next stage. The helper writes only into the artifact directory; the runner or seat bridge owns publication, receipts, card moves and comments.
+After the artifact and gate exist, call `node "$SKILL_DIR/scripts/stage" done <stage>`. The helper checks document stages, writes the `phase.<stage>.complete` marker, then refreshes `handoff.md`. Persist the handoff and finished docs through the available thoughts publisher before starting the next stage. A runner writes `implement.md` after the done marker, so `stage done implement` does not require that file to exist. The helper writes only into the artifact directory; the runner or seat bridge owns publication, receipts, card moves and comments.
 
 If a stage fails, call `stage fail <stage> --reason <text> --class code|environment|scope|question`. File a real question through the ticket system, write `stage wait answer --key <ask-id> --deadline <ISO time>`, and end with the handoff. Do not hold a session waiting for CI, review or an answer.
 
