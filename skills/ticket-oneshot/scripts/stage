@@ -113,8 +113,10 @@ try {
       if (readMarker(dir, stage, "fail")?.attempt === lastStart.attempt) throw new Error(`stage ${stage} attempt ${lastStart.attempt} already failed`);
       const item = catalog.stages[index];
       const path = join(dir, item.artifact);
-      if (!existsSync(path)) throw new Error(`missing stage artifact: ${path}`);
-      if (lastStart.attempt > 1 && statSync(path).mtimeMs < Date.parse(lastStart.at)) throw new Error(`stage ${stage} retry requires fresh artifact evidence`);
+      if (item.owner !== "runner") {
+        if (!existsSync(path)) throw new Error(`missing stage artifact: ${path}`);
+        if (lastStart.attempt > 1 && statSync(path).mtimeMs < Date.parse(lastStart.at)) throw new Error(`stage ${stage} retry requires fresh artifact evidence`);
+      }
       if (["research", "plan", "validate"].includes(stage)) {
         const result = verifyDoc(stage === "validate" ? "validation" : stage, path);
         if (!result.ok) throw new Error(result.errors.join("; "));

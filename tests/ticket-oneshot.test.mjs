@@ -182,6 +182,50 @@ test("stage done refuses a missing or invalid artifact", () => {
   expect(run("stage", ["done", "research"], f).status).not.toBe(0);
   expect(existsSync(join(f.artifacts, "stages", "1-research.done.json"))).toBe(false);
 });
+function reachImplement(f) {
+  for (const stage of ["research", "plan"]) {
+    writeFileSync(join(f.artifacts, `${stage}.md`), doc(stage));
+    expect(run("stage", ["start", stage], f).status).toBe(0);
+    expect(run("stage", ["done", stage], f).status).toBe(0);
+  }
+}
+test("stage done implement succeeds before the runner writes implement.md", () => {
+  const f = fixture();
+  reachImplement(f);
+  expect(run("stage", ["start", "implement"], f).status).toBe(0);
+  expect(existsSync(join(f.artifacts, "implement.md"))).toBe(false);
+  expect(run("stage", ["done", "implement"], f).status).toBe(0);
+  const marker = JSON.parse(readFileSync(join(f.artifacts, "stages", "1-implement.done.json"), "utf8"));
+  expect(marker.artifact).toBe("implement.md");
+  expect(readFileSync(join(f.artifacts, "handoff.md"), "utf8")).toContain("completed_stage: implement");
+});
+test("stage done implement on a second attempt skips the fresh evidence check", () => {
+  const f = fixture();
+  reachImplement(f);
+  expect(run("stage", ["start", "implement"], f).status).toBe(0);
+  expect(run("stage", ["fail", "implement", "--reason", "gate failed", "--class", "code"], f).status).toBe(0);
+  expect(run("stage", ["start", "implement"], f).status).toBe(0);
+  expect(JSON.parse(readFileSync(join(f.artifacts, "stages", "2-implement.start.json"), "utf8")).attempt).toBe(2);
+  const done = run("stage", ["done", "implement"], f);
+  expect(done.status).toBe(0);
+  expect(JSON.parse(readFileSync(join(f.artifacts, "stages", "2-implement.done.json"), "utf8")).artifact).toBe("implement.md");
+});
+test("stage done still refuses a missing artifact for a session-owned stage", () => {
+  const f = fixture();
+  writeFileSync(join(f.artifacts, "research.md"), doc("research"));
+  expect(run("stage", ["start", "research"], f).status).toBe(0);
+  expect(run("stage", ["done", "research"], f).status).toBe(0);
+  expect(run("stage", ["start", "plan"], f).status).toBe(0);
+  const result = run("stage", ["done", "plan"], f);
+  expect(result.status).not.toBe(0);
+  expect(result.stderr).toContain("missing stage artifact");
+  expect(existsSync(join(f.artifacts, "stages", "1-plan.done.json"))).toBe(false);
+});
+test("the stage catalog marks only implement as runner-owned", () => {
+  const catalog = JSON.parse(readFileSync(join(skill, "stages.json"), "utf8"));
+  expect(catalog.stages.filter((item) => item.owner === "runner").map((item) => item.stage)).toEqual(["implement"]);
+  expect(catalog.stages.filter((item) => "owner" in item).length).toBe(1);
+});
 test("validate stage refuses a document that fails its verifier", () => {
   const f = fixture();
   for (const stage of ["research", "plan", "implement"]) {
