@@ -1,0 +1,28 @@
+name: release tag
+
+# A development-pack release is a `dev-skills-v<version>` tag a person pushes on the merged main
+# commit (scripts/release-tag.mjs). This re-reads the pushed tag and fails when it does not name a
+# main commit whose package.json and .claude-plugin/plugin.json carry its version.
+
+on:
+  push:
+    tags:
+      - "dev-skills-v*"
+
+permissions:
+  contents: read
+
+jobs:
+  verify-tag:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+
+      - uses: actions/setup-node@v6
+        with:
+          node-version: 22
+
+      - name: The tag names a main commit that carries its version
+        run: node scripts/release-tag.mjs --verify "$GITHUB_REF_NAME"
