@@ -31,7 +31,7 @@ if [[ -n "${CATALYST_PHASE:-}" ]]; then echo "unattended: CATALYST_PHASE=$CATALY
 
 ## Process
 
-1. **Gather.** Read the template, identify the PR, extract its ticket, and gather its diff, commits and checks. See [process.md](references/process.md).
+1. **Gather.** Read the template, identify the PR (the number or URL the arguments name, else the current branch's PR), extract its ticket, and gather its diff, commits and checks. See [process.md](references/process.md).
 2. **Merge and title.** Merge the new analysis into the existing description, add the Linear reference, and generate the title. On a cloud account, read the ticket with `catalyst query issue <ID> --json`. Reference sibling tickets by GitHub PR number, never a bare Linear token; the own ticket's `Fixes https://linear.app/{workspace}/issue/{ticket}` line stays. See [merge-and-title.md](references/merge-and-title.md); the reason for the sibling rule is in [linear-sibling-guard.md](references/linear-sibling-guard.md).
 3. **Verify and write back.** Run the verification checks, save to `thoughts/shared/prs/`, and write the description and title to GitHub with the Linear sibling-skip guard block from `linear-pr-skip.sh`'s `linear_sibling_skip_block_from_branch` + `linear_sibling_skip_block_from_body`. See [verify-and-writeback.md](references/verify-and-writeback.md).
-4. **Report** whether this was a first-time generation or an incremental update. See [metadata-and-errors.md](references/metadata-and-errors.md), which also covers error handling and the `.catalyst/config.json` schema (`teamKey`, `pr.testCommand`).
+4. **Report** whether this was a first-time generation or an incremental update, and end with the saved file's path on its own last line, so whoever started this run reads the file. See [metadata-and-errors.md](references/metadata-and-errors.md), which also covers error handling and the `.catalyst/config.json` schema (`teamKey`, `pr.testCommand`).

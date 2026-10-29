@@ -19,24 +19,23 @@ version: 1.0.0
 [[ -e thoughts/shared ]] || echo "⚠️ thoughts/shared is missing in $(pwd) — run \`humanlayer thoughts init\` in the repo root, or create the worktree with the create-worktree skill, which does it; if the prompt names an output path, write there" >&2
 if [[ -n "${CATALYST_PHASE:-}" ]]; then echo "unattended: CATALYST_PHASE=$CATALYST_PHASE, so never ask and wait"; fi
 # explicit-input discovery: begin
-# Find the plan to implement on disk for the ticket this run was given: $CATALYST_TICKET under a
-# phase, else a ticket named in the skill's argument text (Claude Code substitutes the token in
-# the heredoc below; another harness leaves it literal, which names no ticket). Nothing is
-# remembered between runs. `[!0-9]` keeps PROJ-1 from matching PROJ-10's documents.
-TICKET_ID="${TICKET_ID:-${CATALYST_TICKET:-}}"
-if [[ -z "$TICKET_ID" ]]; then
-  SKILL_ARGS=$(cat <<'CATALYST_SKILL_ARGS'
+# The plan to implement: a `thoughts/shared/plans/` path in the argument text (Claude Code fills in the
+# token below; elsewhere, use the path the prompt names). Under a phase that path is the only input.
+# Off a phase, else the ticket's newest document, else the newest; `[!0-9]` keeps PROJ-1 off PROJ-10's.
+SKILL_ARGS=$(cat <<'CATALYST_SKILL_ARGS'
 $ARGUMENTS
 CATALYST_SKILL_ARGS
 )
-  TICKET_ID=$(printf '%s' "$SKILL_ARGS" | grep -oE '[A-Z][A-Z0-9]*-[0-9]+' | head -1)
-  [[ -n "$TICKET_ID" ]] || TICKET_ID=$(printf '%s' "$SKILL_ARGS" | tr '[:lower:]' '[:upper:]' | grep -oE '[A-Z][A-Z0-9]*-[0-9]+' | head -1)
-fi
-RECENT_PLAN=""
-if [[ -n "$TICKET_ID" ]]; then
-  RECENT_PLAN=$(find -H thoughts/shared/plans -type f -name '*.md' -ipath "*${TICKET_ID}[!0-9]*" -exec ls -t {} + 2>/dev/null | head -1)
-elif [[ -z "${CATALYST_PHASE:-}" ]]; then
-  RECENT_PLAN=$(find -H thoughts/shared/plans -type f -name '*.md' -exec ls -t {} + 2>/dev/null | head -1)
+RECENT_PLAN=$(printf '%s' "$SKILL_ARGS" | grep -oE '[^[:space:]"()<>`]*thoughts/shared/plans/[^[:space:]"()<>`]+[.]md' | head -1); [[ -f "$RECENT_PLAN" ]] || RECENT_PLAN=""
+TICKET_ID="${TICKET_ID:-${CATALYST_TICKET:-}}"
+[[ -n "$TICKET_ID" ]] || TICKET_ID=$(printf '%s' "$SKILL_ARGS" | grep -oE '[A-Z][A-Z0-9]*-[0-9]+' | head -1)
+[[ -n "$TICKET_ID" ]] || TICKET_ID=$(printf '%s' "$SKILL_ARGS" | tr '[:lower:]' '[:upper:]' | grep -oE '[A-Z][A-Z0-9]*-[0-9]+' | head -1)
+if [[ -z "$RECENT_PLAN" && -z "${CATALYST_PHASE:-}" ]]; then
+  if [[ -n "$TICKET_ID" ]]; then
+    RECENT_PLAN=$(find -H thoughts/shared/plans -type f -name '*.md' -ipath "*${TICKET_ID}[!0-9]*" -exec ls -t {} + 2>/dev/null | head -1)
+  else
+    RECENT_PLAN=$(find -H thoughts/shared/plans -type f -name '*.md' -exec ls -t {} + 2>/dev/null | head -1)
+  fi
 fi
 # explicit-input discovery: end
 if [[ -n "$RECENT_PLAN" ]]; then
@@ -56,7 +55,7 @@ if [[ -n "$SESSION_SCRIPT" ]]; then
 fi
 ```
 
-A plan path passed as an argument wins. When `CATALYST_PHASE` is set, never ask and wait: use that path or the found plan, and with neither, stop and report `no_plan_found`. Otherwise, after `📋 Found plan`, show the path and ask "**Proceed with this plan?** [Y/n]". Otherwise, or on no, list the five most recent plans in `thoughts/shared/plans/` with dates and ticket numbers, and wait for the user to pick one.
+**Input: the plan file.** A plan path passed as an argument wins. When `CATALYST_PHASE` is set, never search and never ask: implement the plan file the arguments or the prompt name, even when other plans for the ticket exist, and with none, stop and report `no_plan_found`. Otherwise, after `📋 Found plan`, show the path and ask "**Proceed with this plan?** [Y/n]". Otherwise, or on no, list the five most recent plans in `thoughts/shared/plans/` with dates and ticket numbers, and wait for the user to pick one.
 
 Read the plan whole (no limit or offset), the ticket in its `source_ticket` frontmatter (this skill moves no ticket; when someone asks for a move, read [references/linear.md](references/linear.md)), and every file it mentions. Checked items (`- [x]`) are done: resume from the first unchecked one. On an adopted branch, where `git fetch origin main && git log --oneline origin/main..HEAD` lists commits before you change anything, run `git merge --no-edit origin/main` first and resolve any conflict as part of this phase. Record the merge commit and main SHA used; later validation must separate main's movement from this plan's changes. Then make a todo list.
 
