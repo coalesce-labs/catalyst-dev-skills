@@ -433,7 +433,7 @@ test("thoughts latest finds the handoff of a ticket whose team key contains digi
   expect(latest.status).toBe(0);
   expect(latest.stdout.trim().endsWith("2026-10-26-ABC2-17-handoff.md")).toBe(true);
 });
-for (const bad of ["abc2-17", "2ABC-17", "ABC2-", "ABC2_17"]) {
+for (const bad of ["abc2-17", "2ABC-17", "ABC2-", "ABC2_17", "ABC2-17x"]) {
   test(`stage and thoughts refuse ${JSON.stringify(bad)} as a ticket id`, () => {
     const f = fixture();
     const start = runAs(bad, "stage", ["start", "research"], f);

@@ -25,8 +25,8 @@ if [[ -z "$TICKET_ID" ]]; then
 $ARGUMENTS
 CATALYST_SKILL_ARGS
 )
-  TICKET_ID=$(printf '%s' "$SKILL_ARGS" | grep -oE '[A-Z]+-[0-9]+' | head -1)
-  [[ -n "$TICKET_ID" ]] || TICKET_ID=$(printf '%s' "$SKILL_ARGS" | tr '[:lower:]' '[:upper:]' | grep -oE '[A-Z]+-[0-9]+' | head -1)
+  TICKET_ID=$(printf '%s' "$SKILL_ARGS" | grep -oE '[A-Z][A-Z0-9]*-[0-9]+' | head -1)
+  [[ -n "$TICKET_ID" ]] || TICKET_ID=$(printf '%s' "$SKILL_ARGS" | tr '[:lower:]' '[:upper:]' | grep -oE '[A-Z][A-Z0-9]*-[0-9]+' | head -1)
 fi
 RECENT_PLAN=""
 if [[ -n "$TICKET_ID" ]]; then
