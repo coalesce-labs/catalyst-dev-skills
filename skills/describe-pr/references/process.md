@@ -24,7 +24,7 @@ gh pr list --limit 10 --json number,title,headRefName,state
 
 ## Step 3 — Extract the ticket reference
 
-Check, in order: branch name, PR title, existing PR body's `Refs: TEAM-NNN` line — each matched against `[A-Z]+-[0-9]+`. First match wins.
+Check, in order: branch name, PR title, existing PR body's `Refs: TEAM-NNN` line — each matched against `[A-Z][A-Z0-9]*-[0-9]+`. First match wins.
 
 ## Step 4 — Read existing descriptions
 
