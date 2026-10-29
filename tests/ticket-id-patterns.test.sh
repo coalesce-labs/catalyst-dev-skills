@@ -25,10 +25,11 @@ SHELLS="bash"
 command -v zsh >/dev/null 2>&1 && SHELLS="bash zsh"
 
 # Pass arguments to the child shell verbatim, without evaluating input as code.
+# The escaped \$1 and \$@ expand in the child shell, not in this one.
 check() {
   local label="$1" expected="$2" got result
   shift 2
-  got="$(env XDG_CONFIG_HOME="$SCRATCH" "$sh" -c 'source "$1"; shift; "$@"' test "$helper" "$@")"
+  got="$(env XDG_CONFIG_HOME="$SCRATCH" "$sh" -c "source \"\$1\"; shift; \"\$@\"" test "$helper" "$@")"
   result=$?
   if [ "$result" -eq 0 ] && [ "$got" = "$expected" ]; then
     ok "$copy [$sh]: $label"
