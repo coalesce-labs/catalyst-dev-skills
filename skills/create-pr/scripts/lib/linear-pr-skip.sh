@@ -16,8 +16,8 @@
 #     team-key allowlist filter for defense in depth.
 #
 #   linear_foreign_tokens_from_body <body> [<body> …]
-#     Canonical-only extraction via `grep -oE '\b[A-Z]+-[0-9]+\b'`. NO prefix
-#     recovery, NO mixed-alpha emission. Prose, dates (2026-05-25), SHAs
+#     Canonical-only extraction via `grep -oE '\b[A-Z][A-Z0-9]*-[0-9]+\b'`. NO prefix
+#     recovery, NO splitting of mixed segments. Prose, dates (2026-05-25), SHAs
 #     (075e1ff5), lowercase pseudo-tokens (oauth2/utf8/abc123/api-v2), and
 #     dashed-date prose cannot fabricate. Canonical body tokens (`see ENG-50`)
 #     are still captured and ALSO filtered through the team-key allowlist —
@@ -91,16 +91,13 @@ linear_foreign_tokens_from_branch() {
 			{
 				# Walk the string char-by-char, accumulating runs of alphanumerics
 				# into segments and remembering the single separator char that
-				# preceded each segment. A pure-alpha segment sets the running team
-				# prefix; a bare number inherits that prefix ONLY when joined to the
-				# prior segment by a single "-" (the same-prefix orch-slug shape
-				# "adv-1155-1156-1157" — never across whitespace or "#", so prose
-				# like "PR #890" cannot fabricate a token). CTL-633: mixed
-				# alpha+num segments ("oauth2", "utf8") used to split into
-				# "OAUTH-2" / "UTF-8" — that was the documented fabrication site.
-				# Now we drop both the emit and the prefix update for mixed-alpha
-				# tokens; legitimate orch slugs (build_orch_name) always hyphenate
-				# alpha and digit, so this loses no real signal.
+				# preceded each segment. A letter-first alphanumeric segment sets
+				# the running team prefix; a bare number inherits it ONLY when
+				# joined to the prior segment by a single "-" (the same-prefix
+				# orch-slug shape "adv-1155-1156-1157", never across whitespace
+				# or "#", so prose like "PR #890" cannot fabricate a token).
+				# Mixed segments such as "oauth2" stay whole: they may be team
+				# keys, but never split into fabricated tokens like "OAUTH-2".
 				line = $0
 				prefix = ""
 				seg = ""
@@ -115,14 +112,13 @@ linear_foreign_tokens_from_branch() {
 						continue
 					}
 					if (seg != "") {
-						if (seg ~ /^[A-Za-z]+$/) {
+						if (seg ~ /^[A-Za-z][A-Za-z0-9]*$/) {
 							prefix = toupper(seg)
 						} else if (seg ~ /^[0-9]+$/) {
 							if (prefix != "" && seg_sep == "-") print prefix "-" seg
 						}
-						# Mixed alpha+num (oauth2, utf8, abc123) is intentionally
-						# ignored: it was the CTL-623 fabrication site that
-						# CTL-633 closes.
+						# Digit-first mixed segments (such as SHAs) neither emit
+						# a token nor update the prefix.
 						seg = ""
 						next_sep = ""
 					}
@@ -130,20 +126,20 @@ linear_foreign_tokens_from_branch() {
 				}
 			}
 		' |
-		grep -E '^[A-Z]+-[0-9]+$' |
+		grep -E '^[A-Z][A-Z0-9]*-[0-9]+$' |
 		sort -u |
 		_pr_skip_filter
 }
 
 # Extract canonical UPPER-cased TEAM-NNN tokens from PR body prose. No prefix
-# recovery, no mixed-alpha emission. \b[A-Z]+-[0-9]+\b requires an UPPER-case
-# alpha prefix glued by exactly one hyphen to a pure-digit tail at word
+# recovery, no splitting of mixed segments. \b[A-Z][A-Z0-9]*-[0-9]+\b requires an UPPER-case
+# letter-first alphanumeric prefix glued by one hyphen to a digit tail at word
 # boundaries — dates, lowercase prose, SHAs, abc123-style pseudo-tokens, and
 # API-v2-style mixed-case collisions can never match. Output also filtered
 # through the team-key allowlist (fail-open).
 linear_foreign_tokens_from_body() {
 	printf '%s\n' "$@" |
-		grep -oE '\b[A-Z]+-[0-9]+\b' |
+		grep -oE '\b[A-Z][A-Z0-9]*-[0-9]+\b' |
 		sort -u |
 		_pr_skip_filter
 }

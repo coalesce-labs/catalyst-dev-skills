@@ -71,14 +71,16 @@ extract_block() {
   ' "${SKILLS_DIR}/$1/SKILL.md"
 }
 
-# make_tree <root> <kind> — four docs with fixed, ordered mtimes:
+# make_tree <root> <kind> — five docs with fixed, ordered mtimes:
 #   ABC-1 old (oldest) < ABC-1 new < ABC-10 lookalike < XYZ-9 (newest overall).
 # The ABC-10 doc is newer than ABC-1's, so a substring match on "ABC-1" would
 # wrongly pick it: the ticket must match on a boundary.
 make_tree() {
   local root="$1" kind="$2" d="$1/thoughts/shared/$2"
   if [ "$kind" = handoffs ]; then
-    mkdir -p "$d/ABC-1" "$d/ABC-10" "$d/XYZ-9"
+    mkdir -p "$d/ABC-1" "$d/ABC-10" "$d/XYZ-9" "$d/ABC2-17"
+    printf 'x\n' > "$d/ABC2-17/2026-01-01_12-00-00_digitkey.md"
+    touch -t 202601011200 "$d/ABC2-17/2026-01-01_12-00-00_digitkey.md"
     printf 'x\n' > "$d/ABC-10/2026-01-02_12-00-00_lookalike.md"
     touch -t 202601021200 "$d/ABC-10/2026-01-02_12-00-00_lookalike.md"
     printf 'x\n' > "$d/ABC-1/2026-01-01_10-00-00_old.md"
@@ -89,6 +91,8 @@ make_tree() {
     touch -t 202601031000 "$d/XYZ-9/2026-01-03_10-00-00_other.md"
   else
     mkdir -p "$d"
+    printf 'x\n' > "$d/2026-01-01-ABC2-17-digitkey.md"
+    touch -t 202601011200 "$d/2026-01-01-ABC2-17-digitkey.md"
     printf 'x\n' > "$d/2026-01-02-ABC-10-lookalike.md"
     touch -t 202601021200 "$d/2026-01-02-ABC-10-lookalike.md"
     printf 'x\n' > "$d/2026-01-01-ABC-1-old.md"
@@ -172,6 +176,19 @@ while IFS='|' read -r skill var kind; do
     case "$got" in
       *ABC-1[/-]*new*) ok "${skill} [${sh}]: a lowercase ticket inside free text with quotes is found and normalized" ;;
       *) fail "${skill} [${sh}]: a lowercase ticket inside free text with quotes is found and normalized" "got '${got}'" ;;
+    esac
+    claude_substitute "$block_file" "ABC2-17" "${block_file}.digitkey"
+    got="$(run_block "$sh" "$tree" "${block_file}.digitkey" "$var")"
+    case "$got" in
+      *ABC2-17[/-]*digitkey*) ok "${skill} [${sh}]: a ticket whose team key contains digits is read from the skill argument" ;;
+      *) fail "${skill} [${sh}]: a ticket whose team key contains digits is read from the skill argument" "got '${got}'" ;;
+    esac
+
+    claude_substitute "$block_file" "pick up abc2-17 next" "${block_file}.digitkey-lower"
+    got="$(run_block "$sh" "$tree" "${block_file}.digitkey-lower" "$var")"
+    case "$got" in
+      *ABC2-17[/-]*digitkey*) ok "${skill} [${sh}]: a lowercase digit-key ticket inside free text is found and normalized" ;;
+      *) fail "${skill} [${sh}]: a lowercase digit-key ticket inside free text is found and normalized" "got '${got}'" ;;
     esac
   done
 done <<READERS_EOF
