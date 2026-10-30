@@ -565,6 +565,11 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 # shellcheck source=lib/worktree-remove-guard.sh
 [ -r "${SCRIPT_DIR}/lib/worktree-remove-guard.sh" ] && source "${SCRIPT_DIR}/lib/worktree-remove-guard.sh"
 
+# Picks the bun package.json declares when PATH finds an older one first (CTC-8661). Without it the
+# install runs the first bun on PATH, as it always did.
+# shellcheck source=lib/bun-pick.sh
+[ -r "${SCRIPT_DIR}/lib/bun-pick.sh" ] && source "${SCRIPT_DIR}/lib/bun-pick.sh"
+
 # _removal_guard_ok <path> — the SINGLE fail-closed predicate the rollback
 # `git worktree remove --force` sites gate on (CTL-1417). Returns 0 (safe to
 # force-remove) ONLY when the guard function loaded AND cleared the path.
@@ -607,14 +612,68 @@ _worktree_rollback_remove() {
 	fi
 }
 
-# _worktree_install_rollback — the guarded rollback a failed dependency
+# _worktree_install_rollback [reason] — the guarded rollback a failed dependency
 # install (`make setup`, `bun install`, `npm install`) runs through, so a
 # failure anywhere in step 1 cleans up the half-built worktree instead of
-# `set -e` aborting the script and leaving it on disk.
+# `set -e` aborting the script and leaving it on disk. A reason names what
+# failed; without one the message is the generic line.
 _worktree_install_rollback() {
-	echo -e "${RED}❌ Setup failed. Cleaning up worktree...${NC}"
+	if [ -n "${1:-}" ]; then
+		echo -e "${RED}❌ Setup failed: $1${NC}"
+		echo -e "${RED}   Cleaning up worktree...${NC}"
+	else
+		echo -e "${RED}❌ Setup failed. Cleaning up worktree...${NC}"
+	fi
 	_worktree_rollback_remove
 	exit 1
+}
+
+# _cw_bun_install <args…> — runs `bun <args…>` for the auto-detected install. bun does not enforce
+# package.json's "packageManager", and an older bun can fail an install with only a warning as its
+# last line (CTC-8661). So when PATH finds a bun older than the declared one first, this installs
+# with a bun on PATH that meets the declared version, says so, and puts a directory holding only
+# that bun first on PATH so lifecycle scripts get it too. With none, it tries the first bun, and a
+# failure names the command, both versions and the path. Without lib/bun-pick.sh, or without a
+# declared X.Y.Z, it runs the first bun as before; a failure still names the bun that ran.
+_cw_bun_install() {
+	local declared="" pick_ok=true shim="" shim_tmp=false rc=0 reason
+	BUN_PICK="$(command -v bun 2>/dev/null)" || BUN_PICK="bun"
+	BUN_PICK_VERSION=""
+	if type catalyst_bun_pick >/dev/null 2>&1 \
+		&& declared="$(catalyst_bun_declared_version "$PACKAGE_MANAGER_FIELD")"; then
+		catalyst_bun_pick "$declared" || pick_ok=false
+		if [ "$BUN_PICK" != "$BUN_PICK_FIRST" ]; then
+			echo -e "${YELLOW}  ⚠️  bun ${BUN_PICK_FIRST_VERSION} at ${BUN_PICK_FIRST} is older than package.json's bun@${declared}; installing with bun ${BUN_PICK_VERSION} at ${BUN_PICK}${NC}"
+			echo "     PATH still finds bun ${BUN_PICK_FIRST_VERSION} first, so a later 'bun install' in this worktree runs it."
+			if shim="$(catalyst_bun_shim_dir "$BUN_PICK")"; then
+				shim_tmp=true
+			else
+				shim="$(dirname "$BUN_PICK")"
+			fi
+		elif [ "$pick_ok" = false ]; then
+			echo -e "${YELLOW}  ⚠️  bun ${BUN_PICK_FIRST_VERSION} at ${BUN_PICK_FIRST} is older than package.json's bun@${declared}, and no bun on PATH is ${declared} or newer; trying it anyway${NC}"
+		fi
+	fi
+	echo "  Running: bun $*"
+	if [ -n "$shim" ]; then
+		PATH="${shim}:${PATH}" "$BUN_PICK" "$@" || rc=$?
+	else
+		bun "$@" || rc=$?
+	fi
+	if [ "$shim_tmp" = true ]; then
+		rm -rf "$shim"
+	fi
+	if [ "$rc" -eq 0 ]; then
+		return 0
+	fi
+	if [ -z "$BUN_PICK_VERSION" ]; then
+		BUN_PICK_VERSION="$(catalyst_bun_version "$BUN_PICK" 2>/dev/null)" || BUN_PICK_VERSION="(version unreadable)"
+	fi
+	reason="'bun $*' exited ${rc} under bun ${BUN_PICK_VERSION} at ${BUN_PICK}"
+	if [ "$pick_ok" = false ]; then
+		reason="${reason}, and package.json declares bun@${declared}. Install bun ${declared}, or put it first on PATH, then create the worktree again"
+	fi
+	_worktree_install_rollback "$reason"
 }
 
 # Keep Catalyst's own worktree-local runtime artifacts (thoughts/,
@@ -1079,15 +1138,13 @@ else
 					# re-resolving and rewriting the lockfile before the worker's
 					# first commit (which could otherwise ride unrelated lockfile
 					# drift into the ticket's diff).
-					echo "  Running: bun install --frozen-lockfile"
-					bun install --frozen-lockfile || _worktree_install_rollback
+					_cw_bun_install install --frozen-lockfile
 				else
 					# No lock committed yet (bun evidence is only the
 					# "packageManager" field) — nothing to freeze against, so a
 					# plain install is correct here rather than a guaranteed
 					# --frozen-lockfile failure.
-					echo "  Running: bun install"
-					bun install || _worktree_install_rollback
+					_cw_bun_install install
 				fi
 			else
 				echo -e "${YELLOW}⚠️  bun not found on PATH — this is a bun-managed project${NC}"
