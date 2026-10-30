@@ -5,8 +5,10 @@
 # container is disposable, and a Codex/OpenCode session has no Claude-only hook
 # to write such state). The four skills that auto-discover a prior document
 # (create-plan, validate-plan, implement-plan, resume-handoff) take
-# explicit input instead: the ticket from the argument or $CATALYST_TICKET, and
-# the newest document for THAT ticket found on disk within the run.
+# explicit input instead. The three stage skills take the document path they are
+# given; under a phase that path is their only input, so a phase never searches.
+# Off a phase, and for resume-handoff, the ticket from the argument or
+# $CATALYST_TICKET selects the newest document for THAT ticket on disk.
 #
 # Two halves:
 #   1. Shape: no skill names workflow-context.
@@ -30,11 +32,13 @@ fail() { FAIL=$((FAIL+1)); printf '  FAIL: %s\n    %s\n' "$1" "${2:-}"; }
 BEGIN_MARK='explicit-input discovery: begin'
 END_MARK='explicit-input discovery: end'
 
-# skill|variable|thoughts kind
-READERS="create-plan|RECENT_RESEARCH|research
-validate-plan|RECENT_PLAN|plans
-implement-plan|RECENT_PLAN|plans
-resume-handoff|RECENT_HANDOFF|handoffs"
+# skill|variable|thoughts kind|under a phase
+# A stage skill (`given`) takes its input only from the path it is given when a phase runs it:
+# a phase never searches. resume-handoff (`ticket`) still finds the ticket's newest handoff.
+READERS="create-plan|RECENT_RESEARCH|research|given
+validate-plan|RECENT_PLAN|plans|given
+implement-plan|RECENT_PLAN|plans|given
+resume-handoff|RECENT_HANDOFF|handoffs|ticket"
 
 for skill in create-plan validate-plan implement-plan resume-handoff create-handoff create-pr; do
   [ -f "${SKILLS_DIR}/${skill}/SKILL.md" ] || { echo "FATAL: subject not found: ${skill}/SKILL.md" >&2; exit 1; }
@@ -122,7 +126,7 @@ SHELLS="bash"
 command -v zsh >/dev/null 2>&1 && SHELLS="bash zsh"
 
 ITERATIONS=0
-while IFS='|' read -r skill var kind; do
+while IFS='|' read -r skill var kind phase_input; do
   ITERATIONS=$((ITERATIONS+1))
   echo ""
   echo "${skill}: discovers ${kind} for the ticket it was given"
@@ -138,10 +142,41 @@ while IFS='|' read -r skill var kind; do
   make_tree "$tree" "$kind"
   for sh in $SHELLS; do
     got="$(run_block "$sh" "$tree" "$block_file" "$var" CATALYST_PHASE=plan CATALYST_TICKET=ABC-1)"
-    case "$got" in
-      *ABC-1[/-]*new*) ok "${skill} [${sh}]: under a phase, \$CATALYST_TICKET selects that ticket's newest doc" ;;
-      *) fail "${skill} [${sh}]: under a phase, \$CATALYST_TICKET selects that ticket's newest doc" "got '${got}'" ;;
-    esac
+    if [ "$phase_input" = given ]; then
+      if [ -z "$got" ]; then
+        ok "${skill} [${sh}]: under a phase, \$CATALYST_TICKET alone finds nothing, because a phase never searches"
+      else
+        fail "${skill} [${sh}]: under a phase, \$CATALYST_TICKET alone finds nothing, because a phase never searches" "got '${got}'"
+      fi
+
+      # The given document is ABC-1's OLDER one, so a run that searched would pick another.
+      given="thoughts/shared/${kind}/2026-01-01-ABC-1-old.md"
+      claude_substitute "$block_file" "Use \`${given}\` for ABC-1" "${block_file}.given"
+      got="$(run_block "$sh" "$tree" "${block_file}.given" "$var" CATALYST_PHASE=plan CATALYST_TICKET=ABC-1)"
+      case "$got" in
+        "$given") ok "${skill} [${sh}]: under a phase, the path given as the argument is the input, not the ticket's newest" ;;
+        *) fail "${skill} [${sh}]: under a phase, the path given as the argument is the input, not the ticket's newest" "got '${got}'" ;;
+      esac
+
+      got="$(run_block "$sh" "$tree" "${block_file}.given" "$var")"
+      case "$got" in
+        "$given") ok "${skill} [${sh}]: interactive, a given path wins over discovery" ;;
+        *) fail "${skill} [${sh}]: interactive, a given path wins over discovery" "got '${got}'" ;;
+      esac
+
+      claude_substitute "$block_file" "thoughts/shared/${kind}/2026-01-09-ABC-1-missing.md" "${block_file}.absent"
+      got="$(run_block "$sh" "$tree" "${block_file}.absent" "$var" CATALYST_PHASE=plan CATALYST_TICKET=ABC-1)"
+      if [ -z "$got" ]; then
+        ok "${skill} [${sh}]: under a phase, a given path with no file behind it is no input"
+      else
+        fail "${skill} [${sh}]: under a phase, a given path with no file behind it is no input" "got '${got}'"
+      fi
+    else
+      case "$got" in
+        *ABC-1[/-]*new*) ok "${skill} [${sh}]: under a phase, \$CATALYST_TICKET selects that ticket's newest doc" ;;
+        *) fail "${skill} [${sh}]: under a phase, \$CATALYST_TICKET selects that ticket's newest doc" "got '${got}'" ;;
+      esac
+    fi
 
     got="$(run_block "$sh" "$tree" "$block_file" "$var" TICKET_ID=ABC-1)"
     case "$got" in

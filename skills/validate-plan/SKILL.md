@@ -2,7 +2,7 @@
 name: validate-plan
 description: "Validate that an implementation plan was executed: every phase done and every success criterion met. **ALWAYS use when** the user says 'validate the plan', 'check if the plan was implemented correctly', 'verify the implementation', or after the implement-plan skill completes."
 disable-model-invocation: false
-allowed-tools: Read, Grep, Glob, Bash, Task
+allowed-tools: Read, Write, Grep, Glob, Bash, Task
 version: 1.0.0
 ---
 
@@ -15,24 +15,23 @@ version: 1.0.0
 [[ -e thoughts/shared ]] || echo "⚠️ thoughts/shared is missing in $(pwd) — run \`humanlayer thoughts init\`; if the prompt names an output path, write there" >&2
 if [[ -n "${CATALYST_PHASE:-}" ]]; then echo "unattended: CATALYST_PHASE=$CATALYST_PHASE, so never ask and wait"; fi
 # explicit-input discovery: begin
-# Find the plan to validate on disk for the ticket this run was given: $CATALYST_TICKET under a
-# phase, else a ticket named in the skill's argument text (Claude Code substitutes the token in
-# the heredoc below; another harness leaves it literal, which names no ticket). Nothing is
-# remembered between runs. `[!0-9]` keeps PROJ-1 from matching PROJ-10's documents.
-TICKET_ID="${TICKET_ID:-${CATALYST_TICKET:-}}"
-if [[ -z "$TICKET_ID" ]]; then
-  SKILL_ARGS=$(cat <<'CATALYST_SKILL_ARGS'
+# The plan to validate: a `thoughts/shared/plans/` path in the argument text (Claude Code fills in the
+# token below; elsewhere, use the path the prompt names). Under a phase that path is the only input.
+# Off a phase, else the ticket's newest document, else the newest; `[!0-9]` keeps PROJ-1 off PROJ-10's.
+SKILL_ARGS=$(cat <<'CATALYST_SKILL_ARGS'
 $ARGUMENTS
 CATALYST_SKILL_ARGS
 )
-  TICKET_ID=$(printf '%s' "$SKILL_ARGS" | grep -oE '[A-Z][A-Z0-9]*-[0-9]+' | head -1)
-  [[ -n "$TICKET_ID" ]] || TICKET_ID=$(printf '%s' "$SKILL_ARGS" | tr '[:lower:]' '[:upper:]' | grep -oE '[A-Z][A-Z0-9]*-[0-9]+' | head -1)
-fi
-RECENT_PLAN=""
-if [[ -n "$TICKET_ID" ]]; then
-  RECENT_PLAN=$(find -H thoughts/shared/plans -type f -name '*.md' -ipath "*${TICKET_ID}[!0-9]*" -exec ls -t {} + 2>/dev/null | head -1)
-elif [[ -z "${CATALYST_PHASE:-}" ]]; then
-  RECENT_PLAN=$(find -H thoughts/shared/plans -type f -name '*.md' -exec ls -t {} + 2>/dev/null | head -1)
+RECENT_PLAN=$(printf '%s' "$SKILL_ARGS" | grep -oE '[^[:space:]"()<>`]*thoughts/shared/plans/[^[:space:]"()<>`]+[.]md' | head -1); [[ -f "$RECENT_PLAN" ]] || RECENT_PLAN=""
+TICKET_ID="${TICKET_ID:-${CATALYST_TICKET:-}}"
+[[ -n "$TICKET_ID" ]] || TICKET_ID=$(printf '%s' "$SKILL_ARGS" | grep -oE '[A-Z][A-Z0-9]*-[0-9]+' | head -1)
+[[ -n "$TICKET_ID" ]] || TICKET_ID=$(printf '%s' "$SKILL_ARGS" | tr '[:lower:]' '[:upper:]' | grep -oE '[A-Z][A-Z0-9]*-[0-9]+' | head -1)
+if [[ -z "$RECENT_PLAN" && -z "${CATALYST_PHASE:-}" ]]; then
+  if [[ -n "$TICKET_ID" ]]; then
+    RECENT_PLAN=$(find -H thoughts/shared/plans -type f -name '*.md' -ipath "*${TICKET_ID}[!0-9]*" -exec ls -t {} + 2>/dev/null | head -1)
+  else
+    RECENT_PLAN=$(find -H thoughts/shared/plans -type f -name '*.md' -exec ls -t {} + 2>/dev/null | head -1)
+  fi
 fi
 # explicit-input discovery: end
 if [[ -n "$RECENT_PLAN" ]]; then
@@ -42,7 +41,7 @@ else
 fi
 ```
 
-A plan path argument wins. When `CATALYST_PHASE` is set, never ask and wait: use that path or the found plan, and with neither, stop and report `no_plan_found`. Otherwise, after `📋 Found plan`, show the path and ask "**Validate this plan?** [Y/n]". Otherwise, or on no, search recent commits for plan references, list the plans in `thoughts/shared/plans/`, and ask which to validate.
+**Inputs: the plan file and the PR.** A plan path argument wins, and the PR is the number or URL the arguments name (else the current branch's PR, `gh pr view --json number`). When `CATALYST_PHASE` is set, never search and never ask: validate the plan file the arguments or the prompt name, and with none, stop and report `no_plan_found`. Otherwise, after `📋 Found plan`, show the path and ask "**Validate this plan?** [Y/n]". Otherwise, or on no, search recent commits for plan references, list the plans in `thoughts/shared/plans/`, and ask which to validate.
 
 ## 2. Gather evidence
 
@@ -62,7 +61,7 @@ Confirm that every phase checked off (`- [x]`) has matching code and every "Auto
 
 ## 4. Write the Validation Report
 
-Render the report as your response; this skill writes no file.
+Write the report to `thoughts/shared/validations/YYYY-MM-DD-<TICKET>-<slug>.md`, where `<TICKET>` is the plan's `source_ticket` and `<slug>` is a few words from the plan's name (`YYYY-MM-DD-<slug>.md` with no ticket). Write only under `thoughts/shared/validations/`; `thoughts/searchable/` is a read-only index. Give it `source_ticket`, `repository`, `plan` and `pr` frontmatter. Then run `humanlayer thoughts sync`, which commits and pushes the thoughts repo, show the report, and end with the file's path on its own last line, so whoever started this run can read the file rather than this conversation.
 
 ```markdown
 # Validation Report: {Feature Name}

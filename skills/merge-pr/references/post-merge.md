@@ -5,8 +5,10 @@ _Covers extracting post-merge tasks from the PR description, deployment workflow
 ## Step 12 — Extract post-merge tasks
 
 ```bash
-desc_file="thoughts/shared/prs/${pr_number}_description.md"
-if [ -f "$desc_file" ]; then
+pr_file=$(find thoughts/shared/prs -maxdepth 1 -type f -name "*-pr-${pr_number}.md" -exec ls -t {} + 2>/dev/null | head -1)
+[[ -n "$pr_file" ]] || { [[ -f "thoughts/shared/prs/${pr_number}_description.md" ]] && pr_file="thoughts/shared/prs/${pr_number}_description.md"; }
+desc_file="$pr_file"
+if [ -n "$desc_file" ] && [ -f "$desc_file" ]; then
     tasks=$(sed -n '/## Post-Merge Tasks/,/^##/p' "$desc_file" | grep -E '^\- \[')
 fi
 ```

@@ -28,7 +28,14 @@ Check, in order: branch name, PR title, existing PR body's `Refs: TEAM-NNN` line
 
 ## Step 4 — Read existing descriptions
 
-Read the current PR body from GitHub (`gh pr view $pr_number --json body -q .body`) and the saved description at `thoughts/shared/prs/${pr_number}_description.md` if it exists. Check for the metadata header (`<!-- Auto-generated -->`, `<!-- Previous commits: -->`) to determine whether this is a first-time generation or an incremental update.
+Read the current PR body from GitHub (`gh pr view $pr_number --json body -q .body`) and the saved description for this PR if one exists:
+
+```bash
+pr_file=$(find thoughts/shared/prs -maxdepth 1 -type f -name "*-pr-${pr_number}.md" -exec ls -t {} + 2>/dev/null | head -1)
+[[ -n "$pr_file" ]] || { [[ -f "thoughts/shared/prs/${pr_number}_description.md" ]] && pr_file="thoughts/shared/prs/${pr_number}_description.md"; }
+```
+
+Check for the metadata header (`<!-- Auto-generated -->`, `<!-- Previous commits: -->`) to determine whether this is a first-time generation or an incremental update.
 
 ## Step 5 — Gather comprehensive PR information
 

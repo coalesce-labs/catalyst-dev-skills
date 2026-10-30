@@ -6,10 +6,13 @@ For each checklist item in "How to Verify It" (e.g. `- [ ] Build passes: \`make 
 
 ## Step 11 — Save and sync
 
-Always write to `thoughts/shared/prs/` — never to `thoughts/searchable/` (read-only index).
+Always write to `thoughts/shared/prs/` — never to `thoughts/searchable/` (read-only index). The file is `YYYY-MM-DD-<TICKET>-pr-<number>.md`, dated the day it was first written; an update rewrites the PR's existing file (or one saved under the older `<number>_description.md` name) rather than starting a new one.
 
 ```bash
-cat > "thoughts/shared/prs/${pr_number}_description.md" <<EOF
+pr_file=$(find thoughts/shared/prs -maxdepth 1 -type f -name "*-pr-${pr_number}.md" -exec ls -t {} + 2>/dev/null | head -1)
+[[ -n "$pr_file" ]] || { [[ -f "thoughts/shared/prs/${pr_number}_description.md" ]] && pr_file="thoughts/shared/prs/${pr_number}_description.md"; }
+[[ -n "$pr_file" ]] || pr_file="thoughts/shared/prs/$(date -u +%Y-%m-%d)-${ticket:+${ticket}-}pr-${pr_number}.md"
+cat > "$pr_file" <<EOF
 <!-- Auto-generated: $(date -u +%Y-%m-%dT%H:%M:%SZ) -->
 <!-- Last updated: $(date -u +%Y-%m-%dT%H:%M:%SZ) -->
 <!-- PR: #$pr_number -->
@@ -17,7 +20,7 @@ cat > "thoughts/shared/prs/${pr_number}_description.md" <<EOF
 
 [Full description content]
 EOF
-humanlayer thoughts sync
+humanlayer thoughts sync   # commits and pushes the thoughts repo
 ```
 
 ## Step 12 — Update the PR on GitHub
@@ -27,7 +30,7 @@ humanlayer thoughts sync
 ```bash
 gh pr edit $pr_number --title "$new_title"
 
-body_file="thoughts/shared/prs/${pr_number}_description.md"
+body_file="$pr_file"
 
 # shellcheck source=/dev/null
 source "${CLAUDE_SKILL_DIR}/scripts/lib/linear-pr-skip.sh"
@@ -38,7 +41,7 @@ skip_block="$( {
 } | awk '/^skip /{if(!seen[$0]++) print; next} {if(!h){print; h=1}}' )"
 [[ -n "$skip_block" ]] && printf '\n%s\n' "$skip_block" >>"$body_file"
 
-gh pr edit $pr_number --body-file "thoughts/shared/prs/${pr_number}_description.md"
+gh pr edit $pr_number --body-file "$pr_file"
 ```
 
 This is a **call site**, not the guard's rationale — see [linear-sibling-guard.md](linear-sibling-guard.md) for why both modes run here and what the dedup does.
