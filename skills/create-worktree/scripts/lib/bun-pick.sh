@@ -46,6 +46,9 @@ catalyst_semver_lt() {
 # the declared version; BUN_PICK is then the first bun.
 catalyst_bun_pick() {
 	local want="$1" cand v newer="" newer_v=""
+	# The four BUN_PICK* variables are this library's output interface, read by the sourcing
+	# script after this returns; export marks that use for shellcheck (SC2034), which cannot see it.
+	export BUN_PICK BUN_PICK_VERSION BUN_PICK_FIRST BUN_PICK_FIRST_VERSION
 	BUN_PICK_FIRST="$(command -v bun 2>/dev/null)" || BUN_PICK_FIRST=""
 	case "$BUN_PICK_FIRST" in "" | /*) ;; *) BUN_PICK_FIRST="$PWD/$BUN_PICK_FIRST" ;; esac
 	BUN_PICK_FIRST_VERSION="$(catalyst_bun_version "$BUN_PICK_FIRST")" || BUN_PICK_FIRST_VERSION=""

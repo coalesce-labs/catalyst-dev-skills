@@ -567,7 +567,7 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
 # Picks the bun package.json declares when PATH finds an older one first (CTC-8661). Without it the
 # install runs the first bun on PATH, as it always did.
-# shellcheck source=lib/bun-pick.sh
+# shellcheck source-path=SCRIPTDIR
 [ -r "${SCRIPT_DIR}/lib/bun-pick.sh" ] && source "${SCRIPT_DIR}/lib/bun-pick.sh"
 
 # _removal_guard_ok <path> — the SINGLE fail-closed predicate the rollback
