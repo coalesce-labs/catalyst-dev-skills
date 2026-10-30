@@ -3,6 +3,7 @@
   "files": [
     "scripts/catalyst-thoughts.sh",
     "scripts/create-worktree.sh",
+    "scripts/lib/bun-pick.sh",
     "scripts/lib/canonical-event.sh",
     "scripts/lib/catalyst-paths.sh",
     "scripts/lib/catalyst-secret-contract.sh",
