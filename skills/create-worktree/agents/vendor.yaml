@@ -19,3 +19,4 @@ files:
   - scripts/lib/host-identity.sh
   - scripts/lib/catalyst-version.sh
   - scripts/lib/thoughts-location.sh
+  - scripts/lib/bun-pick.sh
