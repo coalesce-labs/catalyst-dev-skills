@@ -18,31 +18,30 @@ Build the plan with the person and get their agreement at each step; when `CATAL
 
 ## Start
 
-Run this, then start session tracking as [references/session-tracking.md](references/session-tracking.md) shows. When `CATALYST_PHASE` is set, never ask and wait: plan from the input or the research the block found, and record each choice you make in the plan.
+Run this, then start session tracking as [references/session-tracking.md](references/session-tracking.md) shows. When `CATALYST_PHASE` is set, never search and never ask: plan from the research file the arguments or the prompt name (with none, from the ticket alone, saying so in the plan), and record each choice you make in the plan.
 
 ```bash
 # Thoughts must exist for this skill's documents. That is the only host check here: the skill runs anywhere.
 [[ -e thoughts/shared ]] || echo "⚠️ thoughts/shared is missing in $(pwd) — run \`humanlayer thoughts init\` in the repo root, or create the worktree with the create-worktree skill, which does it; if the prompt names an output path, write there" >&2
 if [[ -n "${CATALYST_PHASE:-}" ]]; then echo "unattended: CATALYST_PHASE=$CATALYST_PHASE, so never ask and wait"; fi
 # explicit-input discovery: begin
-# Find the research to plan from on disk for the ticket this run was given: $CATALYST_TICKET under a
-# phase, else a ticket named in the skill's argument text (Claude Code substitutes the token in
-# the heredoc below; another harness leaves it literal, which names no ticket). Nothing is
-# remembered between runs. `[!0-9]` keeps PROJ-1 from matching PROJ-10's documents.
-TICKET_ID="${TICKET_ID:-${CATALYST_TICKET:-}}"
-if [[ -z "$TICKET_ID" ]]; then
-  SKILL_ARGS=$(cat <<'CATALYST_SKILL_ARGS'
+# The research to plan from: a `thoughts/shared/research/` path in the argument text (Claude Code fills in the
+# token below; elsewhere, use the path the prompt names). Under a phase that path is the only input.
+# Off a phase, else the ticket's newest document, else the newest; `[!0-9]` keeps PROJ-1 off PROJ-10's.
+SKILL_ARGS=$(cat <<'CATALYST_SKILL_ARGS'
 $ARGUMENTS
 CATALYST_SKILL_ARGS
 )
-  TICKET_ID=$(printf '%s' "$SKILL_ARGS" | grep -oE '[A-Z][A-Z0-9]*-[0-9]+' | head -1)
-  [[ -n "$TICKET_ID" ]] || TICKET_ID=$(printf '%s' "$SKILL_ARGS" | tr '[:lower:]' '[:upper:]' | grep -oE '[A-Z][A-Z0-9]*-[0-9]+' | head -1)
-fi
-RECENT_RESEARCH=""
-if [[ -n "$TICKET_ID" ]]; then
-  RECENT_RESEARCH=$(find -H thoughts/shared/research -type f -name '*.md' -ipath "*${TICKET_ID}[!0-9]*" -exec ls -t {} + 2>/dev/null | head -1)
-elif [[ -z "${CATALYST_PHASE:-}" ]]; then
-  RECENT_RESEARCH=$(find -H thoughts/shared/research -type f -name '*.md' -exec ls -t {} + 2>/dev/null | head -1)
+RECENT_RESEARCH=$(printf '%s' "$SKILL_ARGS" | grep -oE '[^[:space:]"()<>`]*thoughts/shared/research/[^[:space:]"()<>`]+[.]md' | head -1); [[ -f "$RECENT_RESEARCH" ]] || RECENT_RESEARCH=""
+TICKET_ID="${TICKET_ID:-${CATALYST_TICKET:-}}"
+[[ -n "$TICKET_ID" ]] || TICKET_ID=$(printf '%s' "$SKILL_ARGS" | grep -oE '[A-Z][A-Z0-9]*-[0-9]+' | head -1)
+[[ -n "$TICKET_ID" ]] || TICKET_ID=$(printf '%s' "$SKILL_ARGS" | tr '[:lower:]' '[:upper:]' | grep -oE '[A-Z][A-Z0-9]*-[0-9]+' | head -1)
+if [[ -z "$RECENT_RESEARCH" && -z "${CATALYST_PHASE:-}" ]]; then
+  if [[ -n "$TICKET_ID" ]]; then
+    RECENT_RESEARCH=$(find -H thoughts/shared/research -type f -name '*.md' -ipath "*${TICKET_ID}[!0-9]*" -exec ls -t {} + 2>/dev/null | head -1)
+  else
+    RECENT_RESEARCH=$(find -H thoughts/shared/research -type f -name '*.md' -exec ls -t {} + 2>/dev/null | head -1)
+  fi
 fi
 # explicit-input discovery: end
 if [[ -n "$RECENT_RESEARCH" ]]; then
@@ -63,9 +62,9 @@ When `CATALYST_PHASE` is set, never ask and wait at any step below: take the app
 1. **Gather context.** Read every mentioned file yourself, in full (no limit or offset), before spawning subagents. Take the ticket from the research's `source_ticket`, the argument, or the conversation. Run `codebase-locator`, `codebase-analyzer` and `thoughts-locator` scoped to the ticket (the `research-codebase` skill's agents) and read what they find in full. Check the requirements against the code, present your understanding with file:line references, and ask only what the code cannot answer.
 2. **Research.** Track the work in TodoWrite and run in parallel `codebase-locator`, `codebase-analyzer`, `codebase-pattern-finder`, `external-research` (framework patterns), `thoughts-locator` and `thoughts-analyzer`. Each agent's instructions ship as `${CLAUDE_SKILL_DIR}/assets/agents/<name>.md`; run a subagent with that file plus your request, or do the task inline when the harness has no subagents. Wait for all of them, then present design options with pros and cons.
 3. **Outline.** Once you agree on an approach, show the phases and what each does, and get feedback before writing details.
-4. **Write.** Save to `thoughts/shared/plans/YYYY-MM-DD-PROJ-123-description.md`, or `YYYY-MM-DD-description.md` with no ticket, where `PROJ` is the team prefix in `.catalyst/config.json`. Write only under `thoughts/shared/plans/`; `thoughts/searchable/` is a read-only index. Before capturing metadata, fetch `origin/main`. Record the full `git rev-parse HEAD`, branch, fetched `origin/main` SHA, and `git merge-base origin/main HEAD` in the frontmatter. The merge-base is the plan's main baseline; never substitute a short SHA. Fill the template in [references/plan-template.md](references/plan-template.md): every phase runs Red, Green, Refactor, and success criteria split into Automated Verification (prefer `make check`) and Manual Verification. Resolve every open question before saving.
-5. **Review.** Run `humanlayer thoughts sync`, show the plan's path, and ask whether the phases are scoped right, the criteria specific, and any edge case missing. Revise until the person is satisfied, syncing after each change. Above 60% context, recommend clearing before implementation.
-6. **Hand off.** End session tracking, then tell the person to start a fresh session and use the implement-plan skill with `[--team] thoughts/shared/plans/{PLAN_FILENAME}`. Add `--team` for 3+ parallel phases in distinct domains with non-overlapping files, or 10+ files.
+4. **Write.** Save to `thoughts/shared/plans/YYYY-MM-DD-PROJ-123-description.md` (always this form under a phase, which knows its ticket), or `YYYY-MM-DD-description.md` with no ticket, where `PROJ` is the team prefix in `.catalyst/config.json`. Write only under `thoughts/shared/plans/`; `thoughts/searchable/` is a read-only index. Before capturing metadata, fetch `origin/main`. Record the full `git rev-parse HEAD`, branch, fetched `origin/main` SHA, and `git merge-base origin/main HEAD` in the frontmatter. The merge-base is the plan's main baseline; never substitute a short SHA. Fill the template in [references/plan-template.md](references/plan-template.md): every phase runs Red, Green, Refactor, and success criteria split into Automated Verification (prefer `make check`) and Manual Verification. Resolve every open question before saving.
+5. **Review.** Run `humanlayer thoughts sync`, which commits and pushes the thoughts repo, show the plan's path, and ask whether the phases are scoped right, the criteria specific, and any edge case missing. Revise until the person is satisfied, syncing after each change. Above 60% context, recommend clearing before implementation.
+6. **Hand off.** End session tracking. Under a phase, end your report with the plan's path on its own last line, so whoever started this run reads the file. Otherwise tell the person to start a fresh session and use the implement-plan skill with `[--team] thoughts/shared/plans/{PLAN_FILENAME}`. Add `--team` for 3+ parallel phases in distinct domains with non-overlapping files, or 10+ files.
 
 Planning moves no ticket; a person who asks for a move uses `catalyst write state <ID> --slot <slot>` (the Cloud pack's `catalyst-linear` skill); off the cloud, an operator moves it with the Linearis CLI directly. Once the plan is saved, comment its path on the ticket through the app actor: `catalyst write comment <ID>` on a Catalyst Cloud account; off the cloud, an operator posts it as the app actor. Bare `linearis issues discuss`/`reply` posts as the token's owner, so leave it unused. Skip the comment when `CATALYST_PHASE` is set, and skip silently when `command -v catalyst` and `command -v linearis` both fail.
 
