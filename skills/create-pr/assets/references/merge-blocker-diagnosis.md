@@ -21,12 +21,14 @@ The goal is to satisfy branch protection requirements, not circumvent them. If a
 
 The most common agent error is **confusing unresolved review threads with "needs approving reviewer"** and then stopping, telling the user they need to approve the PR.
 
-**Unresolved threads** (from Codex, security scanners, linters, or human reviewers) are comments that create review threads on specific lines of code. These block merge when branch protection requires conversation resolution. **The agent CAN and MUST resolve these** by:
+**Unresolved threads** (from Codex, security scanners, linters, or human reviewers) are comments that create review threads on specific lines of code. These block merge when branch protection requires conversation resolution. **The agent CAN and MUST work these** by:
 
 1. Reading the comment and understanding the feedback
 2. Implementing the requested code change (or drafting a reply if it's a question)
-3. Pushing the fix
+3. Pushing the fix, then replying `Fixed in <sha>: <one line>` in the thread
 4. Resolving the thread via GraphQL `resolveReviewThread` mutation
+
+A finding left unfixed gets a reply with the reason or the follow-up ticket id. An automated reviewer's deferred finding is then resolved; a human reviewer's stays open until they agree, and is reported as a blocker. The rules are in `review-thread-resolution.md`.
 
 **Review required** means no approving reviews exist and branch protection requires at least one. This is a genuine human gate — the agent cannot approve its own PR.
 

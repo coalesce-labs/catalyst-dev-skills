@@ -2,8 +2,8 @@
 
 Headless mode is on when `CATALYST_PHASE` is set or `--headless` is passed. It is safe for `claude --bg` workers, which have no stdin.
 
-- **Addressable findings** (code change requested, clear fix): address in code and resolve the thread via the `resolveReviewThread` mutation, as in interactive mode.
-- **Deferred findings** (bot-authored, non-judgment-call P2/P3): same in both modes. File the follow-up ticket, reply, resolve the thread (`references/deferring.md`).
+- **Addressable findings** (code change requested, clear fix): address in code, reply `Fixed in <sha>: <one line>` in the thread after the push, and resolve it via the `resolveReviewThread` mutation, as in interactive mode.
+- **Deferred findings** (bot-authored, non-judgment-call P2/P3): same in both modes. File the follow-up ticket, reply with its id, resolve the thread (`references/deferring.md`).
 - **Disagreement / judgment-call findings:** skip the `Post this reply? [y/N]` prompt. Leave the thread unresolved and append a structured record to the ticket's worker directory under the orchestrator dir:
   `${CATALYST_ORCHESTRATOR_DIR:-${ORCH_DIR:-.}}/workers/${CATALYST_TICKET:-unknown}/.review-escalations.jsonl`:
   ```json
