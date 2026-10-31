@@ -72,12 +72,12 @@ mutation($threadId: ID!) {
 | Outcome | Action |
 |---------|--------|
 | **Fixed**, any reviewer | Reply `Fixed in <sha>: <one line>`, then resolve |
-| **Not fixed** (disagreement, deferral, out of scope), from a person or a review agent that answers replies | Reply with the reason or the follow-up ticket id; leave it open until that reviewer or the PR owner agrees |
-| **Deferred** from an automated review app that does not answer replies, with the follow-up ticket filed | Reply with the ticket id, then resolve |
+| **Not fixed** (disagreement, deferral, out of scope), from any author that is not an automated reviewer | Reply with the reason or the follow-up ticket id; leave it open until that reviewer or the PR owner agrees |
+| **Deferred** from an automated reviewer, with the follow-up ticket filed | Reply with the ticket id, then resolve |
 | **Approval / praise** | Already not blocking — skip |
 | **Could not address** | Do NOT resolve — leave for human review |
 
-Tell them apart by who answers, not by the login type: a review agent can post through a GitHub App too. When you cannot tell, leave the thread open.
+An **automated reviewer** is the repository's configured code-review bot (merge-pr's `BOT_LOGIN`, for example `chatgpt-codex-connector[bot]`), a security scanner or a linter. Every other author counts as a reviewer who must agree: a person, or a review agent posting on someone's behalf, even through a GitHub App.
 
 ## Step 4: Verify
 

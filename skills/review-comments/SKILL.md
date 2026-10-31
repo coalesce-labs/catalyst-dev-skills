@@ -71,7 +71,7 @@ Follow `"${CLAUDE_SKILL_DIR}/assets/references/review-thread-resolution.md"`: fe
 
 - **Fixed:** reply `Fixed in <sha>: <one line>` in every thread the pushed commit fixes, then resolve it.
 - **Deferred** (an automated reviewer's finding, per `references/deferring.md`): reply with the follow-up ticket id, then resolve it.
-- **Answered without a fix** (a disagreement or clarification): reply with the reason and leave the thread open until that reviewer or the PR owner agrees.
+- **Answered without a fix** (a disagreement or clarification) for any author that is not an automated reviewer: reply with the reason and leave the thread open until that reviewer or the PR owner agrees.
 - **Could not address:** leave it unresolved for human review.
 
 ## Output
