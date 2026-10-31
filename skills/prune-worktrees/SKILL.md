@@ -38,8 +38,8 @@ Every leaf lands in one class. To explain a verdict, a removal step or a restore
 
 | Class | Meaning | Verdict |
 |---|---|---|
-| `PROTECTED` | a `deploy-`/`release-`/`-R<n>` name or branch, `.catalyst/keep-worktree`, or listed in `<worktrees root>/.keep-worktrees` | never touched, `remove` included |
-| `LIVE` | a process has its cwd inside the tree | never touched |
+| `PROTECTED` | a protected name or branch, a keep file or list entry, or a LaunchAgent, LaunchDaemon or current-user crontab reference into the tree | never touched, `remove` included |
+| `LIVE` | a process has its cwd in the tree or names a path in the tree in its arguments | never touched |
 | `ACTIVE` | open PR, locked, or young with no evidence | human review only |
 | `MERGED` / `CLOSED_NO_MERGE` | its PR merged, or closed unmerged | auto-prunable |
 | `HEAD_IN_MAIN` | no PR, HEAD already in origin's default branch | auto-prunable |
@@ -47,7 +47,9 @@ Every leaf lands in one class. To explain a verdict, a removal step or a restore
 | `TICKET_SHIPPED` | no PR of its own; its ticket has a merged PR, none open | only with `--include-shipped` |
 | `TICKET_DONE` | no open PR; its ticket is Done, Canceled or Duplicate | only with `--include-shipped` |
 
-If the process scan fails, every tree counts as LIVE, nothing is removed, and the run exits 3. A tree touched in the last 6 h, or with any change outside the residue list, is kept. Remote branches are never deleted.
+Scheduled jobs protect a tree even while idle. The scanner checks ~/Library/LaunchAgents and readable /Library/LaunchAgents and /Library/LaunchDaemons plists, plus the invoking user's crontab. It resolves symlinked paths before matching. Read the named job or crontab entry before changing a dependency. Use the scanner for every removal; a --why reason does not bypass protection.
+
+If the scheduler scan fails, removal is refused and scan/apply exit 3. If the process scan fails, every tree counts as LIVE, nothing is removed, and the run exits 3. A tree touched in the last 6 h, or with any change outside the residue list, is kept. Remote branches are never deleted.
 
 ## Workflow
 
@@ -57,4 +59,4 @@ If the process scan fails, every tree counts as LIVE, nothing is removed, and th
 
 ## Environment
 
-`bun`, `git` and an authenticated `gh` (a repo whose `gh pr list` fails twice gets no PR evidence and nothing in it is removed). macOS needs `lsof`; Linux reads `/proc`. Tunables: `CATALYST_WORKTREE_STALE_DAYS` (14), `CATALYST_PRUNE_RECENT_HOURS` (6), `CATALYST_PRUNE_LINEARIS_MAX` (100).
+`bun`, `git` and an authenticated `gh` (a repo whose `gh pr list` fails twice gets no PR evidence and nothing in it is removed). macOS needs `lsof`, `ps` and `plutil`; Linux reads `/proc`. Missing `crontab` is reported as a visibility limit. Tunables: `CATALYST_WORKTREE_STALE_DAYS` (14), `CATALYST_PRUNE_RECENT_HOURS` (6), `CATALYST_PRUNE_LINEARIS_MAX` (100).
