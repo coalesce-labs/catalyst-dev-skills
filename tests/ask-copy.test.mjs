@@ -35,6 +35,7 @@ describe("askCopyFindings: agent-decidable", () => {
     "Publishing is a public release, and public releases need your go.",
     "We create the flag at shadow when you say yes.",
     "May we ship the release on Monday?",
+    "May we merge once the tests pass?",
   ])("passes %p", (text) => {
     expect(rules(text)).toEqual([]);
   });
