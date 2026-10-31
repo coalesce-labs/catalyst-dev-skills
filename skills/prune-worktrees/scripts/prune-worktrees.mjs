@@ -28,7 +28,7 @@
 //   * Removal needs positive evidence: a PR MERGED or CLOSED unmerged, HEAD
 //     already in origin's default branch, or (with --include-shipped) the
 //     ticket shipped or Done in Linear. STALE needs --include-stale.
-//   * LIVE: any process whose cwd is inside a tree protects it. The scan runs
+//   * LIVE: any visible process cwd or argument inside a tree protects it. The scan runs
 //     once per run and again right before each removal. If the scan fails,
 //     every tree is treated as LIVE and nothing is removed.
 //   * `git worktree remove --force` runs only when every change in the tree is
@@ -37,7 +37,7 @@
 //     bundled and the bundle verifies. Never a remote delete.
 //   * Full clones (a .git DIRECTORY) and paths outside the worktrees root are
 //     never candidates.
-//   * PROTECTED: a deploy/release name, .catalyst/keep-worktree, or an entry in
+//   * PROTECTED: a scheduler reference, a deploy/release name, .catalyst/keep-worktree, or an entry in
 //     <worktrees>/.keep-worktrees. Checked first in classification and removal.
 //
 // Every scan/apply/remove run appends one JSONL line to
@@ -59,6 +59,8 @@ import { homedir } from "node:os";
 import { basename, delimiter, dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { loadMachinePaths, machinePathsFile } from "./lib/paths/node.js";
+
+import { collectScheduled, referenceReason, processHolders, processArgumentRows } from "./lib/worktree-references.mjs";
 
 const HOME = process.env.HOME || homedir();
 const LOG_ROOT = resolve(
@@ -90,7 +92,7 @@ const TRIVIAL_DIRTY = [
   /^\.claude\/scheduled_tasks\.lock$/,
 ];
 // A tree whose HEAD, reflog or dirty files changed this recently may still have
-// an agent in it (the LIVE check only sees a process cwd'd there right now).
+// an agent in it (the LIVE check only sees running processes).
 const RECENT_HOURS = Number(process.env.CATALYST_PRUNE_RECENT_HOURS ?? 6);
 // Classes whose work is on main or deliberately abandoned: a branch that
 // `git branch -d` refuses (a squash merge leaves its commits unmerged) is
@@ -280,7 +282,7 @@ function listWorktrees(owner) {
   return rows;
 }
 
-// ─── LIVE: processes cwd'd inside a tree ─────────────────────────────────────
+// ─── LIVE: visible process cwd and arguments ─────────────────────────────────────
 // Replaces the retired classifier's live-session join. Every process cwd the
 // OS will show us: `lsof -d cwd` on macOS, /proc/*/cwd on Linux. The scan must
 // see this process's own cwd, or it is treated as failed (fail closed).
@@ -290,31 +292,63 @@ function processCwds() {
   if (lsof) {
     const r = spawnSync(lsof, ["-a", "-d", "cwd", "-Fpn", "-w"], { encoding: "utf8", timeout: 60_000, maxBuffer: 64 * 1024 * 1024 });
     if (r.error) throw new Error(`${lsof}: ${r.error.message}`);
+    if (r.status !== 0) throw new Error(`${lsof}: exit ${r.status}`);
     let pid = null;
     for (const line of String(r.stdout || "").split("\n")) {
       if (line.startsWith("p")) pid = Number(line.slice(1));
       else if (line.startsWith("n") && pid) cwds.push({ pid, cwd: line.slice(1) });
     }
+    if (process.platform === "darwin") {
+      const ps = spawnSync("ps", ["-ww", "-axo", "pid=,command="], { encoding: "utf8", timeout: 10_000, maxBuffer: 64 * 1024 * 1024 });
+      if (ps.error || ps.status !== 0) throw new Error(`ps argument scan failed: ${ps.error?.message || ps.stderr}`);
+      for (const argument of processArgumentRows(ps.stdout)) {
+        const record = cwds.find(c => c.pid === argument.pid);
+        if (record) Object.assign(record, argument);
+        else cwds.push(argument);
+      }
+    }
   } else if (process.platform === "linux") {
     for (const d of readdirSync("/proc")) {
       if (!/^\d+$/.test(d)) continue;
-      try {
-        cwds.push({ pid: Number(d), cwd: readlinkSync(`/proc/${d}/cwd`) });
-      } catch { /* another user's process, or gone */ }
+      const record = { pid: Number(d) };
+      try { record.cwd = readlinkSync(`/proc/${d}/cwd`); } catch { /* inaccessible or vanished */ }
+      try { record.argv = readFileSync(`/proc/${d}/cmdline`, "utf8").split("\0").filter(Boolean); } catch { /* inaccessible or vanished */ }
+      if (record.cwd || record.argv?.length) cwds.push(record);
     }
   } else {
     throw new Error(`no process scan for platform ${process.platform}`);
   }
   const self = real(process.cwd());
-  if (!cwds.some((c) => c.pid === process.pid && real(c.cwd) === self))
+  if (!cwds.some((c) => c.pid === process.pid && c.cwd && real(c.cwd) === self))
     throw new Error(`process scan did not see this process (pid ${process.pid}) cwd'd at ${self}; ${cwds.length} cwd(s) read`);
   return cwds;
 }
 
-// liveHolders(tree, cwds) → pids whose cwd is the tree or inside it.
 function liveHolders(tree, cwds) {
-  const t = real(tree);
-  return cwds.filter((c) => c.cwd === t || c.cwd.startsWith(t + "/")).map((c) => c.pid);
+  return processHolders(tree, cwds);
+}
+function holderReason(holders) {
+  const argument = holders.find(h => h.argument);
+  return argument ? `process references tree (pid ${argument.pid}; argument)`
+    : `process cwd'd here (pid ${holders.slice(0, 3).map(h => h.pid).join(", ")})`;
+}
+function scheduledSnapshot() {
+  const snapshot = collectScheduled({ home: HOME });
+  for (const diagnostic of snapshot.diagnostics) say(`  note: ${diagnostic}`);
+  if (snapshot.errors.length) say(`  WARN: scheduled reference scan failed; removal refused: ${snapshot.errors.join("; ")}`);
+  return snapshot;
+}
+// Shared by classification and the final removal guard. Known matches survive scan failures.
+function protection(path, branch, scheduled, cwds) {
+  const keep = keepReason(path, branch);
+  if (keep) return { classification: "PROTECTED", reason: keep };
+  const reason = referenceReason(path, scheduled);
+  if (reason) return { classification: "PROTECTED", reason };
+  if (scheduled.errors.length) return { classification: "PROTECTED", reason: "scheduled reference scan failed; removal refused" };
+  if (!cwds) return { classification: "LIVE", reason: "process scan failed; every tree is treated as live" };
+  const holders = liveHolders(path, cwds);
+  if (holders.length) return { classification: "LIVE", reason: holderReason(holders), liveSessions: holders.length };
+  return null;
 }
 
 // ─── keep rules (CTC-3654) ───────────────────────────────────────────────────
@@ -478,8 +512,8 @@ function onPath(bin) {
 
 // ─── classification ──────────────────────────────────────────────────────────
 // Classes, in the order they are decided:
-//   PROTECTED         a release/deploy name or a keep file (keepReason; never touched)
-//   LIVE              a process has its cwd inside the tree (never touched)
+//   PROTECTED         a keep rule or scheduled reference (never touched)
+//   LIVE              a process cwd or argument references the tree (never touched)
 //   MERGED / CLOSED_NO_MERGE  a PR whose head is the branch, or its Mergify stack
 //                     rename `stack/<user>/<branch>/…`, merged / closed unmerged
 //   ACTIVE            open PR, locked worktree, or no evidence and younger than STALE_DAYS
@@ -489,7 +523,7 @@ function onPath(bin) {
 //   TICKET_DONE       no open PR; its ticket is Done/Canceled/Duplicate in Linear (--include-shipped)
 // Trees younger than FRESH_DAYS are never promoted past ACTIVE/STALE: a
 // just-created tree sits at main with no PR while its agent is starting.
-function classifyRepo(owner, entries, { prs, cwds, linear }) {
+function classifyRepo(owner, entries, { prs, cwds, linear, scheduled }) {
   const byHead = new Map();
   const byStackBase = new Map();
   const byTicket = new Map();
@@ -515,12 +549,8 @@ function classifyRepo(owner, entries, { prs, cwds, linear }) {
     })();
     const r = { path: wt.path, branch: wt.branch, ticket, prNumber: null, prState: "none", ageDays, liveSessions: 0 };
     const set = (classification, reason) => Object.assign(r, { classification, reason });
-    const keep = keepReason(wt.path, wt.branch);
-    if (keep) return set("PROTECTED", keep);
-    if (!cwds) return set("LIVE", "process scan failed; every tree is treated as live");
-    const holders = liveHolders(wt.path, cwds);
-    r.liveSessions = holders.length;
-    if (holders.length) return set("LIVE", `process cwd'd here (pid ${holders.slice(0, 3).join(", ")})`);
+    const guard = protection(wt.path, wt.branch, scheduled, cwds);
+    if (guard) return Object.assign(r, guard);
     if (wt.locked) return set("ACTIVE", "worktree is locked");
 
     const idle = `idle ${Math.round(ageDays)}d`;
@@ -695,18 +725,20 @@ function removeTree(owner, path, branch, { classification = null, reason = null 
     rec.error = "outside the worktrees root";
     return rec;
   }
-  // Re-check LIVE right before removal: an agent may have started since the scan.
-  let holders;
-  try {
-    holders = liveHolders(path, processCwds());
-  } catch (err) {
-    rec.action = "kept-live";
-    rec.error = `process scan failed, treated as live: ${String(err.message).slice(0, 120)}`;
-    return rec;
-  }
-  if (holders.length) {
-    rec.action = "kept-live";
-    rec.error = `process cwd'd here (pid ${holders.slice(0, 3).join(", ")})`;
+  // Refresh both inventories before archives or any worktree/branch mutation.
+  const scheduled = scheduledSnapshot();
+  let cwds = null;
+  let processError = null;
+  try { cwds = processCwds(); } catch (err) { processError = err.message; }
+  const guard = protection(path, branch, scheduled, cwds);
+  if (guard) {
+    rec.action = guard.classification === "PROTECTED" ? "kept-protected" : "kept-live";
+    rec.error = guard.reason;
+    if (referenceReason(path, scheduled)) rec.error += "; scheduled job still references this tree";
+    if (scheduled.errors.length || processError) {
+      rec.error += `; ${scheduled.errors.join("; ") || processError}`;
+      if (CMD !== "remove") process.exitCode = 3;
+    }
     return rec;
   }
   const dirty = dirtyPaths(path);
@@ -818,6 +850,8 @@ async function buildPlan({ wantProtected = false, sizes = true } = {}) {
     liveScanError = String(err.message).slice(0, 300);
     say(`  WARN: process scan failed (${liveScanError}); every tree is treated as LIVE and nothing will be removed`);
   }
+  const scheduled = scheduledSnapshot();
+  if (scheduled.errors.length) process.exitCode = 3;
   const linear = await makeLinear(ROOTS.replicaDb);
 
   const byOwner = new Map();
@@ -851,7 +885,7 @@ async function buildPlan({ wantProtected = false, sizes = true } = {}) {
       const listed = listWorktrees(owner);
       const farm = new Set(paths.map(real));
       const entries = listed.filter((w) => farm.has(real(w.path)));
-      rows = classifyRepo(owner, entries, { prs: entries.length ? allPrs(owner) : [], cwds, linear });
+      rows = classifyRepo(owner, entries, { prs: entries.length ? allPrs(owner) : [], cwds, linear, scheduled });
     } catch (err) {
       repo.error = String(err.message).slice(0, 200);
       say(`  [${basename(owner)}] SKIP ALL: ${repo.error}`);
@@ -1002,6 +1036,7 @@ async function cmdCandidates() {
     .sort((a, b) => b.sizeKb - a.sizeKb);
   const report = { candidates: cands, count: cands.length, totalKb: cands.reduce((s, c) => s + c.sizeKb, 0) };
   say(`\n${cands.length} protected worktrees reviewed, ${(report.totalKb / 1024 / 1024).toFixed(1)} GB held; present these to the user or fan out per-repo review subagents (see SKILL.md)`);
+  liveScanExit(plan);
   out(report);
 }
 
@@ -1083,7 +1118,7 @@ function cmdExplain() {
 }
 
 function out(obj) {
-  process.stdout.write(AS_JSON ? JSON.stringify(obj, null, 2) + "\n" : "\n");
+  if (AS_JSON) process.stdout.write(JSON.stringify(obj, null, 2) + "\n");
 }
 
 // ─── main ────────────────────────────────────────────────────────────────────

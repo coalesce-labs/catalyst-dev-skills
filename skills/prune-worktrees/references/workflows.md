@@ -16,7 +16,7 @@ The Catalyst installer schedules one command on every box:
 bun <skills>/prune-worktrees/scripts/prune-worktrees.mjs apply --include-shipped --actor housekeeping
 ```
 
-`<skills>` is the installed skills directory (the paths.json `skills` role). The job needs the machine paths file, or `CATALYST_WORKTREES_DIR` in its environment, plus `PATH` with `bun`, `git`, `gh` and, on macOS, `lsof`. Exit codes: 0 done, 2 refused (no declared root; nothing touched), 3 the process scan failed (nothing removed), 1 any other error.
+`<skills>` is the installed skills directory (the paths.json `skills` role). The job needs the machine paths file, or `CATALYST_WORKTREES_DIR` in its environment, plus `PATH` with `bun`, `git`, `gh` and, on macOS, `lsof`, `ps` and `plutil`. Exit codes: 0 done, 2 refused (no declared root; nothing touched), 3 an incomplete process or scheduler safety scan (affected targets kept), 1 any other error.
 
 The same apply then runs the event-log step (an installer that runs it as its own step sets `CATALYST_HK_EVENTS_STEP=1`, and the apply skips it). By hand:
 
