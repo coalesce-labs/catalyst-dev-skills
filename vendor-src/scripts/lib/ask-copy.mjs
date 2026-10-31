@@ -35,6 +35,19 @@ const RULES = [
       "needs the human's go (a public release does), say so as policy (\"public releases need your go\"), " +
       "not as missing access. If it truly is missing, name the credential.",
   },
+  {
+    // CTC-9033: whether an existing test's expectation may change, an inventory or fixture update,
+    // a routine hold and a choice between equivalent implementations are not the human's to decide.
+    // Every ask this verb files is assigned to the human, so the wording alone is the signal.
+    rule: "agent-decidable",
+    re: /\btest(?:'s)? expectations?\b|\b(?:inventory|snapshot|fixture) tests?\b|\btests? (?:changes?|edits?|updates?|inventor(?:y|ies))\b|\bmay\b[^.?\n]{0,80}?\btests?\b(?! pass)|\bfence\b|\b(?:preview|hold) label\b|\bequivalent implementations?\b/i,
+    fix:
+      "A second agent that did not write the change decides this kind: a test's expectation, an " +
+      "inventory, snapshot or fixture test, a routine hold such as a fence or a preview label, or a " +
+      "choice between equivalent implementations. Route it there. Raise it to the human only when the " +
+      "change removes a protection with no replacement, changes what customers see, or needs a real " +
+      "policy, credential or product call, and say which.",
+  },
 ];
 
 /**
