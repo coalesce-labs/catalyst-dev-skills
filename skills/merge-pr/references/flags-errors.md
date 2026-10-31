@@ -23,7 +23,7 @@ For all errors, provide clear messages with the specific error, what went wrong,
 
 **Diagnose and attempt to fix (Step 6 blocker loop):**
 - CI checks failing → analyze failure, attempt code fix, re-push, resume the cloud lifecycle wait
-- Unresolved threads → run the `review-comments` skill, resolve threads
+- Unresolved threads → run the `review-comments` skill: it replies `Fixed in <sha>: <one line>` and resolves each fixed thread, and leaves a person's unfixed finding open with its reason
 - Branch behind → merge the base in and push fast-forward
 - Draft PR → mark as ready
 - Changes requested → check if addressed, suggest re-request review

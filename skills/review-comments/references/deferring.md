@@ -8,7 +8,7 @@ Deferral applies only to addressable findings authored by an automated reviewer,
 To defer a finding:
 
 1. File a follow-up ticket capturing it (file, line, what the reviewer flagged), in the same team as the PR's ticket, Backlog status.
-2. Reply on the thread linking the follow-up ticket, then resolve the thread (Step 5).
+2. Reply on the thread with the follow-up ticket id, then resolve the thread (Step 5).
 
 **When filing fails** (Linearis unavailable, no usable Linear credentials), fix the finding inline on the normal Step 3 path instead, so an optional dependency never blocks the PR.
 
