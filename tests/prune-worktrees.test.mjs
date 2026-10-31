@@ -611,6 +611,20 @@ describe('scheduled and process dependency guards', () => {
     expect(run(fx, ['apply', '--json']).code).toBe(0);
     expect(existsSync(`${fx.W}/hourly`)).toBe(true);
   });
+  test('a cron entry running a quoted nested shell command keeps its HEAD_IN_MAIN tree', () => {
+    const fx = buildFarm();
+    writeFileSync(`${fx.R}/job.sh`, 'true\n');
+    fx.g('-C', fx.R, 'add', 'job.sh'); fx.g('-C', fx.R, 'commit', '-qm', 'job');
+    fx.g('-C', fx.R, 'update-ref', 'refs/remotes/origin/main', 'main');
+    fx.mk('hourly', false); fx.mk('control', false); age(fx);
+    const entry = `@hourly bash -lc 'exec ${fx.W}/hourly/job.sh'`;
+    tool(fx, 'crontab', `cat <<'CRON'\n${entry}\nCRON`);
+    const applied = run(fx, ['apply', '--include-shipped', '--json']);
+    expect(applied.code).toBe(0);
+    expect(rowFor(applied.json, 'hourly')).toMatchObject({ classification: 'PROTECTED', reason: expect.stringContaining(`line 1: ${entry}`) });
+    expect(existsSync(`${fx.W}/hourly/job.sh`)).toBe(true);
+    expect(existsSync(`${fx.W}/control`)).toBe(false);
+  });
   test('real process with outside cwd and a spaced alias argument is LIVE', async () => {
     const fx = buildFarm();
     writeFileSync(`${fx.R}/job.sh`, 'sleep 120\n');

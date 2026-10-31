@@ -53,7 +53,10 @@ export function argumentPaths(argv, context = {}) {
   };
   for (const [index, arg] of argv.entries()) {
     if (/^-[a-zA-Z]*c[a-zA-Z]*$/.test(argv[index - 1] || "") || context.flattened) {
-      for (const token of words(arg)) add(token);
+      const tokens = words(arg);
+      for (const token of tokens) add(token);
+      // Also re-read the words as argv, so a quoted `bash -lc '…'` inside this command is unwrapped too.
+      for (const path of argumentPaths(tokens, { ...context, flattened: false })) result.add(path);
       if (context.flattened) {
         for (const match of arg.matchAll(/(?:^|[\s="'])(\/|~\/|\$HOME\/|\$\{HOME\}\/)/g)) {
           const start = match.index + match[0].length - match[1].length;

@@ -149,3 +149,23 @@ test('combined shell flags containing c preserve scheduler and process reference
     expect(referenceReason('/tree', snapshot)).toBe('LaunchAgent dev.shell (ProgramArguments)');
   } finally { rmSync(t, { recursive: true, force: true }); }
 });
+
+test('a quoted shell command nested inside another shell command keeps its path operands', () => {
+  const t = mkdtempSync(join(tmpdir(), 'nested-shell-'));
+  try {
+    writeFileSync(`${t}/job.plist`, '<plist/>');
+    const cron = `@hourly bash -lc 'exec /tree/job.sh'\n@daily sh -c "bash -c 'exec /deep/job.sh'"\n@daily rsync -avc "/spaced tree/x/" /backup\n`;
+    const snapshot = collectScheduled({ home: t, user: 'ryan', roots: [{ path: t, kind: 'LaunchAgent' }], run: cmd => cmd === 'plutil'
+      ? { status: 0, stdout: JSON.stringify({ Label: 'dev.nested', ProgramArguments: ['/bin/sh', '-c', "bash -lc 'exec /agent/job.sh'"] }) }
+      : { status: 0, stdout: cron } });
+    expect(snapshot.errors).toEqual([]);
+    expect(referenceReason('/tree', snapshot)).toBe("crontab ryan line 1: @hourly bash -lc 'exec /tree/job.sh'");
+    expect(referenceReason('/deep', snapshot)).toContain('line 2');
+    // A quoted spaced operand after a flag containing c stays whole as well as being re-read.
+    expect(referenceReason('/spaced tree/x', snapshot)).toContain('line 3');
+    expect(argumentPaths(['sh', '-c', `sh -c 'rsync -avc "/spaced tree/x/" /b'`], {})).toContain('/spaced tree/x');
+    expect(referenceReason('/agent', snapshot)).toBe('LaunchAgent dev.nested (ProgramArguments)');
+    expect(referenceReason('/tree-sibling', snapshot)).toBeNull();
+    expect(processHolders('/tree', [{ pid: 123, argv: ['sh', '-c', "bash -lc 'exec /tree/job.sh'"], cwd: '/outside' }], 999)).toEqual([{ pid: 123, argument: true }]);
+  } finally { rmSync(t, { recursive: true, force: true }); }
+});
