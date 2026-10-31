@@ -10,7 +10,7 @@
 import { describe, test, expect, afterAll, setDefaultTimeout } from "bun:test";
 import { Database } from "bun:sqlite";
 import { execFileSync } from "node:child_process";
-import { chmodSync, existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, realpathSync, rmSync, statSync, symlinkSync, utimesSync, writeFileSync } from "node:fs";
+import { chmodSync, cpSync, existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, realpathSync, rmSync, statSync, symlinkSync, utimesSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -554,4 +554,149 @@ describe("release, deploy and opted-out trees are never removed (CTC-3654)", () 
     expect(r.json.results[0].action).toBe("kept-protected");
     expect(existsSync(`${fx.W}/deploy-3072373-R7-abc`)).toBe(true);
   });
+});
+
+// CTC-8921: exercise the executable, including its shared explicit-removal guard.
+function tool(fx, name, body) {
+  writeFileSync(`${fx.T}/bin/${name}`, `#!/bin/sh\n${body}\n`);
+  chmodSync(`${fx.T}/bin/${name}`, 0o755);
+}
+function launchJob(fx, data) {
+  const dir = `${fx.T}/home/Library/LaunchAgents`;
+  mkdirSync(dir, { recursive: true });
+  writeFileSync(`${dir}/job.plist`, '<?xml version="1.0"?><plist><dict/></plist>');
+  writeFileSync(`${fx.T}/decoded.json`, JSON.stringify(data));
+  tool(fx, 'plutil', `cat '${fx.T}/decoded.json'`);
+}
+
+describe('scheduled and process dependency guards', () => {
+  test('LaunchAgent alias keeps a HEAD_IN_MAIN tree and branch in apply and explicit remove', () => {
+    const fx = buildFarm(); fx.mk('hourly', false); fx.mk('control', false); age(fx);
+    mkdirSync(`${fx.T}/wt/coalesce-labs/repo`, { recursive: true });
+    const target = `${fx.T}/wt/coalesce-labs/repo/hourly`;
+    fx.g('-C', fx.R, 'worktree', 'move', `${fx.W}/hourly`, target);
+    age(fx);
+    symlinkSync(`${fx.T}/wt/coalesce-labs/repo`, `${fx.T}/alias`);
+    launchJob(fx, { Label: 'dev.catalystcloud.ci-fleet-load', ProgramArguments: ['/bin/bash', `${fx.T}/alias/hourly/missing.sh`] });
+    const applied = run(fx, ['apply', '--include-shipped', '--json']);
+    expect(applied.code).toBe(0);
+    expect(rowFor(applied.json, 'hourly')).toMatchObject({ classification: 'PROTECTED', reason: 'LaunchAgent dev.catalystcloud.ci-fleet-load (ProgramArguments)' });
+    expect(existsSync(`${fx.W}/control`)).toBe(false);
+    expect(existsSync(target)).toBe(true);
+    expect(fx.g('-C', fx.R, 'branch', '--list', 'hourly').trim()).not.toBe('');
+    const removed = run(fx, ['remove', '--path', target, '--why', 'reclaim disk', '--json']);
+    expect(removed.code).toBe(1);
+    expect(removed.json.results[0]).toMatchObject({ action: 'kept-protected', error: 'LaunchAgent dev.catalystcloud.ci-fleet-load (ProgramArguments); scheduled job still references this tree' });
+    const plain = run(fx, ['remove', '--path', target, '--why', 'reclaim disk']);
+    expect(plain.stdout).toBe('');
+    expect(plain.stderr).toContain('scheduled job still references this tree');
+    expect(readFileSync(`${fx.T}/state/catalyst/logs/worktree-prune/runs.jsonl`, 'utf8')).toContain('LaunchAgent dev.catalystcloud.ci-fleet-load (ProgramArguments)');
+  });
+  for (const field of ['Program', 'WorkingDirectory', 'StandardOutPath', 'StandardErrorPath']) {
+    test(`LaunchAgent ${field} protects independently`, () => {
+      const fx = buildFarm(); fx.mk('hourly', false); age(fx);
+      symlinkSync(fx.W, `${fx.T}/alias`);
+      launchJob(fx, { Label: 'dev.job', [field]: `${fx.T}/alias/hourly/missing` });
+      const result = run(fx, ['scan', '--json', '--no-sizes']);
+      expect(rowFor(result.json, 'hourly')).toMatchObject({ classification: 'PROTECTED', reason: `LaunchAgent dev.job (${field})` });
+    });
+  }
+  test('current-user cron protects, comments and sibling paths do not protect controls', () => {
+    const fx = buildFarm(); fx.mk('hourly', false); fx.mk('control', false); age(fx);
+    tool(fx, 'crontab', `cat <<'CRON'\n# @hourly ${fx.W}/control/job\nHOME=${fx.W}\n@hourly ./hourly/job\n* * * * * ${fx.W}/control-sibling/job\nCRON`);
+    const scanned = run(fx, ['scan', '--json']);
+    expect(rowFor(scanned.json, 'hourly').reason).toContain('line 3: @hourly ./hourly/job');
+    expect(run(fx, ['remove', '--path', `${fx.W}/hourly`, '--why', 'test', '--json']).json.results[0].action).toBe('kept-protected');
+    expect(run(fx, ['remove', '--path', `${fx.W}/control`, '--why', 'test', '--json']).json.results[0].action).toBe('removed');
+    expect(run(fx, ['apply', '--json']).code).toBe(0);
+    expect(existsSync(`${fx.W}/hourly`)).toBe(true);
+  });
+  test('a cron entry running a quoted nested shell command keeps its HEAD_IN_MAIN tree', () => {
+    const fx = buildFarm();
+    writeFileSync(`${fx.R}/job.sh`, 'true\n');
+    fx.g('-C', fx.R, 'add', 'job.sh'); fx.g('-C', fx.R, 'commit', '-qm', 'job');
+    fx.g('-C', fx.R, 'update-ref', 'refs/remotes/origin/main', 'main');
+    fx.mk('hourly', false); fx.mk('control', false); age(fx);
+    const entry = `@hourly bash -lc 'exec ${fx.W}/hourly/job.sh'`;
+    tool(fx, 'crontab', `cat <<'CRON'\n${entry}\nCRON`);
+    const applied = run(fx, ['apply', '--include-shipped', '--json']);
+    expect(applied.code).toBe(0);
+    expect(rowFor(applied.json, 'hourly')).toMatchObject({ classification: 'PROTECTED', reason: expect.stringContaining(`line 1: ${entry}`) });
+    expect(existsSync(`${fx.W}/hourly/job.sh`)).toBe(true);
+    expect(existsSync(`${fx.W}/control`)).toBe(false);
+  });
+  test('real process with outside cwd and a spaced alias argument is LIVE', async () => {
+    const fx = buildFarm();
+    writeFileSync(`${fx.R}/job.sh`, 'sleep 120\n');
+    fx.g('-C', fx.R, 'add', 'job.sh'); fx.g('-C', fx.R, 'commit', '-qm', 'job');
+    fx.g('-C', fx.R, 'update-ref', 'refs/remotes/origin/main', 'main');
+    fx.mk('hourly', false); age(fx);
+    symlinkSync(fx.W, `${fx.T}/space alias`);
+    const proc = Bun.spawn(['bash', `${fx.T}/space alias/hourly/job.sh`], { cwd: fx.T }); spawned.push(proc);
+    try {
+      const scanned = run(fx, ['scan', '--json']);
+      expect(rowFor(scanned.json, 'hourly')).toMatchObject({ classification: 'LIVE', reason: `process references tree (pid ${proc.pid}; argument)` });
+      expect(run(fx, ['apply', '--json']).code).toBe(0);
+      expect(run(fx, ['remove', '--path', `${fx.W}/hourly`, '--why', 'test', '--json']).json.results[0].action).toBe('kept-live');
+      expect(existsSync(`${fx.W}/hourly`)).toBe(true);
+    } finally { proc.kill(); await proc.exited; }
+  });
+  test('unexpected scheduler failure refuses classification and explicit removal', () => {
+    const fx = buildFarm(); fx.mk('hourly', false); age(fx);
+    tool(fx, 'crontab', 'echo denied >&2; exit 2');
+    const scanned = run(fx, ['apply', '--json']);
+    expect(scanned.code).toBe(3);
+    expect(rowFor(scanned.json, 'hourly').reason).toBe('scheduled reference scan failed; removal refused');
+    const removed = run(fx, ['remove', '--path', `${fx.W}/hourly`, '--why', 'test', '--json']);
+    expect(removed.code).toBe(1);
+    expect(removed.json.results[0].error).toContain('denied');
+    expect(existsSync(`${fx.W}/hourly`)).toBe(true);
+  });
+  for (const source of ['scheduler', 'process', 'failure']) {
+    test(`fresh ${source} at PR-read boundary is detected before archive or deletion`, async () => {
+      const fx = buildFarm(); fx.mk('hourly', false); age(fx);
+      const target = `${fx.W}/hourly`;
+      if (source === 'scheduler') {
+        launchJob(fx, { Label: 'dev.late', Program: `${target}/job` });
+        rmSync(`${fx.T}/home/Library/LaunchAgents/job.plist`);
+        tool(fx, 'gh', `touch '${fx.T}/home/Library/LaunchAgents/job.plist'\ncat '${fx.T}/prs.json'`);
+      } else if (source === 'failure') {
+        tool(fx, 'crontab', `if test -f '${fx.T}/late'; then echo denied >&2; exit 2; fi\necho 'no crontab for user' >&2\nexit 1`);
+        tool(fx, 'gh', `touch '${fx.T}/late'\ncat '${fx.T}/prs.json'`);
+      } else {
+        // Start a real process only when gh is called, after the initial process inventory.
+        writeFileSync(`${fx.T}/launch.mjs`, `const p = Bun.spawn(['bash', '-c', 'while :; do sleep 1; done', '${target}/job'], {cwd: '${fx.T}', stdout:'ignore', stderr:'ignore'}); await Bun.write('${fx.T}/pid', String(p.pid)); p.unref();`);
+        tool(fx, 'gh', `bun '${fx.T}/launch.mjs'\ncat '${fx.T}/prs.json'`);
+      }
+      try {
+        const applied = run(fx, ['apply', '--json']);
+        const row = rowFor(applied.json, 'hourly');
+        expect(row.action).toBe(source === 'process' ? 'kept-live' : 'kept-protected');
+        expect(applied.code).toBe(source === 'failure' ? 3 : 0);
+        expect(existsSync(target)).toBe(true);
+        expect(fx.g('-C', fx.R, 'branch', '--list', 'hourly').trim()).not.toBe('');
+        expect(existsSync(`${fx.T}/wt-cleanup-archive/${new Date().toISOString().slice(0,10)}/owner__hourly`)).toBe(false);
+      } finally {
+        if (existsSync(`${fx.T}/pid`)) { try { process.kill(Number(readFileSync(`${fx.T}/pid`, 'utf8'))); } catch {} }
+      }
+    });
+  }
+});
+
+
+test('a failed final process refresh keeps the tree and makes apply incomplete', () => {
+  const fx = buildFarm(); fx.mk('hourly', false); age(fx);
+  tool(fx, 'lsof', `if test -f '${fx.T}/seen'; then exit 2; fi\ntouch '${fx.T}/seen'\necho p$PPID\necho n${fx.T}`);
+  const result = run(fx, ['apply', '--json'], { CATALYST_PRUNE_LSOF: `${fx.T}/bin/lsof` });
+  expect(result.code).toBe(3);
+  expect(rowFor(result.json, 'hourly').action).toBe('kept-live');
+  expect(existsSync(`${fx.W}/hourly`)).toBe(true);
+});
+
+test('a skill-only installed copy scans without checkout-level runtime dependencies', () => {
+  const fx = buildFarm();
+  cpSync(dirname(dirname(SCRIPT)), `${fx.T}/installed`, { recursive: true });
+  const result = Bun.spawnSync(['bun', `${fx.T}/installed/scripts/prune-worktrees.mjs`, 'scan', '--json', '--no-sizes'], { env: fx.env, cwd: fx.T });
+  expect(result.exitCode).toBe(0);
+  expect(JSON.parse(result.stdout.toString()).totals.leaves).toBe(7);
 });
