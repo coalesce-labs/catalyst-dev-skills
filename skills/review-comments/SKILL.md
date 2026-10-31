@@ -67,7 +67,12 @@ git push
 
 ## Step 5: Resolve the threads
 
-Follow `"${CLAUDE_SKILL_DIR}/assets/references/review-thread-resolution.md"`: fetch unresolved threads via GraphQL, resolve each addressed one with the `resolveReviewThread` mutation, and verify the remaining count. Resolve a thread when a fix was pushed, a reply was posted, or it was deferred to a ticket. Leave a thread you could not address unresolved for human review.
+Follow `"${CLAUDE_SKILL_DIR}/assets/references/review-thread-resolution.md"`: fetch unresolved threads via GraphQL, reply in each one, resolve the ones its rules allow, and verify the remaining count.
+
+- **Fixed:** reply `Fixed in <sha>: <one line>` in every thread the pushed commit fixes, then resolve it.
+- **Deferred** (an automated reviewer's finding, per `references/deferring.md`): reply with the follow-up ticket id, then resolve it.
+- **Answered without a fix** (a disagreement or clarification) for any author that is not an automated reviewer: reply with the reason and leave the thread open until that reviewer or the PR owner agrees.
+- **Could not address:** leave it unresolved for human review.
 
 ## Output
 

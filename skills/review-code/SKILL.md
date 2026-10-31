@@ -59,5 +59,6 @@ Write the report in the reference's shape: scope line, lenses run, findings with
 
 ## Boundaries
 
-- This skill returns a verdict. It edits no code, runs no formatter or linter, and posts nothing to GitHub; the `remediate` phase fixes.
+- This skill returns a verdict. It edits no code, runs no formatter or linter, and inside a pipeline phase posts nothing to GitHub; the pipeline posts the review and the `remediate` phase fixes.
+- Run by hand on an open PR, when the caller wants the findings on GitHub, post them as one PR review at the reviewed head with one line comment per finding (severity, finding, fix), following "Posting a review" in `${CLAUDE_SKILL_DIR}/assets/references/review-thread-resolution.md`. Never post them as one long PR comment.
 - Findings sit in files inside the `files:` block, on lines the diff touched.

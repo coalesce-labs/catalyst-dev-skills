@@ -29,12 +29,12 @@ If any finding is unclear, settle it before implementing any of them; findings a
 5. **Keep tests within the finding.** Add one regression test that fails before the fix and passes after it. Do not widen suites.
 6. **Fix sibling instances only in files this fix already touches.** Search for other instances of the same defect; fix the ones in files your fix already changes, and list every other site as a follow-up ticket instead of fixing it this round. Why: repairs over 500 lines passed the next validate 36% of the time against 50% for repairs of 50 lines or fewer, and 46% of new round-2 findings sat in lines the repair wrote.
 7. **Answer `invalid` with evidence and change nothing.** Evidence is a file:line, a test name, or command output. Answer `already-fixed` with the commit SHA that fixed it.
-8. **Defer, do not fix, these:** `pre-existing/out-of-scope` findings, plan-only notes, findings marked `preexisting`, and P2-and-lower findings after round 1. File a follow-up ticket, reply with its link, and resolve the thread.
-9. **Never resolve silently.** Every resolve carries a reply naming the SHA and file:line, or saying why nothing changed. Never delete or disable the feature to make a finding go away; re-read the ticket's acceptance criteria before any fix that removes behaviour.
+8. **Defer, do not fix, these:** `pre-existing/out-of-scope` findings, plan-only notes, findings marked `preexisting`, and P2-and-lower findings after round 1. File a follow-up ticket and reply with its id. Resolve the thread only when the finding came from an automated reviewer (the repository's code-review bot, a scanner or a linter, as `review-thread-resolution.md` defines it); any other author's thread stays open until that reviewer or the PR owner agrees.
+9. **Never resolve silently.** Every fix commit is followed by a reply in each thread it fixes, `Fixed in <sha>: <one line>`, and then the thread is resolved. A finding left unfixed gets a reply with the reason or the follow-up ticket id. Never delete or disable the feature to make a finding go away; re-read the ticket's acceptance criteria before any fix that removes behaviour.
 10. **Never re-request a review.** The merge gate is green checks plus zero unresolved threads; a re-request starts a review-fix treadmill.
 11. **Self-review the diff before pushing,** for what reviewers flag: swallowed errors, unhandled branches, missing per-account scoping, a test that passes with the fix reverted.
 12. **Escalate with an ask, not another round,** when a finding recurs after a fix aimed at it; needs an architecture, contract or migration change; contradicts the plan or an ADR; cannot be verified; or needs more than one pass. See "Raising an ask".
-13. **Replies are terse and factual:** "Fixed in abc1234 at src/x.ts:42." No thanks, no "you're right", no "great catch".
+13. **Replies are terse and factual:** "Fixed in abc1234: bound the retry loop at src/x.ts:42." No thanks, no "you're right", no "great catch".
 
 ## When to push back
 
@@ -89,4 +89,4 @@ For multi-finding work: settle every unclear finding first, then fix blocking is
 
 ## Replying on GitHub
 
-Reply inside the review thread (`gh api repos/{owner}/{repo}/pulls/{pr}/comments/{id}/replies`), never as a top-level PR comment. In a cloud round, never call GitHub: the runner posts `reasoning` for you.
+Reply inside the review thread (`gh api repos/{owner}/{repo}/pulls/{pr}/comments/{id}/replies`), never as a top-level PR comment. The reply, resolve and posting steps are in `review-thread-resolution.md`. In a cloud round, never call GitHub: the runner posts `reasoning` for you.
