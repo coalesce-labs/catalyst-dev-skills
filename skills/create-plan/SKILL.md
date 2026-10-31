@@ -6,7 +6,7 @@ description:
   or wants a structured TDD implementation plan before writing code; and when they say 'update the plan', 'change
   the plan', 'the requirements changed' or 'revise the approach' for a plan in thoughts/shared/plans/. Works best after the research-codebase skill."
 disable-model-invocation: false
-allowed-tools: Read, Write, Grep, Glob, Task, TodoWrite, Bash, mcp__serena__activate_project, mcp__serena__list_memories, mcp__serena__read_memory, mcp__serena__get_symbols_overview, mcp__serena__find_symbol, mcp__serena__find_referencing_symbols, mcp__serena__search_for_pattern, mcp__serena__find_file, mcp__serena__list_dir
+allowed-tools: Read, Write, Grep, Glob, Task, TodoWrite, Bash
 version: 1.0.0
 ---
 

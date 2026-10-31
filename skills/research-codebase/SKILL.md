@@ -7,10 +7,7 @@ description:
   thoughts/shared/research/ with file:line references."
 disable-model-invocation: false
 allowed-tools:
-  Read, Write, Grep, Glob, Task, TodoWrite, Bash,
-  mcp__serena__activate_project, mcp__serena__list_memories, mcp__serena__read_memory,
-  mcp__serena__get_symbols_overview, mcp__serena__find_symbol, mcp__serena__find_referencing_symbols,
-  mcp__serena__search_for_pattern, mcp__serena__find_file, mcp__serena__list_dir
+  Read, Write, Grep, Glob, Task, TodoWrite, Bash
 version: 1.0.0
 ---
 
@@ -46,7 +43,6 @@ if command -v thoughts-pull-sync >/dev/null 2>&1; then thoughts-pull-sync >/dev/
 
 ## Steps
 
-0. **Orient with Serena** when the `mcp__serena__*` tools exist; otherwise go straight to Step 1 without a warning. Call `mcp__serena__activate_project` on the repo root, read `mcp__serena__list_memories` and `mcp__serena__read_memory("codebase_map")`, then map the area with `mcp__serena__get_symbols_overview`, `mcp__serena__find_symbol` and `mcp__serena__find_referencing_symbols`, so your agent prompts name specific places for the agents to verify.
 1. **Read mentioned files** (tickets, docs, JSON) yourself, in full with no limit or offset, before spawning any subagent.
 2. **Decompose the question** into research areas and track each in TodoWrite.
 3. **Spawn subagents in parallel**, all at once: `codebase-locator` (where code lives), `codebase-analyzer` (how it works), `codebase-pattern-finder` (existing examples), `thoughts-locator` and `thoughts-analyzer` (past documents in thoughts/), and `external-research` only when the person asks for outside sources. Each agent's instructions ship as `${CLAUDE_SKILL_DIR}/assets/agents/<name>.md`; run a subagent with that file plus your request, or do the task inline when the harness has no subagents. Each file's `model` line names the tier the agent runs on, a fast model for the locators and a stronger one for the analyzers; where the harness lets you choose a subagent's model, use that tier. Start with locators, point analyzers at the best findings, and remind each agent it documents rather than evaluates. Record the `researching` phase.
