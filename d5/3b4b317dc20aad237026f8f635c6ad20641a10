@@ -1,1 +1,6 @@
-drop the Claude-Session trailer: a public-repo commit carries Co-Authored-By only; same tree
+Revision history for #140:
+
+rev 2 (rebase) 2026-11-02 09:31 UTC — drop the Claude-Session trailer: a public-repo commit carries Co-Authored-By only; same tree
+rev 1 (initial) 2026-11-02 09:31 UTC
+
+<!-- mergify-revision-data: {"schema_version":1,"pull_number":140,"entries":[{"number":1,"change_type":"initial","old_sha":null,"new_sha":"dd05c01fa6ceac24ac688b658437b8a44af304d7","timestamp_iso":"2026-11-02T09:31:14Z","reason":"","replay_sha":null,"compare_url":null},{"number":2,"change_type":"rebase","old_sha":"dd05c01fa6ceac24ac688b658437b8a44af304d7","new_sha":"d53b4b317dc20aad237026f8f635c6ad20641a10","timestamp_iso":"2026-11-02T09:31:14Z","reason":"drop the Claude-Session trailer: a public-repo commit carries Co-Authored-By only; same tree","replay_sha":null,"compare_url":"https://github.com/coalesce-labs/catalyst-dev-skills/compare/dd05c01fa6ceac24ac688b658437b8a44af304d7...d53b4b317dc20aad237026f8f635c6ad20641a10"}]} -->
