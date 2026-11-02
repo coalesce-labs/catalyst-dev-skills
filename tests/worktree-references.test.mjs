@@ -1,5 +1,5 @@
 import { test, expect } from 'bun:test';
-import { existsSync, mkdtempSync, mkdirSync, symlinkSync, readFileSync, writeFileSync, rmSync } from 'node:fs';
+import { chmodSync, existsSync, mkdtempSync, mkdirSync, symlinkSync, readFileSync, writeFileSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { canonicalPath, argumentPaths, collectScheduled, referenceReason, processHolders, processArgumentRows } from '../skills/prune-worktrees/scripts/lib/worktree-references.mjs';
@@ -72,6 +72,57 @@ test('malformed conversion, timeout, user directory errors and system readabilit
     const result = collectScheduled({ roots: [{ path: `${t}/agents`, kind: 'LaunchDaemon' }], run: cmd => cmd === 'plutil' ? { status: 0, stdout: '{"Program":"/tree/job"}' } : empty() });
     expect(referenceReason('/tree', result)).toBe('LaunchDaemon a.plist (Program)');
   } finally { rmSync(t, { recursive: true, force: true }); }
+});
+
+const asRoot = typeof process.getuid === 'function' && process.getuid() === 0;
+
+test.skipIf(asRoot)('a system plist only root can read is noted and skipped, and the rest still counts', () => {
+  const t = mkdtempSync(join(tmpdir(), 'scheduler-unreadable-'));
+  try {
+    const root = `${t}/daemons`; mkdirSync(root);
+    writeFileSync(`${root}/a-root-only.plist`, 'x'); chmodSync(`${root}/a-root-only.plist`, 0o000);
+    writeFileSync(`${root}/b-readable.plist`, 'x');
+    const seen = [];
+    const run = (cmd, args) => {
+      if (cmd !== 'plutil') return { status: 1, stderr: 'no crontab for user' };
+      seen.push(args.at(-1));
+      return { status: 0, stdout: '{"Label":"dev.daemon","Program":"/tree/job"}' };
+    };
+    const snapshot = collectScheduled({ roots: [{ path: root, kind: 'LaunchDaemon' }], run });
+    expect(snapshot.errors).toEqual([]);
+    expect(snapshot.diagnostics).toEqual([`${root}/a-root-only.plist: not readable by this user; skipped`]);
+    expect(seen).toEqual([`${root}/b-readable.plist`]);
+    expect(referenceReason('/tree', snapshot)).toBe('LaunchDaemon dev.daemon (Program)');
+  } finally { chmodSync(`${t}/daemons/a-root-only.plist`, 0o600); rmSync(t, { recursive: true, force: true }); }
+});
+
+test('a dangling plist link in a system folder is recorded as a scan error, not thrown', () => {
+  const t = mkdtempSync(join(tmpdir(), 'scheduler-dangling-'));
+  try {
+    const root = `${t}/daemons`; mkdirSync(root);
+    symlinkSync(`${t}/gone.plist`, `${root}/a-dangling.plist`);
+    writeFileSync(`${root}/b-readable.plist`, 'x');
+    const run = (cmd, args) => {
+      if (cmd !== 'plutil') return { status: 1, stderr: 'no crontab for user' };
+      if (!existsSync(args.at(-1))) return { status: 1, stderr: 'file does not exist' };
+      return { status: 0, stdout: '{"Label":"dev.daemon","Program":"/tree/job"}' };
+    };
+    const snapshot = collectScheduled({ roots: [{ path: root, kind: 'LaunchDaemon' }], run });
+    expect(snapshot.errors).toEqual([`${root}/a-dangling.plist: a-dangling.plist: file does not exist`]);
+    expect(referenceReason('/tree', snapshot)).toBe('LaunchDaemon dev.daemon (Program)');
+  } finally { rmSync(t, { recursive: true, force: true }); }
+});
+
+test.skipIf(asRoot)("an unreadable plist in the user's own LaunchAgents folder still refuses removal", () => {
+  const t = mkdtempSync(join(tmpdir(), 'scheduler-unreadable-user-'));
+  try {
+    const root = `${t}/agents`; mkdirSync(root);
+    writeFileSync(`${root}/a.plist`, 'x'); chmodSync(`${root}/a.plist`, 0o000);
+    const run = cmd => cmd === 'plutil' ? { status: 1, stderr: 'permission denied' } : { status: 1, stderr: 'no crontab for user' };
+    const snapshot = collectScheduled({ roots: [{ path: root, kind: 'LaunchAgent', user: true }], run });
+    expect(snapshot.errors.length).toBe(1);
+    expect(snapshot.errors[0]).toContain(`${root}/a.plist`);
+  } finally { chmodSync(`${t}/agents/a.plist`, 0o600); rmSync(t, { recursive: true, force: true }); }
 });
 
 test('cron quotes, schedules, HOME forms and shell substitutions never execute', () => {

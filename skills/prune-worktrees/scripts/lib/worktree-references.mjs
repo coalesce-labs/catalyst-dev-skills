@@ -1,5 +1,5 @@
 // Read-only dependency inventories. No shell evaluation and no checkout-level dependencies.
-import { realpathSync, readdirSync } from 'node:fs';
+import { accessSync, constants, realpathSync, readdirSync } from 'node:fs';
 import { dirname, basename, resolve, isAbsolute, join } from 'node:path';
 import { homedir, userInfo } from 'node:os';
 import { spawnSync } from 'node:child_process';
@@ -73,6 +73,12 @@ export function referenceReason(tree, snapshot) {
   return snapshot.references.find(r => contains(t, canonicalPath(r.path)))?.reason ?? null;
 }
 
+// Only a permission refusal means "skip". Any other failure (a dangling link, a file removed since
+// the folder was listed) goes on to plutil, whose failure is recorded per file as before.
+function readable(path) {
+  try { accessSync(path, constants.R_OK); return true; }
+  catch (err) { return err.code !== 'EACCES' && err.code !== 'EPERM'; }
+}
 const runCommand = (cmd, args) => spawnSync(cmd, args, { encoding: 'utf8', timeout: 10_000, maxBuffer: 64 * 1024 * 1024 });
 function checked(result, source) {
   if (result.error || result.status !== 0) throw new Error(`${source}: ${result.error?.message || result.stderr || `exit ${result.status}`}`);
@@ -93,6 +99,11 @@ export function collectScheduled({ home = process.env.HOME || homedir(), user = 
       (root.user ? snapshot.errors : snapshot.diagnostics).push(`${root.path}: ${err.message}`); continue;
     }
     for (const file of files) {
+      // A system folder can hold a plist only root may read (a VPN helper daemon is mode 0700).
+      // Like an unreadable system folder, it is noted and skipped; the user's own folder still fails closed.
+      if (!root.user && !readable(join(root.path, file))) {
+        snapshot.diagnostics.push(`${join(root.path, file)}: not readable by this user; skipped`); continue;
+      }
       try {
         const data = JSON.parse(checked(run('plutil', ['-convert', 'json', '-o', '-', join(root.path, file)]), file));
         if (!data || Array.isArray(data) || typeof data !== 'object') throw new Error('invalid plist dictionary');
