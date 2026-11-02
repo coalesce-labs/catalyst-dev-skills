@@ -73,9 +73,11 @@ export function referenceReason(tree, snapshot) {
   return snapshot.references.find(r => contains(t, canonicalPath(r.path)))?.reason ?? null;
 }
 
+// Only a permission refusal means "skip". Any other failure (a dangling link, a file removed since
+// the folder was listed) goes on to plutil, whose failure is recorded per file as before.
 function readable(path) {
   try { accessSync(path, constants.R_OK); return true; }
-  catch (err) { if (err.code === 'EACCES' || err.code === 'EPERM') return false; throw err; }
+  catch (err) { return err.code !== 'EACCES' && err.code !== 'EPERM'; }
 }
 const runCommand = (cmd, args) => spawnSync(cmd, args, { encoding: 'utf8', timeout: 10_000, maxBuffer: 64 * 1024 * 1024 });
 function checked(result, source) {

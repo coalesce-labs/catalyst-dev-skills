@@ -96,6 +96,23 @@ test.skipIf(asRoot)('a system plist only root can read is noted and skipped, and
   } finally { chmodSync(`${t}/daemons/a-root-only.plist`, 0o600); rmSync(t, { recursive: true, force: true }); }
 });
 
+test('a dangling plist link in a system folder is recorded as a scan error, not thrown', () => {
+  const t = mkdtempSync(join(tmpdir(), 'scheduler-dangling-'));
+  try {
+    const root = `${t}/daemons`; mkdirSync(root);
+    symlinkSync(`${t}/gone.plist`, `${root}/a-dangling.plist`);
+    writeFileSync(`${root}/b-readable.plist`, 'x');
+    const run = (cmd, args) => {
+      if (cmd !== 'plutil') return { status: 1, stderr: 'no crontab for user' };
+      if (!existsSync(args.at(-1))) return { status: 1, stderr: 'file does not exist' };
+      return { status: 0, stdout: '{"Label":"dev.daemon","Program":"/tree/job"}' };
+    };
+    const snapshot = collectScheduled({ roots: [{ path: root, kind: 'LaunchDaemon' }], run });
+    expect(snapshot.errors).toEqual([`${root}/a-dangling.plist: a-dangling.plist: file does not exist`]);
+    expect(referenceReason('/tree', snapshot)).toBe('LaunchDaemon dev.daemon (Program)');
+  } finally { rmSync(t, { recursive: true, force: true }); }
+});
+
 test.skipIf(asRoot)("an unreadable plist in the user's own LaunchAgents folder still refuses removal", () => {
   const t = mkdtempSync(join(tmpdir(), 'scheduler-unreadable-user-'));
   try {
