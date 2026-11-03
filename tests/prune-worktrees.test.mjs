@@ -14,6 +14,7 @@ import { chmodSync, cpSync, existsSync, mkdirSync, mkdtempSync, readdirSync, rea
 import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
+import { LEASES, holdLease } from "./lib/lease.mjs";
 
 const SCRIPT = fileURLToPath(new URL("../skills/prune-worktrees/scripts/prune-worktrees.mjs", import.meta.url));
 const scratch = realpathSync(mkdtempSync(join(tmpdir(), "prune-worktrees-")));
@@ -145,7 +146,9 @@ const age = (fx) => {
 function run(fx, args, envOverride = {}) {
   const env = { ...fx.env, ...envOverride };
   for (const [k, v] of Object.entries(envOverride)) if (v === undefined) delete env[k];
-  const r = Bun.spawnSync(["bun", SCRIPT, ...args], { cwd: fx.T, env, stdout: "pipe", stderr: "pipe" });
+  // A bounded run: a regression that hangs fails the suite instead of stopping it.
+  const r = Bun.spawnSync(["bun", SCRIPT, ...args], { cwd: fx.T, env, stdout: "pipe", stderr: "pipe", timeout: 60_000 });
+  if (r.exitedDueToTimeout) throw new Error(`prune-worktrees ${args.join(" ")} did not finish within 60s; stderr: ${r.stderr.toString().slice(-2000)}`);
   const stdout = r.stdout.toString();
   let json = null;
   try {
@@ -699,4 +702,259 @@ test('a skill-only installed copy scans without checkout-level runtime dependenc
   const result = Bun.spawnSync(['bun', `${fx.T}/installed/scripts/prune-worktrees.mjs`, 'scan', '--json', '--no-sizes'], { env: fx.env, cwd: fx.T });
   expect(result.exitCode).toBe(0);
   expect(JSON.parse(result.stdout.toString()).totals.leaves).toBe(7);
+});
+
+// ─── paths whose open never returns, and special files ───────────────────────
+// Named pipes are real special files. "A regular file whose open does not return" is a Linux write
+// lease (tests/lib/hold-lease.py): another process's open() blocks until the kernel breaks it (45 s
+// by default), well past the 2 s deadline these cases set. Lease cases skip where leases do not work.
+const mkfifo = (path) => execFileSync("mkfifo", [path]);
+const mksock = (path) => execFileSync("python3", ["-c", "import socket,sys; socket.socket(socket.AF_UNIX).bind(sys.argv[1])", path]);
+const asRoot = typeof process.getuid === "function" && process.getuid() === 0;
+const runLog = (fx) => readFileSync(`${fx.T}/state/catalyst/logs/worktree-prune/runs.jsonl`, "utf8").trim().split("\n").map((l) => JSON.parse(l));
+const today = () => new Date().toISOString().slice(0, 10);
+const verdicts = (plan) => Object.fromEntries(rows(plan).map((r) => [r.path.split("/").pop(), r.action ?? r.classification]));
+
+describe("a path whose open never returns does not stop the run", () => {
+  // On Linux, path matching never opened these even before; on a host whose realpath opens the
+  // path (macOS), this case hung the scan until the resolver stopped opening.
+  test("a process naming a named pipe outside the farm in its arguments does not stop the scan", () => {
+    const fx = buildFarm();
+    mkdirSync(`${fx.T}/outside`);
+    mkfifo(`${fx.T}/outside/argfifo`);
+    const holder = Bun.spawn(["sh", "-c", "sleep 120", "sh", `${fx.T}/outside/argfifo`], { cwd: fx.T });
+    spawned.push(holder);
+    try {
+      const r = run(fx, ["scan", "--json", "--no-sizes"]);
+      expect(r.code).toBe(0);
+      expect(r.json.liveScan.ok).toBe(true);
+      expect(rowFor(r.json, "merged-residue").classification).toBe("MERGED");
+    } finally {
+      holder.kill();
+    }
+  });
+
+  test.skipIf(!LEASES)("a tree whose .git open does not return is kept unchecked, and every other tree is pruned as usual", async () => {
+    const args = ["apply", "--json", "--include-shipped", "--actor", "housekeeping"];
+    const env = { CATALYST_PRUNE_OPEN_TIMEOUT_S: "2", CATALYST_HK_EVENTS_STEP: "1" };
+    const control = buildFarm();
+    addMergedTree(control, "held", 20);
+    age(control);
+    const expected = verdicts(run(control, args, env).json);
+
+    const fx = buildFarm();
+    addMergedTree(fx, "held", 20);
+    age(fx);
+    const lease = await holdLease(`${fx.W}/held/.git`);
+    let r;
+    const started = Date.now();
+    try {
+      r = run(fx, args, env);
+    } finally {
+      lease.release();
+    }
+    expect(Date.now() - started).toBeLessThan(30_000);
+    expect(r.code).toBe(3);
+    expect(r.stderr).toContain(`note: gave up on ${fx.W}/held/.git after 2s: its open did not return; ${fx.W}/held is kept unchecked`);
+    expect(r.stderr).toContain("· 1 unchecked");
+    const unchecked = { path: `${fx.W}/held`, reason: `could not finish checking: gave up on ${fx.W}/held/.git after 2s (its open did not return)` };
+    expect(r.json.unchecked).toEqual([unchecked]);
+    expect(r.json.totals.unchecked).toBe(1);
+    expect(r.json.unopened).toContainEqual({ path: `${fx.W}/held/.git`, why: "open did not return within 2s", effect: "tree kept unchecked" });
+    expect(existsSync(`${fx.W}/held`)).toBe(true);
+    expect(fx.g("-C", fx.R, "branch", "--list", "held").trim()).not.toBe("");
+    // No other tree's verdict changes because of it.
+    const got = verdicts(r.json);
+    expect(expected.held).toBe("removed");
+    delete expected.held;
+    expect(got).toEqual(expected);
+    expect(got["merged-residue"]).toBe("removed");
+    expect(got["merged-realwork"]).toBe("kept-dirty");
+    // age() re-ages every tree, so merged-recent is old in both farms here.
+    expect(got["CTC-9002-open"]).toBe("ACTIVE");
+    const last = runLog(fx).at(-1);
+    expect(last.mode).toBe("apply");
+    expect(last.unchecked).toEqual([unchecked]);
+  });
+});
+
+describe("a tree whose .git is a named pipe is kept unchecked", () => {
+  const control = buildFarm();
+  const fx = buildFarm();
+  rmSync(`${fx.W}/merged-residue/.git`);
+  mkfifo(`${fx.W}/merged-residue/.git`);
+  const expected = run(control, ["scan", "--json", "--no-sizes"]);
+  const scan = run(fx, ["scan", "--json", "--no-sizes"]);
+
+  test("it is reported unchecked, never counted as a clone, and the rest classify as before", () => {
+    expect(scan.code).toBe(0);
+    expect(scan.stderr).toContain(`note: skipped ${fx.W}/merged-residue/.git: a named pipe, never opened; ${fx.W}/merged-residue is kept unchecked`);
+    expect(scan.json.unchecked).toEqual([{ path: `${fx.W}/merged-residue`, reason: `could not finish checking: ${fx.W}/merged-residue/.git is a named pipe, never opened` }]);
+    expect(scan.json.clones).toEqual([]);
+    const want = verdicts(expected.json);
+    delete want["merged-residue"];
+    expect(verdicts(scan.json)).toEqual(want);
+  });
+
+  test("explain finds an unchecked tree", () => {
+    const r = run(fx, ["explain", "merged-residue"]);
+    expect(r.stderr).toContain("[UNCHECKED]");
+    expect(r.stderr).toContain("is a named pipe, never opened");
+  });
+
+  test("remove --path refuses an unchecked tree", () => {
+    const r = run(fx, ["remove", "--path", `${fx.W}/merged-residue`, "--why", "test", "--json"]);
+    expect(r.code).toBe(1);
+    expect(r.json.results[0].action).toBe("refused");
+    expect(r.json.results[0].error).toContain("is a named pipe, never opened");
+    expect(existsSync(`${fx.W}/merged-residue`)).toBe(true);
+  });
+});
+
+describe("a farm keep list the run cannot read keeps every tree", () => {
+  const keepList = (fx) => `${fx.T}/wt/.keep-worktrees`;
+  const expectAllKept = (fx, r, why) => {
+    expect(r.code).toBe(3);
+    for (const row of rows(r.json)) {
+      expect(row.classification).toBe("PROTECTED");
+      expect(row.reason).toBe(`farm keep list ${keepList(fx)} unreadable (${why}); removal refused`);
+    }
+    expect(r.json.totals.removed).toBe(0);
+    expect(existsSync(`${fx.W}/merged-residue`)).toBe(true);
+    expect(existsSync(`${fx.T}/wt-cleanup-archive`)).toBe(false);
+  };
+
+  test("a named pipe: the run finishes, nothing is removed", () => {
+    const fx = buildFarm();
+    mkfifo(keepList(fx));
+    const r = run(fx, ["apply", "--json", "--include-shipped"]);
+    expect(r.stderr).toContain(`WARN: farm keep list ${keepList(fx)} unreadable (a named pipe, never opened); every tree is kept and nothing is removed`);
+    expectAllKept(fx, r, "a named pipe, never opened");
+    expect(r.json.unopened).toContainEqual({ path: keepList(fx), why: "a named pipe, never opened", effect: "every tree kept" });
+    expect(runLog(fx).at(-1).mode).toBe("apply");
+  });
+
+  test.skipIf(!LEASES)("a list whose open does not return: given up on at the deadline", async () => {
+    const fx = buildFarm();
+    writeFileSync(keepList(fx), "nothing-listed\n");
+    const lease = await holdLease(keepList(fx));
+    let r;
+    try {
+      r = run(fx, ["apply", "--json", "--include-shipped"], { CATALYST_PRUNE_OPEN_TIMEOUT_S: "2" });
+    } finally {
+      lease.release();
+    }
+    expectAllKept(fx, r, "gave up after 2s: its open did not return");
+    expect(runLog(fx).at(-1).mode).toBe("apply");
+  });
+
+  test.skipIf(asRoot)("an unreadable list keeps every tree", () => {
+    const fx = buildFarm();
+    writeFileSync(keepList(fx), "nothing-listed\n");
+    chmodSync(keepList(fx), 0o000);
+    const r = run(fx, ["scan", "--json", "--no-sizes", "--include-shipped"]);
+    chmodSync(keepList(fx), 0o644);
+    expectAllKept(fx, r, "EACCES");
+  });
+
+  test("a link to a missing list keeps every tree", () => {
+    const fx = buildFarm();
+    symlinkSync(`${fx.T}/unmounted/.keep-worktrees`, keepList(fx));
+    const r = run(fx, ["scan", "--json", "--no-sizes", "--include-shipped"]);
+    expectAllKept(fx, r, "ENOENT");
+  });
+});
+
+describe("every other input that cannot be opened never stops the run", () => {
+  test("a Linear replica that is a named pipe gives no Linear evidence, and the scan finishes", () => {
+    const fx = buildFarm();
+    mkfifo(`${fx.T}/replica.fifo`);
+    const r = run(fx, ["scan", "--json", "--no-sizes", "--include-shipped"], { CATALYST_REPLICA_DB: `${fx.T}/replica.fifo`, CATALYST_PHASE: "test" });
+    expect(r.code).toBe(0);
+    expect(r.stderr).toContain(`WARN: Linear replica unreadable (${fx.T}/replica.fifo): a named pipe, never opened`);
+    expect(r.json.linearSource).toBe("none");
+    expect(rowFor(r.json, "CTC-9001-done").classification).not.toBe("TICKET_DONE");
+  });
+
+  test("a machine paths file that is a named pipe refuses and touches nothing", () => {
+    const fx = buildFarm();
+    mkfifo(`${fx.T}/paths.fifo`);
+    const r = run(fx, ["scan", "--json", "--no-sizes"], { CATALYST_PATHS_FILE: `${fx.T}/paths.fifo`, CATALYST_REPO_ROOT: undefined, CATALYST_REPLICA_DB: undefined });
+    expect(r.code).toBe(2);
+    expect(r.stderr).toContain(`refusing to run, nothing was touched: machine paths file unusable: ${fx.T}/paths.fifo is a named pipe, never opened`);
+    expect(readdirSync(`${fx.T}/state`)).toEqual([]);
+  });
+
+  test("a run log that is a named pipe is not written, and apply still finishes", () => {
+    const fx = buildFarm();
+    const log = `${fx.T}/state/catalyst/logs/worktree-prune/runs.jsonl`;
+    mkdirSync(dirname(log), { recursive: true });
+    mkfifo(log);
+    const r = run(fx, ["apply", "--json"]);
+    expect(r.code).toBe(0);
+    expect(r.stderr).toContain(`WARN: could not write run log ${log}: a named pipe, never opened`);
+    expect(rowFor(r.json, "merged-residue").action).toBe("removed");
+    expect(run(fx, ["history"]).stderr).toContain(`run log ${log} is a named pipe, never opened`);
+  });
+
+  test("a residue file replaced by a named pipe is skipped, never archived, and the tree goes", () => {
+    const fx = buildFarm();
+    rmSync(`${fx.W}/merged-residue/.envrc`);
+    mkfifo(`${fx.W}/merged-residue/.envrc`);
+    age(fx);
+    const r = run(fx, ["apply", "--json", "--include-shipped"]);
+    const row = rowFor(r.json, "merged-residue");
+    expect(row.action).toBe("removed");
+    expect(row.skippedSpecial).toEqual([".envrc"]);
+    expect(r.stderr).toContain(`note: skipped ${fx.W}/merged-residue/.envrc: a named pipe, never opened or archived`);
+    const dir = join(fx.T, "wt-cleanup-archive", today(), "owner__merged-residue");
+    expect(existsSync(`${dir}/changes.patch`)).toBe(false);
+    const tarList = execFileSync("tar", ["-tzf", `${dir}/untracked.tar.gz`], { encoding: "utf8" });
+    expect(tarList).toContain("__pycache__/m.pyc");
+    expect(tarList).not.toContain(".envrc");
+    expect(JSON.parse(readFileSync(`${dir}/meta.json`, "utf8")).skippedSpecial).toEqual([".envrc"]);
+  });
+
+  test("untracked named pipes and sockets in a tree never stop a removal", () => {
+    const fx = buildFarm();
+    const tree = addMergedTree(fx, "specials", 30);
+    mkfifo(`${tree}/pipe`);
+    mksock(`${tree}/sock`);
+    age(fx);
+    const r = run(fx, ["apply", "--json"]);
+    expect(rowFor(r.json, "specials").action).toBe("removed");
+    expect(existsSync(tree)).toBe(false);
+  });
+
+  test.skipIf(!LEASES)("a residue file whose open does not return keeps that tree unchecked and the rest are pruned", async () => {
+    const fx = buildFarm();
+    const pyc = `${fx.W}/merged-residue/__pycache__/m.pyc`;
+    const lease = await holdLease(pyc);
+    let r;
+    try {
+      r = run(fx, ["apply", "--json", "--include-shipped"], { CATALYST_PRUNE_OPEN_TIMEOUT_S: "2" });
+    } finally {
+      lease.release();
+    }
+    expect(r.code).toBe(3);
+    const row = rowFor(r.json, "merged-residue");
+    expect(row.action).toBe("kept-unchecked");
+    expect(row.error).toBe(`could not finish checking: gave up on ${pyc} after 2s (its open did not return); nothing removed`);
+    expect(existsSync(`${fx.W}/merged-residue`)).toBe(true);
+    expect(fx.g("-C", fx.R, "branch", "--list", "merged-residue").trim()).not.toBe("");
+    expect(existsSync(join(fx.T, "wt-cleanup-archive", today(), "owner__merged-residue"))).toBe(false);
+    expect(rowFor(r.json, "CTC-9001-done").action).toBe("removed");
+    expect(r.json.totals.keptUnchecked).toBe(1);
+  });
+});
+
+test("the skill documents the open deadline and unchecked trees", () => {
+  const skill = dirname(dirname(SCRIPT));
+  const read = (f) => readFileSync(join(skill, f), "utf8");
+  expect(read("SKILL.md")).toContain("CATALYST_PRUNE_OPEN_TIMEOUT_S");
+  expect(read("SKILL.md")).toContain("unchecked");
+  const safety = read("references/safety-model.md");
+  expect(safety).toContain("named pipe");
+  expect(safety).toMatch(/\.keep-worktrees[^\n]*every tree is kept|every tree is kept[^\n]*\.keep-worktrees/);
+  expect(read("references/workflows.md")).toContain("gave up on an open");
 });

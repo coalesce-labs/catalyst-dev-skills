@@ -51,12 +51,14 @@ Scheduled jobs protect a tree even while idle. The scanner checks ~/Library/Laun
 
 If the scheduler scan fails, removal is refused and scan/apply exit 3. If the process scan fails, every tree counts as LIVE, nothing is removed, and the run exits 3. A tree touched in the last 6 h, or with any change outside the residue list, is kept. Remote branches are never deleted.
 
+Some files are never opened. A named pipe, socket or device file is noted and skipped. A file whose open does not return within `CATALYST_PRUNE_OPEN_TIMEOUT_S` (30 s) is given up on and named in a note. A tree whose `.git` was skipped or given up on is reported under `unchecked` and never touched. If the farm keep list cannot be read, every tree is kept. The run still finishes. It exits 3 when it gave up on an open or could not read the keep list.
+
 ## Workflow
 
-- **Interactive:** read `history`, then `scan --json`; report the prunable count and GB, the protected breakdown, kept-dirty and unregistered dirs. Run `apply` only when the user says go. If space is still tight, run `candidates` and let the user pick, then act on each pick only through `remove --path … --why "…"` (never `rm -rf` or a forced `git worktree remove`).
+- **Interactive:** read `history`, then `scan --json`; report the prunable count and GB, the protected breakdown, kept-dirty, unchecked and unregistered dirs. Run `apply` only when the user says go. If space is still tight, run `candidates` and let the user pick, then act on each pick only through `remove --path … --why "…"` (never `rm -rf` or a forced `git worktree remove`).
 - **Scheduled:** the Catalyst installer's housekeeping job runs `bun <skills>/prune-worktrees/scripts/prune-worktrees.mjs apply --include-shipped --actor housekeeping`. A headless run keeps to that set. A housekeeping apply also runs `events-housekeeping.mjs run` beside the script, unless `CATALYST_HK_EVENTS_STEP=1`: it migrates legacy event months and prunes months past the retention (default 6).
 - For the event-log steps by hand, review subagents for a repo with many protected trees, and how to report space honestly, read [`references/workflows.md`](references/workflows.md).
 
 ## Environment
 
-`bun`, `git` and an authenticated `gh` (a repo whose `gh pr list` fails twice gets no PR evidence and nothing in it is removed). macOS needs `lsof`, `ps` and `plutil`; Linux reads `/proc`. Missing `crontab` is reported as a visibility limit. Tunables: `CATALYST_WORKTREE_STALE_DAYS` (14), `CATALYST_PRUNE_RECENT_HOURS` (6), `CATALYST_PRUNE_LINEARIS_MAX` (100).
+`bun`, `git` and an authenticated `gh` (a repo whose `gh pr list` fails twice gets no PR evidence and nothing in it is removed). macOS needs `lsof`, `ps` and `plutil`; Linux reads `/proc`. Missing `crontab` is reported as a visibility limit. Tunables: `CATALYST_WORKTREE_STALE_DAYS` (14), `CATALYST_PRUNE_RECENT_HOURS` (6), `CATALYST_PRUNE_LINEARIS_MAX` (100), `CATALYST_PRUNE_OPEN_TIMEOUT_S` (30).

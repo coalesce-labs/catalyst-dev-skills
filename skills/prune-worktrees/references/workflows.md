@@ -3,7 +3,7 @@
 ## Interactive: a human or a space-crunched agent asked
 
 1. **Read history first.** `bun "$S" history --json` (`$S` is the script path from SKILL.md), and `explain <ticket>` for one tree. It says what was already pruned, by whom, and what was kept-dirty. Don't re-litigate settled decisions.
-2. **Scan.** `bun "$S" scan --json`. Report the prunable count and GB, the protected breakdown, kept-dirty and unregistered leftovers. If the user says go, run `apply`.
+2. **Scan.** `bun "$S" scan --json`. Report the prunable count and GB, the protected breakdown, kept-dirty, unchecked and unregistered leftovers. If the user says go, run `apply`.
 3. **If space is still tight** (the prunable set was small next to what ACTIVE holds), run `bun "$S" candidates --json`. Each row carries hints: PR open days, branch last-commit age, idle days, size, draft flag. Present a table sorted by size, split by repo, and let the user pick. Offer review subagents for a repo with many candidates (below).
 4. **Act on decisions only through `remove --path … --why "…"`.** The `--why` lands in the run log, so future agents inherit the reasoning.
 5. **Re-check with `df -h`** and report freed space. APFS may take time to return purgeable space.
@@ -49,4 +49,6 @@ Per-tree `du` (the `sizeKb` fields) is logical size. bun and pnpm install `node_
 
 ## The run log
 
-`$CATALYST_LOGS_DIR/worktree-prune/runs.jsonl` holds one JSON line per scan, apply or remove: `{ts, mode, actor, root, totals, liveScan, prunable|result, protected, why}`. `history` tails it and `explain` searches it. A worktree that vanished without a log line was deleted by something else, which is worth surfacing.
+`$CATALYST_LOGS_DIR/worktree-prune/runs.jsonl` holds one JSON line per scan, apply or remove: `{ts, mode, actor, root, totals, liveScan, prunable|result, protected, unchecked, unopened, why}`. `history` tails it and `explain` searches it. A worktree that vanished without a log line was deleted by something else, which is worth surfacing.
+
+Exit codes: `0` done, `2` refused (nothing touched), `3` a safety check could not finish (a process or scheduler scan failed, the farm keep list could not be read, or the run gave up on an open); the affected trees were kept, `1` any other error. A run that exits 3 still writes its closing line.
