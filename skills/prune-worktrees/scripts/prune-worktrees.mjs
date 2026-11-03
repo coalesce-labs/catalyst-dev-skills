@@ -38,7 +38,11 @@
 //   * Full clones (a .git DIRECTORY) and paths outside the worktrees root are
 //     never candidates.
 //   * PROTECTED: a scheduler reference, a deploy/release name, .catalyst/keep-worktree, or an entry in
-//     <worktrees>/.keep-worktrees. Checked first in classification and removal.
+//     <worktrees>/.keep-worktrees. Checked first in classification and removal. Only a missing
+//     .keep-worktrees means no list: one that cannot be read keeps every tree, and the run exits 3.
+//   * Named pipes, sockets and devices are never opened. Every other file read runs in a child
+//     with a deadline (CATALYST_PRUNE_OPEN_TIMEOUT_S). A tree whose .git was skipped or given up on
+//     is reported under `unchecked` and never touched; the run still finishes and exits 3.
 //
 // Every scan/apply/remove run appends one JSONL line to
 // $CATALYST_LOGS_DIR/worktree-prune/runs.jsonl. Human lines go to stderr;
@@ -52,15 +56,17 @@
 //   CATALYST_PRUNE_RECENT_HOURS   recency guard (default 6)
 //   CATALYST_PRUNE_LINEARIS_MAX   linearis reads per run when there is no replica (default 100)
 //   CATALYST_PRUNE_LSOF           lsof binary; forces the lsof process scan (tests)
+//   CATALYST_PRUNE_OPEN_TIMEOUT_S seconds before an open that does not return is given up on (default 30)
 
 import { execFileSync, spawnSync } from "node:child_process";
-import { appendFileSync, existsSync, mkdirSync, readdirSync, readFileSync, readlinkSync, realpathSync, rmSync, statSync, writeFileSync } from "node:fs";
+import { appendFileSync, existsSync, mkdirSync, readdirSync, readFileSync, readlinkSync, rmSync, statSync, writeFileSync } from "node:fs";
 import { homedir } from "node:os";
 import { basename, delimiter, dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { loadMachinePaths, machinePathsFile } from "./lib/paths/node.js";
 
-import { collectScheduled, referenceReason, processHolders, processArgumentRows } from "./lib/worktree-references.mjs";
+import { collectScheduled, referenceReason, processHolders, processArgumentRows, resolveLinks } from "./lib/worktree-references.mjs";
+import { boundedProbe, describeUnopened, fileKind, formatSeconds, isSpecial, openTimeoutMs } from "./lib/bounded-read.mjs";
 
 const HOME = process.env.HOME || homedir();
 const LOG_ROOT = resolve(
@@ -118,6 +124,18 @@ const NO_SIZES = flag("no-sizes");
 const ACTOR = opt("actor") || process.env.CATALYST_PRUNE_ACTOR || "cli";
 const say = (...a) => console.error(...a);
 
+// Every file the run skipped or gave up on: { path, why, effect }. Giving up on an open exits 3.
+const UNOPENED = [];
+function unopened(path, result, effect) {
+  UNOPENED.push({ path, why: describeUnopened(result), effect });
+  if (result.kind === "abandoned") process.exitCode = 3;
+}
+// The wording for an abandoned open: "gave up on <path> after 30s", and the reason it gives.
+const timedOut = (result) => result.kind === "abandoned" && /^open did not return/.test(result.reason);
+const gaveUp = (path, result, ms) => (timedOut(result)
+  ? { note: `gave up on ${path} after ${formatSeconds(ms)}: its open did not return`, reason: `gave up on ${path} after ${formatSeconds(ms)} (its open did not return)` }
+  : { note: `gave up on ${path}: ${result.reason}`, reason: `gave up on ${path} (${result.reason})` });
+
 const USAGE =
   "usage: prune-worktrees.mjs [scan|apply|candidates|remove|history|explain] [flags]\n" +
   "  scan        [--json] [--include-stale] [--include-shipped] [--no-sizes]\n" +
@@ -146,6 +164,19 @@ async function resolveRoots(env) {
   if (wtEnv === undefined || env.CATALYST_REPO_ROOT === undefined || env.CATALYST_REPLICA_DB === undefined) {
     try {
       file = machinePathsFile({ env });
+    } catch (err) {
+      throw new Refusal(`machine paths file unusable: ${err.message}`);
+    }
+    // Type-checked and opened once under the deadline before the loader reads it, which has none.
+    const kind = file === undefined ? "missing" : fileKind(file);
+    if (isSpecial(kind)) throw new Refusal(`machine paths file unusable: ${file} is a ${kind}, never opened`);
+    if (kind !== "missing") {
+      const ms = openTimeoutMs();
+      const [pre] = boundedProbe([{ op: "open", path: file }], { timeoutMs: ms });
+      if (pre.kind === "special") throw new Refusal(`machine paths file unusable: ${file} is a ${pre.special}, never opened`);
+      if (pre.kind === "abandoned") throw new Refusal(`machine paths file unusable: ${gaveUp(file, pre, ms).note}`);
+    }
+    try {
       machine = await loadMachinePaths({ env });
     } catch (err) {
       throw new Refusal(`machine paths file unusable: ${err.message}`);
@@ -187,69 +218,71 @@ let ROOTS = null; // set in main for the commands that need a farm
 const underRoot = (p) => resolve(p).startsWith(ROOTS.worktrees + "/");
 const real = (p) => {
   try {
-    return realpathSync(p);
+    return resolveLinks(resolve(p));
   } catch {
     return resolve(p);
   }
 };
 
 // ─── discovery ───────────────────────────────────────────────────────────────
-function discover(root) {
+// Each listing's .git files are type-checked, then read in one bounded batch. A .git that is a
+// special file, cannot be read or whose open does not return makes its directory `unchecked`: it
+// is reported with the reason, never descended into, and never counted as a leaf, clone or stray.
+function discover(root, timeoutMs = openTimeoutMs()) {
   const leaves = [];
   const clones = [];
   const strays = [];
-  const probe = (d) => {
+  const unchecked = [];
+  const notes = [];
+  const subdirs = (d) => readdirSync(d, { withFileTypes: true }).filter((e) => e.isDirectory()).map((e) => join(d, e.name));
+  const uncheck = (d, result) => {
     const g = join(d, ".git");
-    if (!existsSync(g)) return null;
-    try {
-      return statSync(g).isFile() ? readFileSync(g, "utf8").trim() : "DIR";
-    } catch {
-      return null;
-    }
+    const why = describeUnopened(result);
+    const { note, reason } = result.kind === "abandoned" ? gaveUp(g, result, timeoutMs)
+      : result.kind === "special" ? { note: `skipped ${g}: ${why}`, reason: `${g} is ${why}` }
+      : { note: `${g} ${why}`, reason: `${g} ${why}` };
+    unchecked.push({ path: d, reason: `could not finish checking: ${reason}` });
+    unopened(g, result, "tree kept unchecked");
+    notes.push(`  note: ${note}; ${d} is kept unchecked`);
   };
-  for (const project of readdirSync(root, { withFileTypes: true })) {
-    if (!project.isDirectory()) continue;
-    const pdir = join(root, project.name);
-    const hit = probe(pdir);
-    if (hit === "DIR") {
-      clones.push(pdir);
+  // Sort one listing: leaves, clones and unchecked dirs are settled; the dirs with no .git are returned.
+  const level = (dirs) => {
+    const hits = new Map();
+    const reads = [];
+    for (const d of dirs) {
+      const kind = fileKind(join(d, ".git"));
+      if (kind === "dir") hits.set(d, { kind: "dir" });
+      // A .git whose stat failed (EACCES, ELOOP) goes to the reader too, which reports its error code.
+      else if (kind === "file" || kind === "error") reads.push(d);
+      else if (isSpecial(kind)) hits.set(d, { kind: "special", special: kind });
+    }
+    const got = boundedProbe(reads.map((d) => ({ op: "read", path: join(d, ".git") })), { timeoutMs });
+    reads.forEach((d, i) => hits.set(d, got[i]));
+    const bare = [];
+    for (const d of dirs) {
+      const hit = hits.get(d);
+      if (!hit || hit.kind === "missing" || (hit.kind === "file" && !hit.text.trim())) bare.push(d);
+      else if (hit.kind === "dir") clones.push(d);
+      else if (hit.kind === "file") leaves.push({ path: d, pointer: hit.text.trim() });
+      else uncheck(d, hit);
+    }
+    return bare;
+  };
+  for (const pdir of level(subdirs(root))) {
+    const subs = subdirs(pdir);
+    if (!subs.length) {
+      strays.push(pdir);
       continue;
     }
-    if (hit) {
-      leaves.push({ path: pdir, pointer: hit });
-      continue;
+    // CTC-3906: the by-org layout, <root>/<org>/<repo>/<leaf>. A symlink (the flat-layout
+    // compatibility link <root>/<repo> -> <org>/<repo>) is never followed, so nothing counts twice.
+    for (const sdir of level(subs)) {
+      const kids = subdirs(sdir);
+      if (!kids.length) strays.push(sdir);
+      else strays.push(...level(kids));
     }
-    let kids = 0;
-    for (const sub of readdirSync(pdir, { withFileTypes: true })) {
-      if (!sub.isDirectory()) continue;
-      kids++;
-      const sdir = join(pdir, sub.name);
-      const hit2 = probe(sdir);
-      if (hit2 === "DIR") {
-        clones.push(sdir);
-        continue;
-      }
-      if (hit2) {
-        leaves.push({ path: sdir, pointer: hit2 });
-        continue;
-      }
-      // CTC-3906: the by-org layout, <root>/<org>/<repo>/<leaf>. A symlink (the flat-layout
-      // compatibility link <root>/<repo> -> <org>/<repo>) is never followed, so nothing counts twice.
-      let found = 0;
-      for (const leaf of readdirSync(sdir, { withFileTypes: true })) {
-        if (!leaf.isDirectory()) continue;
-        const ldir = join(sdir, leaf.name);
-        const hit3 = probe(ldir);
-        if (hit3 === "DIR") clones.push(ldir);
-        else if (hit3) leaves.push({ path: ldir, pointer: hit3 });
-        else strays.push(ldir);
-        found++;
-      }
-      if (found === 0) strays.push(sdir);
-    }
-    if (kids === 0) strays.push(pdir);
   }
-  return { leaves, clones, strays };
+  return { leaves, clones, strays, unchecked, notes };
 }
 
 function ownerOf(pointer) {
@@ -339,8 +372,10 @@ function scheduledSnapshot() {
   return snapshot;
 }
 // Shared by classification and the final removal guard. Known matches survive scan failures.
-function protection(path, branch, scheduled, cwds) {
-  const keep = keepReason(path, branch);
+function protection(path, branch, scheduled, cwds, keepList) {
+  // The farm keep list can protect any tree, so one that cannot be read leaves none provably unprotected.
+  if (keepList.error) return { classification: "PROTECTED", reason: `farm keep list ${keepList.file} unreadable (${keepList.error}); removal refused` };
+  const keep = keepReason(path, branch, keepList);
   if (keep) return { classification: "PROTECTED", reason: keep };
   const reason = referenceReason(path, scheduled);
   if (reason) return { classification: "PROTECTED", reason };
@@ -359,17 +394,39 @@ function protection(path, branch, scheduled, cwds) {
 // idle. Such trees, and any tree opted out by a keep file, are reported and never
 // removed, by `apply` or `remove` alike.
 const PROTECTED_NAME = /^(deploy|release)-|-R\d+(-|$)/;
-function keepReason(path, branch) {
+function keepReason(path, branch, keepList) {
   const name = basename(path);
   if (PROTECTED_NAME.test(name)) return `protected name ${name}`;
   if (branch && PROTECTED_NAME.test(basename(branch))) return `protected branch ${branch}`;
   if (existsSync(join(path, ".catalyst", "keep-worktree"))) return "keep file .catalyst/keep-worktree";
-  const listFile = join(ROOTS.worktrees, ".keep-worktrees");
-  try {
-    const list = readFileSync(listFile, "utf8").split("\n").map((l) => l.replace(/#.*/, "").trim()).filter(Boolean);
-    if (list.some((l) => l === name || resolve(ROOTS.worktrees, l) === resolve(path))) return `listed in ${listFile}`;
-  } catch { /* no farm keep list */ }
+  if ((keepList.entries ?? []).some((l) => l === name || resolve(ROOTS.worktrees, l) === resolve(path))) return `listed in ${keepList.file}`;
   return null;
+}
+
+// <worktrees>/.keep-worktrees → { file, entries } or { file, error }. Only a missing list means
+// "no list". A special file is never opened; any other read runs under the deadline. Read once per
+// plan and again before each removal; the WARN prints once per run.
+const keepListWarned = new Set();
+function readFarmKeepList() {
+  const file = join(ROOTS.worktrees, ".keep-worktrees");
+  const kind = fileKind(file);
+  if (kind === "missing") return { file, entries: [] };
+  const ms = openTimeoutMs();
+  const [result] = isSpecial(kind) ? [{ kind: "special", special: kind }] : boundedProbe([{ op: "read", path: file }], { timeoutMs: ms });
+  if (result.kind === "missing") return { file, entries: [] };
+  if (result.kind === "file")
+    return { file, entries: result.text.split("\n").map((l) => l.replace(/#.*/, "").trim()).filter(Boolean) };
+  const error = result.kind === "special" ? `a ${result.special}, never opened`
+    : timedOut(result) ? `gave up after ${formatSeconds(ms)}: its open did not return`
+    : result.kind === "abandoned" ? result.reason
+    : result.kind === "dir" ? "EISDIR" : result.code;
+  process.exitCode = 3;
+  if (!keepListWarned.has(error)) {
+    keepListWarned.add(error);
+    say(`  WARN: farm keep list ${file} unreadable (${error}); every tree is kept and nothing is removed`);
+    unopened(file, result.kind === "dir" ? { kind: "error", code: "EISDIR" } : result, "every tree kept");
+  }
+  return { file, error };
 }
 
 // ─── PR evidence ─────────────────────────────────────────────────────────────
@@ -396,7 +453,7 @@ function allPrs(owner) {
 
 function defaultRemoteRef(owner) {
   try {
-    return execFileSync("git", ["-C", owner, "symbolic-ref", "--short", "refs/remotes/origin/HEAD"], { encoding: "utf8", stdio: ["ignore", "pipe", "ignore"] }).trim();
+    return execFileSync("git", ["-C", owner, "symbolic-ref", "--short", "refs/remotes/origin/HEAD"], { encoding: "utf8", timeout: 30_000, stdio: ["ignore", "pipe", "ignore"] }).trim();
   } catch {
     return "origin/main";
   }
@@ -478,6 +535,20 @@ async function makeLinear(replicaDb) {
 // with no joined state gives no row, which means no Linear evidence.
 async function readReplica(path) {
   if (!existsSync(path)) throw new Error("file not found");
+  // sqlite opens the file with no deadline: never a special file, and a regular one is opened once
+  // under the deadline first.
+  const kind = fileKind(path);
+  if (isSpecial(kind)) {
+    unopened(path, { kind: "special", special: kind }, "no Linear evidence this run");
+    throw new Error(`a ${kind}, never opened`);
+  }
+  const ms = openTimeoutMs();
+  const [pre] = boundedProbe([{ op: "open", path }], { timeoutMs: ms });
+  if (pre.kind === "special" || pre.kind === "abandoned") {
+    unopened(path, pre, "no Linear evidence this run");
+    throw new Error(pre.kind === "special" ? `a ${pre.special}, never opened`
+      : timedOut(pre) ? `gave up after ${formatSeconds(ms)}: its open did not return` : pre.reason);
+  }
   const rows = await (async () => {
     try {
       const { Database } = await import("bun:sqlite");
@@ -523,7 +594,7 @@ function onPath(bin) {
 //   TICKET_DONE       no open PR; its ticket is Done/Canceled/Duplicate in Linear (--include-shipped)
 // Trees younger than FRESH_DAYS are never promoted past ACTIVE/STALE: a
 // just-created tree sits at main with no PR while its agent is starting.
-function classifyRepo(owner, entries, { prs, cwds, linear, scheduled }) {
+function classifyRepo(owner, entries, { prs, cwds, linear, scheduled, keepList }) {
   const byHead = new Map();
   const byStackBase = new Map();
   const byTicket = new Map();
@@ -549,7 +620,7 @@ function classifyRepo(owner, entries, { prs, cwds, linear, scheduled }) {
     })();
     const r = { path: wt.path, branch: wt.branch, ticket, prNumber: null, prState: "none", ageDays, liveSessions: 0 };
     const set = (classification, reason) => Object.assign(r, { classification, reason });
-    const guard = protection(wt.path, wt.branch, scheduled, cwds);
+    const guard = protection(wt.path, wt.branch, scheduled, cwds, keepList);
     if (guard) return Object.assign(r, guard);
     if (wt.locked) return set("ACTIVE", "worktree is locked");
 
@@ -621,7 +692,7 @@ function lastCommitDays(owner, branch) {
 // real `df` delta and logs it as physicalFreedKb. Trust df.
 function dataAvailKb() {
   try {
-    const out = execFileSync("df", ["-k", dirname(ROOTS.worktrees)], { encoding: "utf8" });
+    const out = execFileSync("df", ["-k", dirname(ROOTS.worktrees)], { encoding: "utf8", timeout: 60_000 });
     return Number(out.trim().split("\n").pop().split(/\s+/)[3]) || 0;
   } catch {
     return 0;
@@ -704,6 +775,48 @@ function archiveDir(owner, path) {
   }
 }
 
+// The residue files a removal would archive, checked before any archive folder exists. A special file
+// is left out and noted, never opened. Every other file is opened once under the deadline; one whose
+// open does not return keeps the tree. → { skipped: [file], abandoned: { file, result } | null }
+function preflightResidue(path, dirty) {
+  const skipped = [];
+  const reads = [];
+  for (const d of dirty) {
+    const p = join(path, d.file);
+    const kind = fileKind(p, { follow: false });
+    if (isSpecial(kind)) {
+      skipped.push(d.file);
+      say(`  note: skipped ${p}: a ${kind}, never opened or archived`);
+      unopened(p, { kind: "special", special: kind }, "not archived");
+    } else if (kind === "file") reads.push(d.file);
+    else if (kind === "symlink") {
+      // tar archives the link itself; a target inside the tree is opened by the patch, so check it too.
+      const target = real(p);
+      if (target.startsWith(path + "/")) {
+        const tk = fileKind(target);
+        if (isSpecial(tk)) {
+          skipped.push(d.file);
+          say(`  note: skipped ${p}: a link to a ${tk}, never opened or archived`);
+          unopened(p, { kind: "special", special: tk }, "not archived");
+        } else if (tk === "file") reads.push(d.file);
+      }
+    }
+  }
+  const ms = openTimeoutMs();
+  const got = boundedProbe(reads.map((f) => ({ op: "open", path: join(path, f) })), { timeoutMs: ms });
+  for (const [i, result] of got.entries()) {
+    if (result.kind === "special") {
+      skipped.push(reads[i]);
+      say(`  note: skipped ${join(path, reads[i])}: a ${result.special}, never opened or archived`);
+      unopened(join(path, reads[i]), result, "not archived");
+    } else if (result.kind === "abandoned") {
+      unopened(join(path, reads[i]), result, "tree kept");
+      return { skipped, abandoned: { file: reads[i], ...gaveUp(join(path, reads[i]), result, ms) } };
+    }
+  }
+  return { skipped, abandoned: null };
+}
+
 // Archive trivial residue: tracked edits as a patch, untracked files as a tar.
 function archiveResidue(path, dirty, dir) {
   const tracked = dirty.filter((d) => d.code !== "??").map((d) => d.file);
@@ -714,7 +827,8 @@ function archiveResidue(path, dirty, dir) {
 
 function removeTree(owner, path, branch, { classification = null, reason = null } = {}) {
   const rec = { path, branch, action: null };
-  const keep = keepReason(path, branch);
+  const keepList = readFarmKeepList();
+  const keep = keepList.error ? null : keepReason(path, branch, keepList);
   if (keep) {
     rec.action = "kept-protected";
     rec.error = `${keep}; delete the keep file or rename the tree to remove it`;
@@ -730,7 +844,7 @@ function removeTree(owner, path, branch, { classification = null, reason = null 
   let cwds = null;
   let processError = null;
   try { cwds = processCwds(); } catch (err) { processError = err.message; }
-  const guard = protection(path, branch, scheduled, cwds);
+  const guard = protection(path, branch, scheduled, cwds, keepList);
   if (guard) {
     rec.action = guard.classification === "PROTECTED" ? "kept-protected" : "kept-live";
     rec.error = guard.reason;
@@ -759,12 +873,20 @@ function removeTree(owner, path, branch, { classification = null, reason = null 
     rec.error = `${nonTrivial.length} non-residue change(s), e.g. ${nonTrivial.slice(0, 3).map((d) => d.file).join(", ")}`;
     return rec;
   }
+  const { skipped, abandoned } = preflightResidue(path, dirty);
+  if (skipped.length) rec.skippedSpecial = skipped;
+  if (abandoned) {
+    rec.action = "kept-unchecked";
+    rec.error = `could not finish checking: ${abandoned.reason}; nothing removed`;
+    return rec;
+  }
+  const archivable = dirty.filter((d) => !skipped.includes(d.file));
   let dir = null;
   try {
-    if (dirty.length) {
+    if (archivable.length) {
       dir = archiveDir(owner, path);
-      archiveResidue(path, dirty, dir);
-      rec.archived = dirty.map((d) => d.file);
+      archiveResidue(path, archivable, dir);
+      rec.archived = archivable.map((d) => d.file);
       rec.archive = dir;
     }
     // --force only when every change was residue and is now archived.
@@ -778,7 +900,7 @@ function removeTree(owner, path, branch, { classification = null, reason = null 
   if (branch) deleteBranch(owner, branch, classification, rec, () => (dir = dir ?? archiveDir(owner, path)));
   if (rec.archive) {
     try {
-      writeFileSync(join(rec.archive, "meta.json"), JSON.stringify({ path, owner, branch, classification, reason, archived: rec.archived ?? [], note: rec.note ?? null, ts: new Date().toISOString() }, null, 2));
+      writeFileSync(join(rec.archive, "meta.json"), JSON.stringify({ path, owner, branch, classification, reason, archived: rec.archived ?? [], ...(rec.skippedSpecial ? { skippedSpecial: rec.skippedSpecial } : {}), note: rec.note ?? null, ts: new Date().toISOString() }, null, 2));
     } catch { /* the run log still records it */ }
   }
   return rec;
@@ -807,7 +929,17 @@ function deleteBranch(owner, branch, classification, rec, getDir) {
 }
 
 // ─── run log ─────────────────────────────────────────────────────────────────
+// A run log that is not a regular file (a named pipe would block the append) is never opened.
+const runLogSpecial = () => {
+  const kind = fileKind(RUN_LOG);
+  return isSpecial(kind) ? kind : null;
+};
 function logRun(record) {
+  const special = runLogSpecial();
+  if (special) {
+    say(`  WARN: could not write run log ${RUN_LOG}: a ${special}, never opened`);
+    return;
+  }
   try {
     mkdirSync(join(LOG_ROOT, "worktree-prune"), { recursive: true });
     appendFileSync(RUN_LOG, JSON.stringify(record) + "\n");
@@ -818,6 +950,7 @@ function logRun(record) {
 
 function readHistory(limit) {
   if (!existsSync(RUN_LOG)) return [];
+  if (runLogSpecial()) return [];
   const lines = readFileSync(RUN_LOG, "utf8").split("\n").filter(Boolean);
   const out = [];
   for (const l of lines.slice(-limit)) {
@@ -839,8 +972,9 @@ const PRUNABLE_CLASSES = new Set([
 
 async function buildPlan({ wantProtected = false, sizes = true } = {}) {
   const WT_ROOT = ROOTS.worktrees;
-  const { leaves, clones, strays } = discover(WT_ROOT);
-  say(`root=${WT_ROOT} (${ROOTS.source}) · ${leaves.length} worktrees · ${clones.length} clones skipped · ${strays.length} stray dirs`);
+  const { leaves, clones, strays, unchecked, notes } = discover(WT_ROOT);
+  say(`root=${WT_ROOT} (${ROOTS.source}) · ${leaves.length} worktrees · ${clones.length} clones skipped · ${strays.length} stray dirs${unchecked.length ? ` · ${unchecked.length} unchecked` : ""}`);
+  for (const note of notes) say(note);
 
   let cwds = null;
   let liveScanError = null;
@@ -852,6 +986,7 @@ async function buildPlan({ wantProtected = false, sizes = true } = {}) {
   }
   const scheduled = scheduledSnapshot();
   if (scheduled.errors.length) process.exitCode = 3;
+  const keepList = readFarmKeepList();
   const linear = await makeLinear(ROOTS.replicaDb);
 
   const byOwner = new Map();
@@ -871,11 +1006,11 @@ async function buildPlan({ wantProtected = false, sizes = true } = {}) {
 
   const plan = {
     root: WT_ROOT, roots: { ...ROOTS }, liveScan: { ok: !liveScanError, error: liveScanError, processes: cwds?.length ?? 0 },
-    linearSource: linear.source, repos: [], strays, clones, totals: {},
+    linearSource: linear.source, repos: [], strays, clones, unchecked, unopened: UNOPENED, totals: {},
   };
   const T = (plan.totals = {
     leaves: leaves.length, prunable: 0, prunableKb: 0, removed: 0, keptDirty: 0,
-    protected: 0, keptProtected: 0, unregistered: 0,
+    protected: 0, keptProtected: 0, unregistered: 0, unchecked: unchecked.length,
   });
 
   for (const [owner, paths] of [...byOwner.entries()].sort()) {
@@ -885,7 +1020,7 @@ async function buildPlan({ wantProtected = false, sizes = true } = {}) {
       const listed = listWorktrees(owner);
       const farm = new Set(paths.map(real));
       const entries = listed.filter((w) => farm.has(real(w.path)));
-      rows = classifyRepo(owner, entries, { prs: entries.length ? allPrs(owner) : [], cwds, linear, scheduled });
+      rows = classifyRepo(owner, entries, { prs: entries.length ? allPrs(owner) : [], cwds, linear, scheduled, keepList });
     } catch (err) {
       repo.error = String(err.message).slice(0, 200);
       say(`  [${basename(owner)}] SKIP ALL: ${repo.error}`);
@@ -947,6 +1082,7 @@ function reasonSummary(plan) {
       const key = `${x.classification}: ${String(x.reason || "").replace(/#\d+|\d+d|pid [\d, ]+|[A-Z][A-Z0-9]+-\d+|stack\/\S+/g, "…")}`;
       counts.set(key, (counts.get(key) || 0) + 1);
     }
+  for (const x of plan.unchecked) counts.set(`UNCHECKED: ${x.reason}`, (counts.get(`UNCHECKED: ${x.reason}`) || 0) + 1);
   say("\nkept, by reason:");
   for (const [k, n] of [...counts].sort((a, b) => b[1] - a[1])) say(`  ${String(n).padStart(4)}  ${k}`);
 }
@@ -961,10 +1097,11 @@ async function cmdScan() {
   logRun({ ts: new Date().toISOString(), mode: "scan", actor: ACTOR, root: ROOTS.worktrees, totals: plan.totals,
     includeStale: INCLUDE_STALE, includeShipped: INCLUDE_SHIPPED, liveScan: plan.liveScan,
     prunable: plan.repos.flatMap((r) => r.prunable.map((x) => ({ ...x, owner: r.owner }))),
-    protected: plan.repos.flatMap((r) => (r.protected || []).map((x) => ({ ...x, owner: r.owner }))) });
+    protected: plan.repos.flatMap((r) => (r.protected || []).map((x) => ({ ...x, owner: r.owner }))),
+    unchecked: plan.unchecked, unopened: plan.unopened });
   reasonSummary(plan);
   const gb = (plan.totals.prunableKb / 1024 / 1024).toFixed(1);
-  say(`\nprunable: ${plan.totals.prunable} (nominal ~${gb} GB via du; shared cloned node_modules means PHYSICAL reclaim will be less), protected: ${plan.totals.protected} (kept-protected: ${plan.totals.keptProtected}), unregistered: ${plan.totals.unregistered}`);
+  say(`\nprunable: ${plan.totals.prunable} (nominal ~${gb} GB via du; shared cloned node_modules means PHYSICAL reclaim will be less), protected: ${plan.totals.protected} (kept-protected: ${plan.totals.keptProtected}), unregistered: ${plan.totals.unregistered}, unchecked: ${plan.totals.unchecked}`);
   say(`run with 'apply' to remove these (still fail-closed per tree). Full log: ${RUN_LOG}`);
   liveScanExit(plan);
   out(plan);
@@ -997,6 +1134,7 @@ async function cmdApply() {
       else if (rec.action === "kept-recent") plan.totals.keptRecent = (plan.totals.keptRecent || 0) + 1;
       else if (rec.action === "kept-live") plan.totals.keptLive = (plan.totals.keptLive || 0) + 1;
       else if (rec.action === "kept-protected") plan.totals.keptProtected++;
+      else if (rec.action === "kept-unchecked") plan.totals.keptUnchecked = (plan.totals.keptUnchecked || 0) + 1;
       else plan.totals.keptDirty++;
       if (rec.action === "removed") say(`  removed ${c.path}`);
       else say(`  KEPT    ${c.path} (${rec.action}): ${rec.error}`);
@@ -1014,13 +1152,14 @@ async function cmdApply() {
   plan.totals.physicalFreedKb = Math.max(0, dataAvailKb() - availBefore);
   const pgb = (plan.totals.physicalFreedKb / 1024 / 1024).toFixed(1);
   reasonSummary(plan);
-  say(`\nremoved: ${plan.totals.removed} worktrees, kept-dirty: ${plan.totals.keptDirty}, kept-recent: ${plan.totals.keptRecent || 0}, kept-live: ${plan.totals.keptLive || 0}, kept-protected: ${plan.totals.keptProtected}, protected: ${plan.totals.protected}`);
+  say(`\nremoved: ${plan.totals.removed} worktrees, kept-dirty: ${plan.totals.keptDirty}, kept-recent: ${plan.totals.keptRecent || 0}, kept-live: ${plan.totals.keptLive || 0}, kept-protected: ${plan.totals.keptProtected}, kept-unchecked: ${plan.totals.keptUnchecked || 0}, protected: ${plan.totals.protected}, unchecked: ${plan.totals.unchecked}`);
   say(`space: nominal ${gb} GB (du, double-counts cloned node_modules); PHYSICAL freed per df: ${pgb} GB`);
   if (ACTOR === "housekeeping" && process.env.CATALYST_HK_EVENTS_STEP !== "1") plan.eventsHousekeeping = runEventsHousekeeping();
   logRun({ ts: new Date().toISOString(), mode: "apply", actor: ACTOR, root: ROOTS.worktrees, totals: plan.totals, eventsHousekeeping: plan.eventsHousekeeping,
     includeStale: INCLUDE_STALE, includeShipped: INCLUDE_SHIPPED, liveScan: plan.liveScan,
     result: plan.repos.flatMap((r) => r.prunable.map((x) => ({ ...x, owner: r.owner }))),
-    protected: plan.repos.flatMap((r) => (r.protected || []).map((x) => ({ ...x, owner: r.owner }))) });
+    protected: plan.repos.flatMap((r) => (r.protected || []).map((x) => ({ ...x, owner: r.owner }))),
+    unchecked: plan.unchecked, unopened: plan.unopened });
   liveScanExit(plan);
   out(plan);
 }
@@ -1047,13 +1186,21 @@ function cmdRemove() {
     say("remove requires at least one --path and a --why reason (recorded in the run log).");
     process.exit(2);
   }
-  const { leaves } = discover(ROOTS.worktrees);
+  const { leaves, unchecked, notes } = discover(ROOTS.worktrees);
+  for (const note of notes) say(note);
   const leafByPath = new Map(leaves.map((l) => [resolve(l.path), l]));
+  const uncheckedByPath = new Map(unchecked.map((u) => [resolve(u.path), u]));
   const results = [];
   for (const p of paths) {
     if (!underRoot(p)) {
       results.push({ path: p, action: "refused", error: "outside the worktrees root" });
       say(`  REFUSED ${p}: outside the worktrees root ${ROOTS.worktrees}`);
+      continue;
+    }
+    const skip = uncheckedByPath.get(p);
+    if (skip) {
+      results.push({ path: p, action: "refused", error: skip.reason });
+      say(`  REFUSED ${p}: ${skip.reason}`);
       continue;
     }
     const leaf = leafByPath.get(p);
@@ -1065,7 +1212,7 @@ function cmdRemove() {
     const owner = ownerOf(leaf.pointer);
     const branch = (() => {
       try {
-        return execFileSync("git", ["-C", p, "branch", "--show-current"], { encoding: "utf8", stdio: ["ignore", "pipe", "ignore"] }).trim() || null;
+        return execFileSync("git", ["-C", p, "branch", "--show-current"], { encoding: "utf8", timeout: 30_000, stdio: ["ignore", "pipe", "ignore"] }).trim() || null;
       } catch {
         return null;
       }
@@ -1081,6 +1228,12 @@ function cmdRemove() {
 
 function cmdHistory() {
   const limit = Number(opt("limit") || 20);
+  const special = runLogSpecial();
+  if (special) {
+    say(`run log ${RUN_LOG} is a ${special}, never opened`);
+    out([]);
+    return;
+  }
   const runs = readHistory(limit);
   if (!runs.length) {
     say(`no runs logged yet (${RUN_LOG})`);
@@ -1106,7 +1259,8 @@ function cmdExplain() {
   }
   const hits = [];
   for (const r of readHistory(1000)) {
-    const entries = [...(r.prunable || []), ...(r.result || []), ...(r.protected || [])];
+    const entries = [...(r.prunable || []), ...(r.result || []), ...(r.protected || []),
+      ...(r.unchecked || []).map((u) => ({ ...u, classification: "UNCHECKED" }))];
     for (const e of entries) {
       const blob = `${e.path} ${e.branch} ${e.ticket} ${r.why || ""}`.toLowerCase();
       if (blob.includes(needle)) hits.push({ run: { ts: r.ts, mode: r.mode, actor: r.actor, why: r.why }, entry: e });

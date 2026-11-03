@@ -1,29 +1,56 @@
 // Read-only dependency inventories. No shell evaluation and no checkout-level dependencies.
-import { accessSync, constants, realpathSync, readdirSync } from 'node:fs';
+import { accessSync, constants, lstatSync, readlinkSync, readdirSync, statSync } from 'node:fs';
 import { dirname, basename, resolve, isAbsolute, join } from 'node:path';
 import { homedir, userInfo } from 'node:os';
 import { spawnSync } from 'node:child_process';
+import { specialKind } from './bounded-read.mjs';
+
+// Resolve symlinks like realpath(3), with lstat and readlink only, so no path is ever opened: a path
+// named in a process's arguments can be a named pipe, a device or a cloud placeholder whose open
+// never returns. `..` after a link is physical. Errors from lstat (ENOENT, EACCES) propagate.
+export function resolveLinks(path) {
+  // Not path.resolve, which folds `..` as text before the links are known.
+  const pending = (isAbsolute(path) ? path : `${process.cwd()}/${path}`).split('/').filter(Boolean);
+  let resolved = '/'; let links = 0;
+  while (pending.length) {
+    const part = pending.shift();
+    if (part === '.') continue;
+    if (part === '..') { resolved = dirname(resolved); continue; }
+    const next = join(resolved, part);
+    const st = lstatSync(next);
+    if (st.isSymbolicLink()) {
+      if (++links > 40) throw Object.assign(new Error(`ELOOP: too many symbolic links, ${path}`), { code: 'ELOOP' });
+      const target = readlinkSync(next);
+      if (isAbsolute(target)) resolved = '/';
+      pending.unshift(...target.split('/').filter(Boolean));
+      continue;
+    }
+    if (pending.length && !st.isDirectory()) throw Object.assign(new Error(`ENOTDIR: not a directory, ${path}`), { code: 'ENOTDIR' });
+    resolved = next;
+  }
+  return resolved;
+}
 
 export function canonicalPath(value, { home = homedir(), cwd } = {}) {
   if (typeof value !== 'string' || !value) return null;
   value = value.replace(/^(?:~|\$HOME|\$\{HOME\})(?=\/)/, home);
   if (!isAbsolute(value) && !cwd) return null;
-  // Keep parent components until realpath has resolved symlinks.
+  // Keep parent components until symlinks are resolved.
   let path = isAbsolute(value) ? value : `${cwd}/${value}`;
-  // Bun may normalize .. before realpath too, so resolve those components one by one.
+  // Resolve .. components one by one, after the links before them.
   if (path.split('/').includes('..')) {
     let current = '/';
     for (const part of path.split('/')) {
       if (!part || part === '.') continue;
       if (part === '..') { current = dirname(current); continue; }
       current = join(current, part);
-      try { current = realpathSync(current); } catch { /* retain a missing suffix */ }
+      try { current = resolveLinks(current); } catch { /* retain a missing suffix */ }
     }
     return current;
   }
   const suffix = [];
   while (true) {
-    try { return join(realpathSync(path), ...suffix); } catch { /* absent leaf or inaccessible ancestor */ }
+    try { return join(resolveLinks(path), ...suffix); } catch { /* absent leaf or inaccessible ancestor */ }
     const parent = dirname(path);
     if (parent === path) return resolve(path, ...suffix);
     suffix.unshift(basename(path)); path = parent;
@@ -67,10 +94,18 @@ export function argumentPaths(argv, context = {}) {
   }
   return [...result];
 }
-const contains = (tree, path) => path === tree || path.startsWith(tree + '/');
-export function referenceReason(tree, snapshot) {
+// macOS file systems ignore case, and the resolver keeps the case it was given, so matching folds
+// case there. Folding can only add a match, which keeps a tree: the safe direction.
+const FOLD_CASE = process.platform === 'darwin';
+const fold = (value, foldCase) => (foldCase ? value.toLowerCase() : value);
+const contains = (tree, path, foldCase = false) => {
+  if (!path) return false;
+  const t = fold(tree, foldCase); const p = fold(path, foldCase);
+  return p === t || p.startsWith(t + '/');
+};
+export function referenceReason(tree, snapshot, { foldCase = FOLD_CASE } = {}) {
   const t = canonicalPath(tree);
-  return snapshot.references.find(r => contains(t, canonicalPath(r.path)))?.reason ?? null;
+  return snapshot.references.find(r => contains(t, canonicalPath(r.path), foldCase))?.reason ?? null;
 }
 
 // Only a permission refusal means "skip". Any other failure (a dangling link, a file removed since
@@ -99,6 +134,14 @@ export function collectScheduled({ home = process.env.HOME || homedir(), user = 
       (root.user ? snapshot.errors : snapshot.diagnostics).push(`${root.path}: ${err.message}`); continue;
     }
     for (const file of files) {
+      // A named pipe, socket or device is never handed to plutil, which would open it.
+      let special = null;
+      try { special = specialKind(statSync(join(root.path, file))); } catch { /* plutil reports it as before */ }
+      if (special) {
+        if (root.user) snapshot.errors.push(`${join(root.path, file)}: a ${special}, not a regular file; never opened`);
+        else snapshot.diagnostics.push(`${join(root.path, file)}: a ${special}, not a regular file; skipped, never opened`);
+        continue;
+      }
       // A system folder can hold a plist only root may read (a VPN helper daemon is mode 0700).
       // Like an unreadable system folder, it is noted and skipped; the user's own folder still fails closed.
       if (!root.user && !readable(join(root.path, file))) {
@@ -143,15 +186,16 @@ export function collectScheduled({ home = process.env.HOME || homedir(), user = 
   return snapshot;
 }
 
-export function processHolders(tree, records, selfPid = process.pid) {
+export function processHolders(tree, records, selfPid = process.pid, { foldCase = FOLD_CASE } = {}) {
   const t = canonicalPath(tree); const holders = new Map();
   for (const record of records) {
-    if (record.cwd && contains(t, canonicalPath(record.cwd))) { holders.set(record.pid, { pid: record.pid, argument: false }); continue; }
+    if (record.cwd && contains(t, record.cwdPath ??= canonicalPath(record.cwd), foldCase)) { holders.set(record.pid, { pid: record.pid, argument: false }); continue; }
     if (record.pid === selfPid || holders.has(record.pid)) continue;
     const paths = record.paths ??= argumentPaths(record.argv || [], { cwd: record.cwd, flattened: record.flattened });
     // ps flattens argv. Preserve plausible spaced operands instead of claiming they are safe.
-    const flattened = record.flattened && (record.argv || []).some(arg => arg.includes(t + '/') || arg.includes(t + ' '));
-    if (flattened || paths.some(path => contains(t, path))) holders.set(record.pid, { pid: record.pid, argument: true });
+    const ft = fold(t, foldCase);
+    const flattened = record.flattened && (record.argv || []).some(arg => fold(arg, foldCase).includes(ft + '/') || fold(arg, foldCase).includes(ft + ' '));
+    if (flattened || paths.some(path => contains(t, path, foldCase))) holders.set(record.pid, { pid: record.pid, argument: true });
   }
   return [...holders.values()];
 }
