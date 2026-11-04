@@ -1,8 +1,13 @@
 import { test, expect } from 'bun:test';
-import { chmodSync, existsSync, mkdtempSync, mkdirSync, symlinkSync, readFileSync, writeFileSync, rmSync } from 'node:fs';
+import { execFileSync } from 'node:child_process';
+import { chmodSync, existsSync, mkdtempSync, mkdirSync, realpathSync, symlinkSync, readFileSync, writeFileSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { canonicalPath, argumentPaths, collectScheduled, referenceReason, processHolders, processArgumentRows } from '../skills/prune-worktrees/scripts/lib/worktree-references.mjs';
+import { canonicalPath, argumentPaths, collectScheduled, referenceReason, processHolders, processArgumentRows, resolveLinks } from '../skills/prune-worktrees/scripts/lib/worktree-references.mjs';
+
+const mkfifo = (path) => execFileSync('mkfifo', [path]);
+// A bound unix socket file; python3 exits and leaves it behind.
+const mksock = (path) => execFileSync('python3', ['-c', 'import socket,sys; socket.socket(socket.AF_UNIX).bind(sys.argv[1])', path]);
 
 test('aliases resolve missing suffixes and enforce path boundaries', () => {
   const t = mkdtempSync(join(tmpdir(), 'references-'));
@@ -218,5 +223,70 @@ test('a quoted shell command nested inside another shell command keeps its path 
     expect(referenceReason('/agent', snapshot)).toBe('LaunchAgent dev.nested (ProgramArguments)');
     expect(referenceReason('/tree-sibling', snapshot)).toBeNull();
     expect(processHolders('/tree', [{ pid: 123, argv: ['sh', '-c', "bash -lc 'exec /tree/job.sh'"], cwd: '/outside' }], 999)).toEqual([{ pid: 123, argument: true }]);
+  } finally { rmSync(t, { recursive: true, force: true }); }
+});
+
+test('resolveLinks matches realpath for links, chains, loops and missing paths, without opening anything', () => {
+  const t = realpathSync(mkdtempSync(join(tmpdir(), 'resolve-links-')));
+  try {
+    mkdirSync(`${t}/real/sub/deep`, { recursive: true });
+    writeFileSync(`${t}/real/sub/f`, '');
+    symlinkSync('real', `${t}/alias`);
+    symlinkSync('../real/sub', `${t}/real/up`);
+    symlinkSync(`${t}/real/sub/deep`, `${t}/abs`);
+    symlinkSync('alias/sub', `${t}/chain`);
+    symlinkSync('f', `${t}/real/sub/flink`);
+    symlinkSync('loop2', `${t}/loop1`); symlinkSync('loop1', `${t}/loop2`);
+    for (const c of ['alias', 'alias/sub/deep', 'real/up/deep', 'abs', 'chain/deep', 'real/sub/flink', '.'])
+      expect(resolveLinks(`${t}/${c}`)).toBe(realpathSync(`${t}/${c}`));
+    expect(() => resolveLinks(`${t}/missing/x`)).toThrow(expect.objectContaining({ code: 'ENOENT' }));
+    expect(() => resolveLinks(`${t}/real/sub/f/x`)).toThrow(expect.objectContaining({ code: 'ENOTDIR' }));
+    expect(() => resolveLinks(`${t}/loop1`)).toThrow(expect.objectContaining({ code: 'ELOOP' }));
+    // `..` after a link is physical, as POSIX realpath(3) does.
+    expect(resolveLinks(`${t}/chain/../sub`)).toBe(`${t}/real/sub`);
+  } finally { rmSync(t, { recursive: true, force: true }); }
+});
+
+test('a named pipe and a socket resolve as paths and are never opened', () => {
+  const t = realpathSync(mkdtempSync(join(tmpdir(), 'resolve-special-')));
+  try {
+    mkfifo(`${t}/fifo`); mksock(`${t}/sock`); symlinkSync('fifo', `${t}/fifo-alias`);
+    // An open of the pipe would block this test until its timeout.
+    expect(canonicalPath(`${t}/fifo-alias`)).toBe(`${t}/fifo`);
+    expect(canonicalPath(`${t}/sock`)).toBe(`${t}/sock`);
+    expect(processHolders(t, [{ pid: 7, argv: ['cat', `${t}/fifo-alias`], cwd: '/outside' }], 999)).toEqual([{ pid: 7, argument: true }]);
+  } finally { rmSync(t, { recursive: true, force: true }); }
+});
+
+test('no realpathSync is left in the prune script or its reference library', () => {
+  for (const f of ['prune-worktrees.mjs', 'lib/worktree-references.mjs'])
+    expect(readFileSync(new URL(`../skills/prune-worktrees/scripts/${f}`, import.meta.url), 'utf8')).not.toMatch(/\brealpathSync\b/);
+});
+
+test('macOS-style matching folds case and only ever adds a match', () => {
+  const snapshot = { references: [{ path: '/volumes/farm/wt/repo/a/job', reason: 'job' }] };
+  expect(referenceReason('/Volumes/Farm/WT/repo/a', snapshot, { foldCase: true })).toBe('job');
+  expect(referenceReason('/Volumes/Farm/WT/repo/a', snapshot, { foldCase: false })).toBeNull();
+  expect(referenceReason('/Volumes/Farm/WT/repo/ab', snapshot, { foldCase: true })).toBeNull(); // boundary still holds
+  expect(processHolders('/Volumes/Farm/WT/a', [{ pid: 7, cwd: '/volumes/farm/wt/a/src' }], 999, { foldCase: true })).toEqual([{ pid: 7, argument: false }]);
+  expect(processHolders('/Volumes/Farm/WT/a', [{ pid: 7, cwd: '/volumes/farm/wt/a/src' }], 999, { foldCase: false })).toEqual([]);
+  expect(processHolders('/Volumes/Farm/WT/a', [{ pid: 8, argv: ['/volumes/farm/wt/a/run x'], flattened: true }], 999, { foldCase: true })).toEqual([{ pid: 8, argument: true }]);
+});
+
+test('special plists never reach plutil', () => {
+  const t = mkdtempSync(join(tmpdir(), 'special-plist-'));
+  try {
+    const root = `${t}/daemons`; mkdirSync(root);
+    mkfifo(`${root}/a.plist`); writeFileSync(`${root}/b.plist`, '<plist/>');
+    const seen = [];
+    const run = (cmd, args) => { if (cmd === 'plutil') { seen.push(args.at(-1)); return { status: 0, stdout: '{"Label":"b"}' }; } return { status: 1, stderr: 'no crontab for u' }; };
+    const system = collectScheduled({ home: t, user: 'u', roots: [{ path: root, kind: 'LaunchDaemon' }], run });
+    expect(seen).toEqual([`${root}/b.plist`]);
+    expect(system.diagnostics).toEqual([`${root}/a.plist: a named pipe, not a regular file; skipped, never opened`]);
+    expect(system.errors).toEqual([]);
+    seen.length = 0;
+    const user = collectScheduled({ home: t, user: 'u', roots: [{ path: root, kind: 'LaunchAgent', user: true }], run });
+    expect(seen).toEqual([`${root}/b.plist`]);
+    expect(user.errors).toEqual([`${root}/a.plist: a named pipe, not a regular file; never opened`]);
   } finally { rmSync(t, { recursive: true, force: true }); }
 });
