@@ -60,7 +60,7 @@
 //   CATALYST_PRUNE_OPEN_TIMEOUT_S seconds before an open that does not return is given up on (default 30)
 
 import { execFileSync, spawnSync } from "node:child_process";
-import { appendFileSync, existsSync, mkdirSync, readdirSync, readFileSync, readlinkSync, rmSync, statSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, readdirSync, readFileSync, readlinkSync, rmSync, statSync, writeFileSync } from "node:fs";
 import { homedir } from "node:os";
 import { basename, delimiter, dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -934,6 +934,9 @@ function deleteBranch(owner, branch, classification, rec, getDir) {
 
 // ─── run log ─────────────────────────────────────────────────────────────────
 // A run log that is not a regular file (a named pipe would block the append) is never opened.
+// Every append and read of a regular log runs under the open deadline, so a log whose open does not
+// return loses that one line (a WARN, and an `unopened` entry that makes the run exit 3) and the
+// run goes on.
 const runLogSpecial = () => {
   const kind = fileKind(RUN_LOG);
   return isSpecial(kind) ? kind : null;
@@ -946,16 +949,32 @@ function logRun(record) {
   }
   try {
     mkdirSync(join(LOG_ROOT, "worktree-prune"), { recursive: true });
-    appendFileSync(RUN_LOG, JSON.stringify(record) + "\n");
   } catch (err) {
     say(`WARN: could not write run log ${RUN_LOG}: ${err.message}`);
+    return;
   }
+  const [result] = boundedProbe([{ op: "append", path: RUN_LOG, text: JSON.stringify(record) + "\n" }]);
+  if (result.kind === "file") return;
+  if (result.kind === "abandoned") unopened(RUN_LOG, result, "run log line not written");
+  const why = result.kind === "error" || result.kind === "missing" ? result.message || result.code : describeUnopened(result);
+  say(`  WARN: could not write run log ${RUN_LOG}: ${why}`);
 }
 
+// The last `limit` lines of the run log; null, after a WARN, when the log could not be read.
 function readHistory(limit) {
   if (!existsSync(RUN_LOG)) return [];
   if (runLogSpecial()) return [];
-  const lines = readFileSync(RUN_LOG, "utf8").split("\n").filter(Boolean);
+  const [result] = boundedProbe([{ op: "read", path: RUN_LOG }]);
+  if (result.kind === "missing") return [];
+  if (result.kind !== "file") {
+    const failed = result.kind === "dir" ? { kind: "error", code: "EISDIR" } : result;
+    unopened(RUN_LOG, failed, "history not read");
+    // An abandoned read exits 3 (above); any other read error is still an error, as before.
+    if (failed.kind === "error") process.exitCode = 1;
+    say(`WARN: could not read run log ${RUN_LOG}: ${failed.kind === "error" ? failed.message || failed.code : describeUnopened(failed)}`);
+    return null;
+  }
+  const lines = result.text.split("\n").filter(Boolean);
   const out = [];
   for (const l of lines.slice(-limit)) {
     try {
@@ -1239,6 +1258,10 @@ function cmdHistory() {
     return;
   }
   const runs = readHistory(limit);
+  if (runs === null) {
+    out([]);
+    return;
+  }
   if (!runs.length) {
     say(`no runs logged yet (${RUN_LOG})`);
     out([]);
@@ -1261,8 +1284,13 @@ function cmdExplain() {
     say("explain needs a ticket/branch/substring, e.g. explain CTL-1889");
     process.exit(2);
   }
+  const runs = readHistory(1000);
+  if (runs === null) {
+    out([]);
+    return;
+  }
   const hits = [];
-  for (const r of readHistory(1000)) {
+  for (const r of runs) {
     const entries = [...(r.prunable || []), ...(r.result || []), ...(r.protected || []),
       ...(r.unchecked || []).map((u) => ({ ...u, classification: "UNCHECKED" }))];
     for (const e of entries) {

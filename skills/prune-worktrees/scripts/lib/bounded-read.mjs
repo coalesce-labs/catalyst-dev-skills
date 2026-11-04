@@ -44,7 +44,7 @@ export function describeUnopened(result) {
   return null;
 }
 
-// boundedProbe([{ op: 'read' | 'open', path }]) → one result per request, in order:
+// boundedProbe([{ op: 'read' | 'open' | 'append', path, text? }]) → one result per request, in order:
 //   { kind: 'file', text? } | { kind: 'dir' } | { kind: 'missing', code } | { kind: 'special', special }
 //   | { kind: 'error', code, message } | { kind: 'abandoned', reason }
 // The child writes `S <i>` before it touches request i and `D <i> <json>` after. When it is killed at
@@ -54,7 +54,7 @@ export function boundedProbe(requests, { timeoutMs = openTimeoutMs() } = {}) {
   const results = new Array(requests.length).fill(null);
   let next = 0;
   while (next < requests.length) {
-    const batch = requests.slice(next).map((r, i) => ({ i: next + i, op: r.op, path: r.path }));
+    const batch = requests.slice(next).map((r, i) => ({ i: next + i, op: r.op, path: r.path, text: r.text }));
     const spawnedAt = Date.now();
     const r = spawnSync(process.execPath, [CHILD], {
       input: JSON.stringify(batch), encoding: "utf8", timeout: timeoutMs, killSignal: "SIGKILL", maxBuffer: 256 * 1024 * 1024,

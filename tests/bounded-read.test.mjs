@@ -9,7 +9,7 @@
 
 import { test, expect, afterAll } from "bun:test";
 import { execFileSync } from "node:child_process";
-import { mkdtempSync, realpathSync, rmSync, writeFileSync } from "node:fs";
+import { mkdtempSync, readFileSync, realpathSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { boundedProbe, openTimeoutMs } from "../skills/prune-worktrees/scripts/lib/bounded-read.mjs";
@@ -34,6 +34,15 @@ test("named pipes, sockets and devices are reported as special and never opened"
   const started = Date.now();
   const r = boundedProbe([{ op: "read", path: fifo }, { op: "open", path: sock }, { op: "open", path: "/dev/null" }], { timeoutMs: 5000 });
   expect(r.map((x) => x.special)).toEqual(["named pipe", "socket", "character device"]);
+  expect(Date.now() - started).toBeLessThan(4000); // a FIFO open would block until the deadline
+});
+
+test("an append creates or extends a regular file, and never opens a named pipe", () => {
+  const log = `${t}/log`;
+  const started = Date.now();
+  const r = boundedProbe([{ op: "append", path: log, text: "a\n" }, { op: "append", path: log, text: "b\n" }, { op: "append", path: fifo, text: "x\n" }], { timeoutMs: 5000 });
+  expect(r).toEqual([{ kind: "file" }, { kind: "file" }, { kind: "special", special: "named pipe" }]);
+  expect(readFileSync(log, "utf8")).toBe("a\nb\n");
   expect(Date.now() - started).toBeLessThan(4000); // a FIFO open would block until the deadline
 });
 

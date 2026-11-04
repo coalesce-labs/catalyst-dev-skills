@@ -264,13 +264,13 @@ test('no realpathSync is left in the prune script or its reference library', () 
 });
 
 test('macOS-style matching folds case and only ever adds a match', () => {
-  const snapshot = { references: [{ path: '/users/me/wt/repo/a/job', reason: 'job' }] };
-  expect(referenceReason('/Users/me/WT/repo/a', snapshot, { foldCase: true })).toBe('job');
-  expect(referenceReason('/Users/me/WT/repo/a', snapshot, { foldCase: false })).toBeNull();
-  expect(referenceReason('/Users/me/WT/repo/ab', snapshot, { foldCase: true })).toBeNull(); // boundary still holds
-  expect(processHolders('/Users/me/WT/a', [{ pid: 7, cwd: '/users/me/wt/a/src' }], 999, { foldCase: true })).toEqual([{ pid: 7, argument: false }]);
-  expect(processHolders('/Users/me/WT/a', [{ pid: 7, cwd: '/users/me/wt/a/src' }], 999, { foldCase: false })).toEqual([]);
-  expect(processHolders('/Users/me/WT/a', [{ pid: 8, argv: ['/users/me/wt/a/run x'], flattened: true }], 999, { foldCase: true })).toEqual([{ pid: 8, argument: true }]);
+  const snapshot = { references: [{ path: '/volumes/farm/wt/repo/a/job', reason: 'job' }] };
+  expect(referenceReason('/Volumes/Farm/WT/repo/a', snapshot, { foldCase: true })).toBe('job');
+  expect(referenceReason('/Volumes/Farm/WT/repo/a', snapshot, { foldCase: false })).toBeNull();
+  expect(referenceReason('/Volumes/Farm/WT/repo/ab', snapshot, { foldCase: true })).toBeNull(); // boundary still holds
+  expect(processHolders('/Volumes/Farm/WT/a', [{ pid: 7, cwd: '/volumes/farm/wt/a/src' }], 999, { foldCase: true })).toEqual([{ pid: 7, argument: false }]);
+  expect(processHolders('/Volumes/Farm/WT/a', [{ pid: 7, cwd: '/volumes/farm/wt/a/src' }], 999, { foldCase: false })).toEqual([]);
+  expect(processHolders('/Volumes/Farm/WT/a', [{ pid: 8, argv: ['/volumes/farm/wt/a/run x'], flattened: true }], 999, { foldCase: true })).toEqual([{ pid: 8, argument: true }]);
 });
 
 test('special plists never reach plutil', () => {

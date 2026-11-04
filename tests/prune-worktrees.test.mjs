@@ -897,6 +897,51 @@ describe("every other input that cannot be opened never stops the run", () => {
     expect(run(fx, ["history"]).stderr).toContain(`run log ${log} is a named pipe, never opened`);
   });
 
+  test.skipIf(!LEASES)("a run log whose open does not return loses its lines, and apply still prunes and finishes", async () => {
+    const fx = buildFarm();
+    const log = `${fx.T}/state/catalyst/logs/worktree-prune/runs.jsonl`;
+    mkdirSync(dirname(log), { recursive: true });
+    writeFileSync(log, "");
+    const env = { CATALYST_PRUNE_OPEN_TIMEOUT_S: "2", CATALYST_HK_EVENTS_STEP: "1" };
+    const lease = await holdLease(log);
+    let r;
+    let history;
+    const started = Date.now();
+    try {
+      r = run(fx, ["apply", "--json", "--actor", "housekeeping"], env);
+      history = run(fx, ["history"], env);
+    } finally {
+      lease.release();
+    }
+    // Before the fix the first append waited for the kernel to break the lease (45 s by default).
+    expect(Date.now() - started).toBeLessThan(30_000);
+    expect(r.code).toBe(3);
+    expect(r.stderr).toContain(`WARN: could not write run log ${log}: open did not return within 2s`);
+    expect(r.stderr).toContain("\nremoved: ");
+    expect(rowFor(r.json, "merged-residue").action).toBe("removed");
+    expect(existsSync(`${fx.W}/merged-residue`)).toBe(false);
+    expect(r.json.unopened).toContainEqual({ path: log, why: "open did not return within 2s", effect: "run log line not written" });
+    expect(readFileSync(log, "utf8")).not.toContain("apply-started");
+    expect(history.code).toBe(3);
+    expect(history.stderr).toContain(`WARN: could not read run log ${log}: open did not return within 2s`);
+    expect(history.stderr).not.toContain("no runs logged yet");
+  });
+
+  test.skipIf(asRoot)("history and explain fail on a run log they cannot read", () => {
+    const fx = buildFarm();
+    run(fx, ["scan", "--json", "--no-sizes"]);
+    const log = `${fx.T}/state/catalyst/logs/worktree-prune/runs.jsonl`;
+    chmodSync(log, 0o000);
+    const history = run(fx, ["history"]);
+    const explain = run(fx, ["explain", "merged-residue"]);
+    chmodSync(log, 0o644);
+    expect(history.code).toBe(1);
+    expect(history.stderr).toContain(`WARN: could not read run log ${log}: EACCES`);
+    expect(history.stderr).not.toContain("no runs logged yet");
+    expect(explain.code).toBe(1);
+    expect(explain.stderr).not.toContain("never pruned by this tool");
+  });
+
   test("a residue file replaced by a named pipe is skipped, never archived, and the tree goes", () => {
     const fx = buildFarm();
     rmSync(`${fx.W}/merged-residue/.envrc`);
