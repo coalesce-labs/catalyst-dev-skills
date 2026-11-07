@@ -12,8 +12,8 @@ set -uo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 SKILLS_DIR="$(cd "${SCRIPT_DIR}/../skills" && pwd)"
-WRITER="${SKILLS_DIR}/describe-pr/references/verify-and-writeback.md"
-READERS="${SKILLS_DIR}/describe-pr/references/process.md ${SKILLS_DIR}/merge-pr/references/post-merge.md"
+WRITER="${SKILLS_DIR}/describe-pr/references/write-back.md"
+READERS="${SKILLS_DIR}/merge-pr/references/post-merge.md"
 
 PASS=0
 FAIL=0

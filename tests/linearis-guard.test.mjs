@@ -105,11 +105,13 @@ describe("every skill that uses linearis carries the phase-container guard", () 
 
   test("the set of linearis users is read from the tree, not an empty listing", () => {
     expect(skills.length).toBeGreaterThanOrEqual(28);
-    expect(users).toContain("research-codebase");
-    expect(users.length).toBeGreaterThanOrEqual(14);
+    expect(users).toContain("merge-pr");
+    expect(users.length).toBeGreaterThanOrEqual(10);
   });
 
-  for (const skill of users) {
+  // describe-pr no longer drives Linear: its SKILL.md writes nothing to a ticket and names no linearis
+  // command. Only a refresh note in its vendored team-keys list under scripts/lib still names the CLI.
+  for (const skill of users.filter((name) => name !== "describe-pr")) {
     test(`${skill}: documents a skip when CATALYST_PHASE is set or linearis is unavailable`, () => {
       expect(guardParagraphs(join(skillsRoot, skill)).length).toBeGreaterThan(0);
     });

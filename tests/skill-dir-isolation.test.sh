@@ -110,8 +110,8 @@ for skill in create-pr describe-pr; do
   run_isolated "${skill}: sibling-skip helper sources its team-keys lib" "$skill" \
     'source "$CLAUDE_SKILL_DIR/scripts/lib/linear-pr-skip.sh" && declare -F linear_sibling_skip_block_from_branch >/dev/null && declare -F linear_team_keys_filter >/dev/null'
 done
-run_isolated "describe-pr: replica read helper sources" describe-pr \
-  'source "$CLAUDE_SKILL_DIR/scripts/lib/linear-read-replica.sh" && declare -F linear_read_ticket >/dev/null'
+run_isolated "describe-pr: cloud read helper sources" describe-pr \
+  'source "$CLAUDE_SKILL_DIR/scripts/lib/catalyst-cloud-read.sh" && declare -F catalyst_ticket_json >/dev/null'
 run_isolated "merge-pr: merge-route parses on its own" merge-pr \
   'bash -n "$CLAUDE_SKILL_DIR/scripts/merge-route.sh"'
 # pull-primary-worktree runs inside the repository it merges in; a scratch repo is its real shape.

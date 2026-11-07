@@ -70,10 +70,10 @@ read_ticket "$TMP/offcloud" "$PATH_WITH_CLI"
 grep -q "replica ENG-1" "$TMP/log" && ! grep -q "^catalyst" "$TMP/log" && ok "a machine with no cloud connection takes the operator path" || bad "a machine with no cloud connection takes the operator path"
 
 echo "── call sites use the helper"
-grep -q "catalyst_ticket_json" "$ROOT/skills/describe-pr/references/merge-and-title.md" && ok "describe-pr reads the ticket with catalyst_ticket_json" || bad "describe-pr reads the ticket with catalyst_ticket_json"
+grep -q "catalyst_ticket_json" "$ROOT/skills/describe-pr/SKILL.md" && ok "describe-pr reads the ticket with catalyst_ticket_json" || bad "describe-pr reads the ticket with catalyst_ticket_json"
 grep -q "catalyst_ticket_json" "$ROOT/vendor-src/scripts/compound-log.sh" && ok "compound-log reads the estimate with catalyst_ticket_json" || bad "compound-log reads the estimate with catalyst_ticket_json"
 grep -q "catalyst_ticket_json" "$ROOT/skills/gherkin-ticket/SKILL.md" && ok "gherkin-ticket reads the ticket with catalyst_ticket_json" || bad "gherkin-ticket reads the ticket with catalyst_ticket_json"
-for f in "$ROOT/skills/describe-pr/references/merge-and-title.md" "$ROOT/vendor-src/scripts/compound-log.sh"; do
+for f in "$ROOT/skills/describe-pr/SKILL.md" "$ROOT/vendor-src/scripts/compound-log.sh"; do
   grep -qE 'catalyst query issue[^|]*2>/dev/null' "$f" && bad "$(basename "$f") hides a cloud read's error" || ok "$(basename "$f") keeps a cloud read's error visible"
 done
 

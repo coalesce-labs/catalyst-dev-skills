@@ -31,7 +31,11 @@ describe("customer-facing skills read tickets through the catalyst CLI", () => {
     });
   }
 
-  for (const skill of ["describe-pr", "gherkin-ticket"]) {
+  test("describe-pr reads the ticket title through the cloud read helper", () => {
+    expect(prose("describe-pr")).toContain("catalyst_ticket_json");
+  });
+
+  for (const skill of ["gherkin-ticket"]) {
     test(`${skill} reads a ticket with catalyst query issue on a cloud account`, () => {
       expect(prose(skill)).toContain("catalyst query issue");
     });

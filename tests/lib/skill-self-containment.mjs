@@ -43,6 +43,8 @@ const PLUGIN_ROOT_PATTERN = /\$\{?CLAUDE_PLUGIN_ROOT\}?|plugins\/[a-z0-9-]+\/(?:
 const SKILL_DIR_PATH_PATTERN = /\$\{CLAUDE_SKILL_DIR\}\/([A-Za-z0-9_./-]+)/g;
 const ANY_SKILL_DIR_PATH_PATTERN = /\$\{?CLAUDE_SKILL_DIR\}?\/([A-Za-z0-9_./-]+)/g;
 const PREAMBLE_MARKER = "skill_dir_unresolved";
+// The slim skills carry the preamble as one sentence with no stop marker.
+const PREAMBLE_SENTENCE = /does not fill it in, set it to the directory holding this (?:file|SKILL\.md)/;
 // A line addressed to catalyst maintainers working inside a catalyst checkout says so; only such a
 // line may name a repo-relative plugin path.
 const CATALYST_CHECKOUT_MARKER = "(catalyst-checkout only)";
@@ -157,7 +159,7 @@ export function checkSkillSelfContainment(skillDir) {
           violations.push({ rule: "sibling-skill-path", file: rel(skillDir, file), line: idx + 1, detail: match[1] });
         }
       }
-      if (text.includes(PREAMBLE_MARKER)) hasPreamble = true;
+      if (text.includes(PREAMBLE_MARKER) || PREAMBLE_SENTENCE.test(text)) hasPreamble = true;
       const escapes = (target) => relative(skillDir, normalize(join(skillDir, target))).startsWith("..");
       // Braced or not: `$CLAUDE_SKILL_DIR/../x` climbs out as surely as `${CLAUDE_SKILL_DIR}/../x`.
       for (const match of text.matchAll(ANY_SKILL_DIR_PATH_PATTERN)) {
