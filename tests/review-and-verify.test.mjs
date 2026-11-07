@@ -148,6 +148,7 @@ describe("the script chooses from the list at the base", () => {
     ["a quoted table name", "[\"review\"]\none_way_paths = ['^nothing$']\n", "quotes"],
     ["a quoted key", "[review]\n\"one_way_paths\" = ['^nothing$']\n", "quotes"],
     ["the list as a table", "[review.one_way_paths]\nx = 1\n", "as a table"],
+    ["an empty list", "[review]\none_way_paths = []\n", "0 entries"],
   ])("%s at the base is deep and says it could not be read", (_name, toml, reason) => {
     const r = chosen({ [SETTINGS]: toml }, { "src/a.ts": "x\n" });
     expect(r).toMatchObject({ status: 0, depth: "deep" });
