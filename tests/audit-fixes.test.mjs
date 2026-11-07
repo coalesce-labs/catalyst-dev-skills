@@ -23,12 +23,31 @@ describe("each skill's instructions match what it runs", () => {
     const text = read("skills/implement-plan/SKILL.md");
     expect(text).not.toMatch(/pr-review-toolkit/);
     expect(text).toMatch(/Unless a runner or coordinator started you, say that no review has run and that the `review-and-verify` skill comes next/);
+    expect(text).toMatch(/A plan path in the arguments needs no confirmation/);
   });
 
   test("implement-plan's person-facing limits stay in its text", () => {
     const text = read("skills/implement-plan/SKILL.md");
     expect(text).toMatch(/When unattended, or when the person asked for commits, commit now/);
     expect(text).toMatch(/If the branch has commits `origin\/main` lacks, merge `origin\/main` first/);
+  });
+
+  test("stage skills take the path they are given and never search for a newer document", () => {
+    const validate = read("skills/validate-plan/SKILL.md");
+    const plan = read("skills/create-plan/SKILL.md");
+    expect(validate).toContain("A plan path argument wins");
+    expect(plan).toContain("plan from the research file you were given");
+    for (const text of [validate, plan]) expect(text).not.toMatch(/ls -t thoughts|RECENT_PLAN|RECENT_RESEARCH|explicit-input discovery/);
+  });
+
+  test("no skill starts a tracked session", () => {
+    const dir = join(repoRoot, "skills");
+    const holding = readdirSync(dir, { recursive: true }).filter((f) => String(f).endsWith(".md") && readFileSync(join(dir, String(f)), "utf8").includes("SESSION_SCRIPT"));
+    expect(holding).toEqual([]);
+  });
+
+  test("describe-pr stops when there is no pull request to describe", () => {
+    expect(read("skills/describe-pr/SKILL.md")).toMatch(/With no pull request, stop and report `no_pr_found`/);
   });
 
   test("create-worktree's headless launch reviews what it opens", () => {

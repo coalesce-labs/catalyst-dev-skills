@@ -223,4 +223,14 @@ printf 'files:\n%s' "$CODE_FILES"
 if [ "$NON_CODE_N" -gt 0 ]; then
   printf 'non_code_files:\n%s' "$NON_CODE_FILES"
 fi
+# Inside a run (CATALYST_ARTIFACT_DIR set), record that this skill's first step ran at this base
+# and head. It shows the scope was computed and nothing more: ticket-oneshot's `stage review-step`
+# reads it to confirm its session did this step.
+if [ -n "${CATALYST_ARTIFACT_DIR:-}" ] && [ -n "$HEAD_SHA" ]; then
+  SKILL_NAME="$(basename "$(cd "$(dirname "$0")/.." && pwd)")"
+  mkdir -p "$CATALYST_ARTIFACT_DIR/gates" \
+    && printf '{"skill":"%s","status":"%s","base":"%s","head":"%s","code_files":%s,"at":"%s"}\n' \
+      "$SKILL_NAME" "$STATUS" "$BASE_SHA" "$HEAD_SHA" "$CODE_N" "$(date -u +%Y-%m-%dT%H:%M:%SZ)" \
+      > "$CATALYST_ARTIFACT_DIR/gates/$SKILL_NAME-$HEAD_SHA.json"
+fi
 exit "$RC"

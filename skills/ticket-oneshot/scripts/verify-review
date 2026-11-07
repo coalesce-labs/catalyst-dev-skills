@@ -1,0 +1,9 @@
+#!/usr/bin/env node
+import { spawnSync } from "node:child_process";
+import { verifyReview } from "./lib.mjs";
+const path = process.argv[2];
+if (!path) { process.stderr.write("usage: verify-review <review-result.json>\n"); process.exit(2); }
+const head = spawnSync("git", ["rev-parse", "HEAD"], { encoding: "utf8" });
+const result = verifyReview(path, head.status === 0 ? head.stdout.trim() : null);
+process.stdout.write(JSON.stringify({ stage: "review", ...result }) + "\n");
+if (!result.ok) { process.stderr.write(result.errors.join("\n") + "\n"); process.exitCode = 1; }

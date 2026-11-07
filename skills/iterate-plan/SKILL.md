@@ -5,6 +5,6 @@ description: "Old name for revising an implementation plan, now the create-plan 
 
 # Iterate plan (now part of create-plan)
 
-Revising a plan is now the `create-plan` skill's revise mode. Invoke the `create-plan` skill with the same input (the plan's path or ticket, and the changes wanted) and follow its "Revising an existing plan" section.
+Revising a plan is now the `create-plan` skill's revise mode. Invoke the `create-plan` skill with the same input (the plan's path or ticket, and the changes wanted) and follow its "Revising a plan" section.
 
 If the `create-plan` skill is not installed, refresh this pack (`npx skills@latest add coalesce-labs/catalyst-dev-skills --all -g`, after the checks in the pack's README) and try again.

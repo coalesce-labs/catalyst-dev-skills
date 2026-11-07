@@ -1,79 +1,27 @@
 ---
 name: create-plan
-description:
-  "Create an implementation plan with the person, step by step, or revise an existing one. **ALWAYS use
-  when** the user says 'plan this', 'create a plan', 'let's plan the implementation', 'design the approach',
-  or wants a structured TDD implementation plan before writing code; and when they say 'update the plan', 'change
-  the plan', 'the requirements changed' or 'revise the approach' for a plan in thoughts/shared/plans/. Works best after the research-codebase skill."
-disable-model-invocation: false
+description: "Write or revise a test-first implementation plan in thoughts/shared/plans/, with numbered acceptance criteria that each name the test proving them. Use when asked to plan a change, design the approach, or update a plan because requirements changed. Works best after research-codebase."
 allowed-tools: Read, Write, Grep, Glob, Task, TodoWrite, Bash
-version: 1.0.0
+metadata:
+  version: "2.0.0"
 ---
 
 # Create plan
 
-Build the plan with the person and get their agreement at each step; when `CATALYST_PHASE` is set, never ask and wait: decide from the evidence and record each choice in the plan. Be skeptical: verify every requirement against the code, and research each correction the person makes before accepting it. When the person names an existing plan and asks for changes, follow [Revising an existing plan](#revising-an-existing-plan) instead.
+A plan is done when someone else could implement it without asking you anything, and when every acceptance criterion names the test that proves it. The implementer proves each criterion, and the reviewer checks the criteria, so they are the contract for everything after this stage.
 
-**Paths.** `${CLAUDE_SKILL_DIR}` is this skill's directory, which Claude Code fills in. On another harness, set it to the directory holding this SKILL.md, or stop and report `skill_dir_unresolved`.
+**Unattended.** When `CATALYST_PHASE` is set, or a coordinator started you, plan from the research file you were given (or from the ticket alone, saying so), decide every open question from the evidence, record each decision in the plan, and never ask and wait. Otherwise agree the approach with the person before writing details.
 
-## Start
-
-Run this, then start session tracking as [references/session-tracking.md](references/session-tracking.md) shows. When `CATALYST_PHASE` is set, never search and never ask: plan from the research file the arguments or the prompt name (with none, from the ticket alone, saying so in the plan), and record each choice you make in the plan.
-
-```bash
-# Thoughts must exist for this skill's documents. That is the only host check here: the skill runs anywhere.
-[[ -e thoughts/shared ]] || echo "⚠️ thoughts/shared is missing in $(pwd) — run \`humanlayer thoughts init\` in the repo root, or create the worktree with the create-worktree skill, which does it; if the prompt names an output path, write there" >&2
-if [[ -n "${CATALYST_PHASE:-}" ]]; then echo "unattended: CATALYST_PHASE=$CATALYST_PHASE, so never ask and wait"; fi
-# explicit-input discovery: begin
-# The research to plan from: a `thoughts/shared/research/` path in the argument text (Claude Code fills in the
-# token below; elsewhere, use the path the prompt names). Under a phase that path is the only input.
-# Off a phase, else the ticket's newest document, else the newest; `[!0-9]` keeps PROJ-1 off PROJ-10's.
-SKILL_ARGS=$(cat <<'CATALYST_SKILL_ARGS'
-$ARGUMENTS
-CATALYST_SKILL_ARGS
-)
-RECENT_RESEARCH=$(printf '%s' "$SKILL_ARGS" | grep -oE '[^[:space:]"()<>`]*thoughts/shared/research/[^[:space:]"()<>`]+[.]md' | head -1); [[ -f "$RECENT_RESEARCH" ]] || RECENT_RESEARCH=""
-TICKET_ID="${TICKET_ID:-${CATALYST_TICKET:-}}"
-[[ -n "$TICKET_ID" ]] || TICKET_ID=$(printf '%s' "$SKILL_ARGS" | grep -oE '[A-Z][A-Z0-9]*-[0-9]+' | head -1)
-[[ -n "$TICKET_ID" ]] || TICKET_ID=$(printf '%s' "$SKILL_ARGS" | tr '[:lower:]' '[:upper:]' | grep -oE '[A-Z][A-Z0-9]*-[0-9]+' | head -1)
-if [[ -z "$RECENT_RESEARCH" && -z "${CATALYST_PHASE:-}" ]]; then
-  if [[ -n "$TICKET_ID" ]]; then
-    RECENT_RESEARCH=$(find -H thoughts/shared/research -type f -name '*.md' -ipath "*${TICKET_ID}[!0-9]*" -exec ls -t {} + 2>/dev/null | head -1)
-  else
-    RECENT_RESEARCH=$(find -H thoughts/shared/research -type f -name '*.md' -exec ls -t {} + 2>/dev/null | head -1)
-  fi
-fi
-# explicit-input discovery: end
-if [[ -n "$RECENT_RESEARCH" ]]; then
-  echo "📋 Found research: $RECENT_RESEARCH"
-else
-  echo "⚠️ No research found on disk for ${TICKET_ID:-this run} — ask for it (or read the paths the prompt names)"
-fi
-```
-
-- **Input given** (a path or ticket): it overrides discovery. Read those files, ask whether any research the block found (📋) should inform the plan, then begin.
-- **No input, research found (📋):** show its path, ask whether to plan from it, and wait.
-- **Nothing found (⚠️):** ask for the task or ticket, its constraints, and related research, and wait.
+**Paths.** `${CLAUDE_SKILL_DIR}` is this skill's directory. On a harness that does not fill it in, set it to the directory holding this file.
 
 ## Steps
 
-When `CATALYST_PHASE` is set, never ask and wait at any step below: take the approach the evidence supports, record each decision and open trade-off in the plan, and skip the review loop.
+1. **Read what is named.** The research document, the ticket, and every file they cite, whole.
+2. **Check the code.** Verify each requirement against the code with the agents in `${CLAUDE_SKILL_DIR}/assets/agents/` (`codebase-locator`, `codebase-analyzer`, `codebase-pattern-finder`), in parallel, or inline without subagents. Research every correction a person makes before accepting it.
+3. **Write the acceptance criteria first.** `AC1`, `AC2`, …: each one observable behaviour, taken from the ticket's scenarios when it has them, and the test that will prove it. Then the phases that deliver them, each test first.
+4. **Write** `thoughts/shared/plans/YYYY-MM-DD-<TICKET>-<slug>.md` from [references/plan-template.md](references/plan-template.md). Fetch `origin/main` first and record the full HEAD sha, branch, `origin/main` sha and merge-base in the frontmatter. Set `source_research` to the research document's own thoughts filename (`YYYY-MM-DD-<TICKET>-<slug>`), never to a copy such as `research.md`. List the real paths under `## Files in scope`, including existing test files that gain tests. Leave no open question in the file.
+5. **Sync** with `humanlayer thoughts sync` (if it fails, the plan is still saved: say so in the report), then report and end with the plan's path on its own last line.
 
-1. **Gather context.** Read every mentioned file yourself, in full (no limit or offset), before spawning subagents. Take the ticket from the research's `source_ticket`, the argument, or the conversation. Run `codebase-locator`, `codebase-analyzer` and `thoughts-locator` scoped to the ticket (the `research-codebase` skill's agents) and read what they find in full. Check the requirements against the code, present your understanding with file:line references, and ask only what the code cannot answer.
-2. **Research.** Track the work in TodoWrite and run in parallel `codebase-locator`, `codebase-analyzer`, `codebase-pattern-finder`, `external-research` (framework patterns), `thoughts-locator` and `thoughts-analyzer`. Each agent's instructions ship as `${CLAUDE_SKILL_DIR}/assets/agents/<name>.md`; run a subagent with that file plus your request, or do the task inline when the harness has no subagents. Wait for all of them, then present design options with pros and cons.
-3. **Outline.** Once you agree on an approach, show the phases and what each does, and get feedback before writing details.
-4. **Write.** Save to `thoughts/shared/plans/YYYY-MM-DD-PROJ-123-description.md` (always this form under a phase, which knows its ticket), or `YYYY-MM-DD-description.md` with no ticket, where `PROJ` is the team prefix in `.catalyst/config.json`. Write only under `thoughts/shared/plans/`; `thoughts/searchable/` is a read-only index. Before capturing metadata, fetch `origin/main`. Record the full `git rev-parse HEAD`, branch, fetched `origin/main` SHA, and `git merge-base origin/main HEAD` in the frontmatter. The merge-base is the plan's main baseline; never substitute a short SHA. Fill the template in [references/plan-template.md](references/plan-template.md): every phase runs Red, Green, Refactor, and success criteria split into Automated Verification (prefer `make check`) and Manual Verification. Resolve every open question before saving.
-5. **Review.** Run `humanlayer thoughts sync`, which commits and pushes the thoughts repo, show the plan's path, and ask whether the phases are scoped right, the criteria specific, and any edge case missing. Revise until the person is satisfied, syncing after each change. Above 60% context, recommend clearing before implementation.
-6. **Hand off.** End session tracking. Under a phase, end your report with the plan's path on its own last line, so whoever started this run reads the file. Otherwise tell the person to start a fresh session and use the implement-plan skill with `[--team] thoughts/shared/plans/{PLAN_FILENAME}`. Add `--team` for 3+ parallel phases in distinct domains with non-overlapping files, or 10+ files.
+## Revising a plan
 
-Planning moves no ticket; a person who asks for a move uses `catalyst write state <ID> --slot <slot>` (the Cloud pack's `catalyst-linear` skill); off the cloud, an operator moves it with the Linearis CLI directly. Once the plan is saved, comment its path on the ticket through the app actor: `catalyst write comment <ID>` on a Catalyst Cloud account; off the cloud, an operator posts it as the app actor. Bare `linearis issues discuss`/`reply` posts as the token's owner, so leave it unused. Skip the comment when `CATALYST_PHASE` is set, and skip silently when `command -v catalyst` and `command -v linearis` both fail.
-
-## Revising an existing plan
-
-Use this when the person names an existing plan (a path, or a ticket with a plan on disk) and asks for changes. Back each change with research, not just text edits. When `CATALYST_PHASE` is set, never ask and wait: take the plan and the change from the arguments and the prompt.
-
-1. **Find the plan.** Use the path given, or the newest plan for `TICKET_ID`: `find -H thoughts/shared/plans -type f -name '*.md' -ipath "*${TICKET_ID}[!0-9]*" -exec ls -t {} + 2>/dev/null | head -1`. Show it, ask "**Update this plan?** [Y/n]", then ask what should change. With no plan found, ask for its path.
-2. **Read it in full**, noting which phases are done.
-3. **Research when the change needs it**, with the agents from Step 2. Show the findings (file:line) and their impact before editing.
-4. **Update the plan.** Keep completed phases unchanged unless asked. Update pending phases, add or remove phases as the scope moved, and give every change matching success criteria. Append to an `## Iteration History` section the reason, what changed per phase, and any research document used. Resolve every open question.
-5. **Save over the existing file** in `thoughts/shared/plans/`, run `humanlayer thoughts sync`, and summarise what changed and which phases it affects.
+Read the plan whole, research what the change needs, then edit only the pending phases and their criteria. Append the reason and what changed to `## Iteration history`, save over the same file, and sync.
