@@ -43,13 +43,17 @@ describe("coding skills leave ticket moves to events", () => {
     });
   }
 
-  for (const skill of ["create-pr", "describe-pr"]) {
-    test(`${skill} posts no PR-link comment and says the ticket waits for the merge`, () => {
-      const text = prose(skill).map(([, t]) => t).join("\n");
-      expect(text).not.toMatch(/PR[- ]link comment|comment with the PR link/i);
-      expect(text).toMatch(/stays (put|where it is) until (the PR |it )?merges/i);
-    });
-  }
+  test("create-pr posts no PR-link comment and says the ticket waits for the merge", () => {
+    const text = prose("create-pr").map(([, t]) => t).join("\n");
+    expect(text).not.toMatch(/PR[- ]link comment|comment with the PR link/i);
+    expect(text).toMatch(/stays (put|where it is) until (the PR |it )?merges/i);
+  });
+
+  test("describe-pr posts no PR-link comment and leaves the ticket's state alone", () => {
+    const text = prose("describe-pr").map(([, t]) => t).join("\n");
+    expect(text).not.toMatch(/PR[- ]link comment|comment with the PR link/i);
+    expect(text).toMatch(/Leave the ticket's state alone/);
+  });
 
   test("merge-pr names no queue label of its own: a label comes only from the repository's queue config", () => {
     const text = prose("merge-pr").map(([, t]) => t).join("\n");
