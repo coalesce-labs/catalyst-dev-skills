@@ -25,8 +25,9 @@ const runnerOwnsGate = () => Boolean(process.env.CATALYST_PHASE);
 function failMarkers(dir, stage) {
   const folder = join(dir, "stages");
   if (!existsSync(folder)) return [];
-  const pattern = new RegExp(`^[1-9][0-9]*-${stage}\\.fail\\.json$`);
-  return readdirSync(folder).filter((name) => pattern.test(name)).map((name) => JSON.parse(readFileSync(join(folder, name), "utf8")));
+  const suffix = `-${stage}.fail.json`;
+  const isMarker = (name) => name.endsWith(suffix) && /^[1-9][0-9]*$/.test(name.slice(0, -suffix.length));
+  return readdirSync(folder).filter(isMarker).map((name) => JSON.parse(readFileSync(join(folder, name), "utf8")));
 }
 function completed(dir) {
   const path = join(dir, "handoff.md");

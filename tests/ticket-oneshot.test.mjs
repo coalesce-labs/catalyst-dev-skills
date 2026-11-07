@@ -124,6 +124,27 @@ test("failed stage retry uses the next attempt number without replacing prior ma
   expect(run("stage", ["done", "research"], f).status).toBe(0);
   expect(JSON.parse(readFileSync(join(f.artifacts, "stages", "2-research.done.json"), "utf8")).attempt).toBe(2);
 });
+test("a hostile stage name is refused before anything uses it", () => {
+  const f = fixture();
+  const payload = "(a+)+$";
+  const refused = run("stage", ["start", payload], f);
+  expect(refused.status).toBe(1);
+  expect(refused.stderr).toContain(`unknown stage: ${payload}`);
+  expect(existsSync(join(f.artifacts, "stages"))).toBe(false);
+});
+test("only a stage's own numbered fail markers use up its attempts", () => {
+  const f = fixture();
+  const stages = join(f.artifacts, "stages");
+  mkdirSync(stages, { recursive: true });
+  for (const name of ["x-research.fail.json", "01-research.fail.json", "1-other-research.fail.json", "1-research.fail.json.bak", "9-research.skip.json"]) writeFileSync(join(stages, name), "not json");
+  for (const attempt of [1, 2]) {
+    expect(run("stage", ["start", "research"], f).status).toBe(0);
+    expect(run("stage", ["fail", "research", "--reason", `attempt ${attempt}`, "--class", "code"], f).status).toBe(0);
+  }
+  const third = run("stage", ["start", "research"], f);
+  expect(third.status).not.toBe(0);
+  expect(third.stderr).toContain("already used its 2 attempts");
+});
 test("resuming an open attempt preserves its start marker", () => {
   const f = fixture();
   expect(run("stage", ["start", "research"], f).status).toBe(0);
