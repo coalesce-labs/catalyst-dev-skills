@@ -28,7 +28,7 @@ Read the plan whole, noting every file it expects to change and every success cr
 
 **List every requirement under `## Requirements`,** one row each: every scenario in the ticket (the prompt, or `$CATALYST_ARTIFACT_DIR/ticket.md`) and every `AC<n>` in the plan. Each row says met, not met or not tried, with the proof you checked. A test counts only after you read it and confirm it exercises that behaviour; a test that passes while missing the behaviour is not met. A ticket scenario the plan left out still counts. `not tried` names why it could not be tried here. Any requirement not met makes `plan-conformance` FAIL.
 
-Confirm that every phase checked off (`- [x]`) has matching code and every "Automated Verification" command ran; find the root cause of each failure. Turn manual criteria into clear steps for the user. Look for unhandled errors, missing validations, regressions and departures from the repo's patterns.
+Confirm that every phase in the plan has matching code and every "Automated Verification" command ran; find the root cause of each failure. Turn manual criteria into clear steps for the user. Look for unhandled errors, missing validations, regressions and departures from the repo's patterns.
 
 ## 4. Write the Validation Report
 

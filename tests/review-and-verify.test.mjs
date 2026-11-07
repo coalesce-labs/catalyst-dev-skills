@@ -2,8 +2,10 @@
 //
 // Run: bun test tests/review-and-verify.test.mjs
 import { describe, test, expect } from "bun:test";
-import { readFileSync } from "node:fs";
-import { resolve } from "node:path";
+import { spawnSync } from "node:child_process";
+import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { dirname, join, resolve } from "node:path";
 
 import {
   DEFAULT_ONE_WAY_PATHS,
@@ -78,6 +80,94 @@ describe("reviewDepth", () => {
 
   test("a declaration replaces the default list", () => {
     expect(reviewDepth([".github/workflows/ci.yml"], ["^db/"], "declared").depth).toBe("light");
+  });
+});
+
+describe("the script chooses from the list at the base", () => {
+  const SCRIPT = resolve(skill, "scripts/review-depth.mjs");
+  const SETTINGS = ".catalyst/catalyst.toml";
+  const NOTHING = "[review]\none_way_paths = ['^nothing$']\n";
+  const git = (repo, ...args) => {
+    const r = spawnSync("git", args, { cwd: repo, encoding: "utf8" });
+    if (r.status !== 0) throw new Error(r.stderr);
+    return r.stdout.trim();
+  };
+  const commit = (repo, files) => {
+    for (const [path, text] of Object.entries(files)) {
+      mkdirSync(dirname(join(repo, path)), { recursive: true });
+      writeFileSync(join(repo, path), text);
+    }
+    git(repo, "add", "-A");
+    git(repo, "-c", "user.name=t", "-c", "user.email=t@example.com", "-c", "core.hooksPath=/dev/null", "commit", "-qm", "x");
+    return git(repo, "rev-parse", "HEAD");
+  };
+  // A base holding baseFiles and a head that adds headFiles, then the script's own output.
+  const chosen = (baseFiles, headFiles) => {
+    const repo = mkdtempSync(join(tmpdir(), "review-depth-"));
+    try {
+      git(repo, "init", "-q");
+      const base = commit(repo, { "README.md": "x\n", ...baseFiles });
+      const head = commit(repo, headFiles);
+      const run = spawnSync("node", [SCRIPT, "--base", base, "--head", head], { cwd: repo, encoding: "utf8" });
+      return { status: run.status, depth: /^depth: (.*)$/m.exec(run.stdout)?.[1], source: /^source: (.*)$/m.exec(run.stdout)?.[1] ?? "" };
+    } finally {
+      rmSync(repo, { recursive: true, force: true });
+    }
+  };
+
+  test("a pull request that adds a list matching nothing stays deep on auth code", () => {
+    const r = chosen({}, { [SETTINGS]: NOTHING, "src/auth/login.ts": "x\n" });
+    expect(r).toMatchObject({ status: 0, depth: "deep" });
+    expect(r.source).toContain("at the base");
+  });
+
+  test("a pull request that narrows the base's list is still judged by the base's list", () => {
+    const list = "[review]\none_way_paths = ['^src/secure/']\n";
+    const r = chosen({ [SETTINGS]: list }, { [SETTINGS]: NOTHING, "src/secure/a.ts": "x\n" });
+    expect(r.depth).toBe("deep");
+    expect(r.source).toContain(`${SETTINGS} [review] one_way_paths at the base`);
+  });
+
+  test("a pull request that widens the list is judged by the base's list too", () => {
+    const list = "[review]\none_way_paths = ['^db/']\n";
+    const r = chosen({ [SETTINGS]: list }, { [SETTINGS]: "[review]\none_way_paths = ['^src/']\n", "src/a.ts": "x\n" });
+    expect(r.depth).toBe("light");
+  });
+
+  test("a list the pull request breaks does not change the depth the base gives", () => {
+    const list = "[review]\none_way_paths = ['^db/']\n";
+    expect(chosen({ [SETTINGS]: list }, { [SETTINGS]: "[review\n", "src/a.ts": "x\n" }).depth).toBe("light");
+  });
+
+  test.each([
+    ["a dotted key", "review.one_way_paths = ['^nothing$']\n", "dotted key"],
+    ["a quoted dotted key", "\"review\".\"one_way_paths\" = ['^nothing$']\n", "dotted key"],
+    ["an inline table", "review = { one_way_paths = ['^nothing$'] }\n", "inline table"],
+    ["a repeated table", "[review]\nother = 1\n\n[review]\none_way_paths = ['^nothing$']\n", "repeats"],
+    ["an array of tables", "[[review]]\none_way_paths = ['^nothing$']\n", "array of tables"],
+    ["a quoted table name", "[\"review\"]\none_way_paths = ['^nothing$']\n", "quotes"],
+    ["a quoted key", "[review]\n\"one_way_paths\" = ['^nothing$']\n", "quotes"],
+    ["the list as a table", "[review.one_way_paths]\nx = 1\n", "as a table"],
+    ["an empty list", "[review]\none_way_paths = []\n", "0 entries"],
+  ])("%s at the base is deep and says it could not be read", (_name, toml, reason) => {
+    const r = chosen({ [SETTINGS]: toml }, { "src/a.ts": "x\n" });
+    expect(r).toMatchObject({ status: 0, depth: "deep" });
+    expect(r.source).toContain("could not be read");
+    expect(r.source).toContain(reason);
+  });
+
+  test.each([
+    ["no settings file", {}],
+    ["a settings file with no review table", { [SETTINGS]: "[other]\nname = 1\n" }],
+    ["the key under another table", { [SETTINGS]: "[environment]\none_way_paths = ['x']\n" }],
+    ["another key under a review subtable", { [SETTINGS]: "[review.extra]\nname = 1\n" }],
+    ["a comment that names a dotted key", { [SETTINGS]: "# review.one_way_paths = ['x']\n" }],
+    ["a review key under another table", { [SETTINGS]: "[other]\nreview = 1\n" }],
+  ])("%s falls to the default list", (_name, baseFiles) => {
+    const r = chosen(baseFiles, { "src/a.ts": "x\n" });
+    expect(r.depth).toBe("light");
+    expect(r.source).toContain("default list");
+    expect(chosen(baseFiles, { "src/auth/a.ts": "x\n" }).depth).toBe("deep");
   });
 });
 
