@@ -69,6 +69,28 @@ TOKEN=key read_ticket "$TMP/offcloud" "$PATH_WITH_CLI"
 read_ticket "$TMP/offcloud" "$PATH_WITH_CLI"
 grep -q "replica ENG-1" "$TMP/log" && ! grep -q "^catalyst" "$TMP/log" && ok "a machine with no cloud connection takes the operator path" || bad "a machine with no cloud connection takes the operator path"
 
+echo "── describe-pr's own copy"
+OWN="$ROOT/skills/describe-pr/scripts/lib/catalyst-cloud-read.sh"
+cat >"$TMP/bin/linearis" <<'STUB'
+#!/usr/bin/env bash
+echo "linearis $*" >>"$LOG"
+STUB
+chmod +x "$TMP/bin/linearis"
+read_own() { # read_own <home> -> stdout of the read; exit status in $rc
+  : >"$TMP/log"
+  out=$(HOME="$1" LOG="$TMP/log" PATH="$TMP/bin:/usr/bin:/bin" XDG_CONFIG_HOME="" CLI_FAIL="${CLI_FAIL:-}" \
+    CATALYST_CLOUD_TOKEN="" bash -c '. "$0"; catalyst_ticket_json ENG-1' "$OWN" 2>"$TMP/err")
+  rc=$?
+}
+read_own "$TMP/connected"
+[[ "$rc" -eq 0 && "$out" == *"from the cloud"* ]] && ok "a connected machine reads the ticket and returns 0" || bad "a connected machine reads the ticket and returns 0"
+CLI_FAIL=1 read_own "$TMP/connected"
+[[ "$rc" -eq 3 ]] && grep -q "401 unauthorized" "$TMP/err" && ok "a failed cloud read returns 3 and shows the cloud's error" || bad "a failed cloud read returns 3 and shows the cloud's error"
+grep -q linearis "$TMP/log" && bad "a failed cloud read never calls linearis" || ok "a failed cloud read never calls linearis"
+read_own "$TMP/offcloud"
+[[ "$rc" -eq 1 ]] && ok "a machine with no cloud connection returns 1, so the caller titles from the branch" || bad "a machine with no cloud connection returns 1, so the caller titles from the branch"
+[[ ! -s "$TMP/log" ]] && ok "a machine with no cloud connection calls nothing" || bad "a machine with no cloud connection calls nothing"
+
 echo "── call sites use the helper"
 grep -q "catalyst_ticket_json" "$ROOT/skills/describe-pr/SKILL.md" && ok "describe-pr reads the ticket with catalyst_ticket_json" || bad "describe-pr reads the ticket with catalyst_ticket_json"
 grep -q "catalyst_ticket_json" "$ROOT/vendor-src/scripts/compound-log.sh" && ok "compound-log reads the estimate with catalyst_ticket_json" || bad "compound-log reads the estimate with catalyst_ticket_json"
