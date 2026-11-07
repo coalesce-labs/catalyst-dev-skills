@@ -5,7 +5,7 @@ A change is **deep** when it is a one-way door: hard to undo once merged, such a
 ## Where the one-way paths come from
 
 1. **The caller's door.** A cloud run already knows the pull request's door and passes it as `--door one-way` or `--door two-way`. That wins.
-2. **The repository's declaration.** `[review] one_way_paths` in `.catalyst/catalyst.toml`: a list of JavaScript regular expressions matched against each changed path. A first declaration replaces the default list below, and it applies once an admin approves it.
+2. **The repository's declaration.** `[review] one_way_paths` in `.catalyst/catalyst.toml`: a list of JavaScript regular expressions matched against each changed path. A first declaration replaces the default list below, and it applies once an admin approves it. The script reads the list from the base commit, so a pull request's edit to it applies from the next pull request, and no pull request can lower its own depth.
 
    ```toml
    [review]
@@ -18,7 +18,7 @@ A change is **deep** when it is a one-way door: hard to undo once merged, such a
 
 3. **The default list**, when the repository declares nothing: migrations, a Prisma schema, GitHub workflows, Dockerfiles, Wrangler config, Terraform, `install.sh`, `auth`/`crypto`/`billing`/`payments` directories, and `.mergify.yml`. The script prints each match.
 
-It fails closed. An empty change list is deep, and so is a declaration it cannot read or one the cloud would refuse: no entries, more than 32, a repeated entry, or an entry that is empty, longer than 2048 characters or not a valid regular expression.
+It fails closed. An empty change list is deep, and so is a declaration it cannot read or one the cloud would refuse: no entries, more than 32, a repeated entry, or an entry that is empty, longer than 2048 characters or not a valid regular expression. Write the list as the example shows. A dotted key, an inline table, an array of tables, a quoted name or a second `[review]` table counts as a declaration it cannot read.
 
 ## What each depth changes
 

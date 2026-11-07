@@ -1,18 +1,19 @@
 #!/usr/bin/env node
 // review-depth.mjs — light or deep review for a pinned base..head, from the paths it changes.
 //
-// Usage: node review-depth.mjs --base <sha> [--head <sha>] [--door one-way|two-way] [--config <settings file>]
+// Usage: node review-depth.mjs --base <sha> [--head <sha>] [--door one-way|two-way]
 //
 // A caller that already knows the door (the cloud passes it) names it with --door, and that wins.
 // Otherwise the changed paths are matched against `[review] one_way_paths` in the repository's
 // settings file (`.catalyst/catalyst.toml`; JavaScript regular expressions, as the cloud reads them),
-// or against DEFAULT_ONE_WAY_PATHS when the repository declares none. It fails closed: an empty
-// change list or a declaration that cannot be read is deep.
+// or against DEFAULT_ONE_WAY_PATHS when the repository declares none. The list comes from the base,
+// so a change cannot lower its own depth by editing it. It fails closed: an empty change list or a
+// declaration that cannot be read is deep.
 //
 // Prints `depth:`, `source:` and one `match: <path>  <pattern>` line per one-way path. Exit 0 with a
 // depth, 2 when the input is unusable.
 import { execFileSync } from "node:child_process";
-import { existsSync, readFileSync, realpathSync } from "node:fs";
+import { realpathSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 
 export const DEFAULT_ONE_WAY_PATHS = [
@@ -27,9 +28,46 @@ export const DEFAULT_ONE_WAY_PATHS = [
   "(?:^|/)\\.mergify\\.yml$",
 ];
 
+const SETTINGS_FILE = ".catalyst/catalyst.toml";
+
+// Why a settings file declares the review list in a form declaredOneWayPaths does not parse, or
+// undefined. TOML has several ways to write one table. Read as absent, each would drop to the default
+// list without a word, so each has to read as a declaration that could not be read.
+function unparsedListForm(toml) {
+  const bare = (name) => name.replace(/["'\s]/g, "");
+  let table = null;
+  let reviewTables = 0;
+  for (const raw of toml.split("\n")) {
+    const line = raw.trim();
+    if (line === "" || line.startsWith("#")) continue;
+    const header = /^(\[\[?)\s*([^[\]]+?)\s*\]\]?\s*(?:#.*)?$/.exec(line);
+    if (header) {
+      table = bare(header[2]);
+      if (table === "review" || table.startsWith("review.")) {
+        if (header[1] === "[[") return "declares [review] as an array of tables";
+        if (table === "review.one_way_paths") return "declares one_way_paths as a table";
+      }
+      if (table === "review") {
+        if (header[2] !== "review") return "quotes the [review] table name";
+        reviewTables += 1;
+        if (reviewTables > 1) return "repeats the [review] table";
+      }
+      continue;
+    }
+    const key = /^([^=]+)=/.exec(line)?.[1];
+    if (key === undefined) continue;
+    const name = bare(key);
+    if (table === null && (name === "review" || name === "review.one_way_paths")) return "declares the list as a dotted key or an inline table";
+    if (table === "review" && name === "one_way_paths" && key.trim() !== "one_way_paths") return "quotes the one_way_paths key";
+  }
+  return undefined;
+}
+
 // The `[review] one_way_paths` array of a settings file, as strings. Returns undefined when the key
 // is absent, and throws when it is present but not an array of single-line strings.
 export function declaredOneWayPaths(toml) {
+  const form = unparsedListForm(toml);
+  if (form) throw new Error(form);
   const lines = toml.split("\n");
   let inReview = false;
   let body = "";
@@ -124,6 +162,17 @@ export function reviewDepth(changedFiles, patterns, source) {
   return { depth: matches.length > 0 ? "deep" : "light", source, matches };
 }
 
+// The settings file as the base commit has it, or undefined when the base has none.
+function settingsAtBase(base) {
+  const object = `${base}:${SETTINGS_FILE}`;
+  try {
+    execFileSync("git", ["cat-file", "-e", object], { stdio: "ignore" });
+  } catch {
+    return undefined;
+  }
+  return execFileSync("git", ["show", object], { encoding: "utf8", stdio: ["ignore", "pipe", "ignore"] });
+}
+
 function main(argv) {
   const arg = (name) => {
     const at = argv.indexOf(name);
@@ -148,21 +197,19 @@ function main(argv) {
   } catch {
     return fail(`git diff ${base} ${head} failed: the base or head does not resolve`);
   }
-  const config = arg("--config") ?? ".catalyst/catalyst.toml";
   let patterns = DEFAULT_ONE_WAY_PATHS;
-  let source = "default list (no [review] one_way_paths declared)";
-  if (existsSync(config)) {
-    try {
-      const declared = declaredOneWayPaths(readFileSync(config, "utf8"));
-      if (declared !== undefined) {
-        checkDeclaredOneWayPaths(declared);
-        patterns = declared;
-        source = `${config} [review] one_way_paths`;
-      }
-    } catch (error) {
-      console.log(`depth: deep\nsource: ${config} [review] one_way_paths could not be read (${error.message})`);
-      return 0;
+  let source = "default list (no [review] one_way_paths declared at the base)";
+  try {
+    const settings = settingsAtBase(base);
+    const declared = settings === undefined ? undefined : declaredOneWayPaths(settings);
+    if (declared !== undefined) {
+      checkDeclaredOneWayPaths(declared);
+      patterns = declared;
+      source = `${SETTINGS_FILE} [review] one_way_paths at the base`;
     }
+  } catch (error) {
+    console.log(`depth: deep\nsource: ${SETTINGS_FILE} [review] one_way_paths could not be read (${error.message})`);
+    return 0;
   }
   const result = reviewDepth(files, patterns, source);
   console.log(`depth: ${result.depth}\nsource: ${result.source}`);
