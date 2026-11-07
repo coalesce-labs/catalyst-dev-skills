@@ -229,7 +229,7 @@ done <<READERS_EOF
 $READERS
 READERS_EOF
 # `[].every()` is true: a loop that never ran must not print a green summary.
-[ "$ITERATIONS" -eq 3 ] || fail "the reader loop covered all four skills" "ran ${ITERATIONS} iteration(s)"
+[ "$ITERATIONS" -eq 3 ] || fail "the reader loop covered all three skills" "ran ${ITERATIONS} iteration(s)"
 
 echo ""
 echo "PASS: $PASS  FAIL: $FAIL"

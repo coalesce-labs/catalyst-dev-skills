@@ -41,7 +41,7 @@ Ticket ids look like `PROJ-123`: take the prefix from `.catalyst/config.json`, e
      exec nohup claude \
        --output-format stream-json --verbose \
        --dangerously-skip-permissions \
-       -p "Use the implement-plan skill with <plan_path>, and when done: create commit, create PR, update Linear ticket"
+       -p "Use the implement-plan skill with <plan_path>, and when done: create commit, create PR, run the review-and-verify skill on it, update Linear ticket"
    ) > "<worktree_path>/worker-stream.jsonl" 2> "<worktree_path>/worker-stderr.log" &
    ```
 

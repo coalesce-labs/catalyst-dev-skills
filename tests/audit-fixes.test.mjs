@@ -19,9 +19,14 @@ describe("retired skills are gone and unnamed", () => {
 });
 
 describe("each skill's instructions match what it runs", () => {
-  test("implement-plan leaves review to the review stage and names no harness-only reviewer", () => {
+  test("implement-plan names the review that comes next and no harness-only reviewer", () => {
     const text = read("skills/implement-plan/SKILL.md");
     expect(text).not.toMatch(/pr-review-toolkit/);
+    expect(text).toMatch(/no review has run and that the `review-and-verify` skill comes next/);
+  });
+
+  test("create-worktree's headless launch reviews what it opens", () => {
+    expect(read("skills/create-worktree/SKILL.md")).toMatch(/create PR, run the review-and-verify skill on it/);
   });
 
   test("merge-pr describes the review skills by what they check", () => {
