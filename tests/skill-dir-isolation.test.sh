@@ -94,14 +94,6 @@ done
 [ "$checked" -gt 0 ] || fail "at least one script was checked" "zero scripts found across ${SKILLS} — the isolation proves nothing"
 
 # ── entrypoints the skills call, run from the isolated copy ──────────────────
-run_isolated "implement-plan: draft-pr helper sources and defines its functions" implement-plan \
-  'source "$CLAUDE_SKILL_DIR/scripts/lib/draft-pr.sh" && declare -F draft_pr_enabled >/dev/null && declare -F draft_pr_push >/dev/null'
-run_isolated "implement-plan: add-finding --help" implement-plan \
-  '"$CLAUDE_SKILL_DIR/scripts/add-finding.sh" --help >/dev/null'
-run_isolated "implement-plan: feedback-consent check (read-only)" implement-plan \
-  '"$CLAUDE_SKILL_DIR/scripts/feedback-consent.sh" check >/dev/null'
-run_isolated "implement-plan: file-feedback --help (sources its Linear read helper)" implement-plan \
-  '"$CLAUDE_SKILL_DIR/scripts/file-feedback.sh" --help >/dev/null'
 
 # Cluster 2 — PR/merge.
 run_isolated "create-pr: draft-pr helper sources and defines draft_pr_ensure" create-pr \

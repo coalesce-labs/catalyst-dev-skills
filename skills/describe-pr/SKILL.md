@@ -17,12 +17,12 @@ The description tells a reviewer what changed, why, and how it was verified. Wri
 ## Steps
 
 1. **Gather.** Read `thoughts/shared/pr_description.md` (the template) if it exists. Find the PR: the number you were given, else the current branch's (`gh pr view`). Take the ticket from the branch name or PR title. Read the diff against the base, the commits, the plan and its acceptance criteria, and the existing description if there is one.
-2. **Write.** Fill the template's sections from the evidence. On an update, regenerate the summary, changes and verification sections, and keep what a person wrote in the others. Name the ticket with a `Fixes <ticket URL>` line, and refer to any related work by its GitHub PR number only ([references/linear-sibling-guard.md](references/linear-sibling-guard.md) explains why).
+2. **Write.** Fill the template's sections from the evidence. On an update, regenerate the summary, changes and verification sections, and keep what a person wrote in the others. Name the ticket with a `Fixes <ticket URL>` line, using the URL from the ticket read in step 3, or `Fixes <TICKET>` when that read fails. Refer to any related work by its GitHub PR number only ([references/linear-sibling-guard.md](references/linear-sibling-guard.md) explains why).
 3. **Title.** `<TICKET>: <ticket title>`, up to about 70 characters. Read the ticket title with `catalyst_ticket_json <TICKET>` from `${CLAUDE_SKILL_DIR}/scripts/lib/catalyst-cloud-read.sh`; when that fails, title from the branch name.
-4. **Save and sync.** Write the PR's file in `thoughts/shared/prs/`, using the lookup at the top of [references/write-back.md](references/write-back.md) (it rewrites the PR's existing file on an update), then `humanlayer thoughts sync`. If the sync fails, the file is still saved: say so in the report.
+4. **Save and sync.** If `thoughts/shared/` does not exist, skip this step and say so in the report, so no untracked folder lands in the repository. Otherwise write the PR's file in `thoughts/shared/prs/`, using the lookup at the top of [references/write-back.md](references/write-back.md) (it rewrites the PR's existing file on an update), then `humanlayer thoughts sync`. If the sync fails, the file is still saved: say so in the report.
 5. **Write back,** as [references/write-back.md](references/write-back.md) shows:
    - Under a runner (`CATALYST_PHASE` set) or a coordinator: write `$CATALYST_ARTIFACT_DIR/pr.md`, first line the title, a blank line, then the body. The runner or coordinator opens or updates the PR from it.
    - Otherwise: update the PR's title and body on GitHub.
-6. **Report** whether this was a first description or an update, and end with the saved file's path on its own last line.
+6. **Report** whether this was a first description or an update, and end with the saved file's path on its own last line when you saved one.
 
 The description is the author's own: no AI attribution line. Leave the ticket's state alone.

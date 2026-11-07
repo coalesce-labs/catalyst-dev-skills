@@ -72,18 +72,18 @@ if [ -z "$missing" ]; then ok "every Claude link resolves to a SKILL.md"; else f
 
 # A co-located script runs from inside its installed directory, reached through the Claude link,
 # with cwd outside any checkout and no plugin root.
-SKILL_DIR="$CLAUDE_DIR/implement-plan"
+SKILL_DIR="$CLAUDE_DIR/create-pr"
 out="$(cd "$SMOKE_HOME" && env -u CLAUDE_PLUGIN_ROOT HOME="$SMOKE_HOME" CLAUDE_SKILL_DIR="$SKILL_DIR" \
-  bash -c 'source "$CLAUDE_SKILL_DIR/scripts/lib/draft-pr.sh" && declare -F draft_pr_enabled >/dev/null && "$CLAUDE_SKILL_DIR/scripts/add-finding.sh" --help >/dev/null 2>&1 && echo resolved' 2>&1)"
+  bash -c 'source "$CLAUDE_SKILL_DIR/scripts/lib/draft-pr.sh" && declare -F draft_pr_ensure >/dev/null && source "$CLAUDE_SKILL_DIR/scripts/lib/linear-pr-skip.sh" && declare -F linear_sibling_skip_block_from_branch >/dev/null && echo resolved' 2>&1)"
 if [ "$out" = "resolved" ]; then
-  ok "implement-plan's vendored scripts run from the installed skill directory"
+  ok "create-pr's vendored scripts run from the installed skill directory"
 else
-  fail "implement-plan's vendored scripts run from the installed skill directory" "${out:0:400}"
+  fail "create-pr's vendored scripts run from the installed skill directory" "${out:0:400}"
 fi
-if [ -x "$AGENTS_DIR/implement-plan/scripts/add-finding.sh" ]; then
+if [ -x "$AGENTS_DIR/create-pr/scripts/lib/linear-pr-skip.sh" ]; then
   ok "the install keeps a script's executable bit"
 else
-  fail "the install keeps a script's executable bit" "$(ls -l "$AGENTS_DIR/implement-plan/scripts/add-finding.sh" 2>&1)"
+  fail "the install keeps a script's executable bit" "$(ls -l "$AGENTS_DIR/create-pr/scripts/lib/linear-pr-skip.sh" 2>&1)"
 fi
 
 # CTC-2558: cwd stayed empty — everything landed under $HOME, nothing under the directory the
