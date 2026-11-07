@@ -22,7 +22,13 @@ describe("each skill's instructions match what it runs", () => {
   test("implement-plan names the review that comes next and no harness-only reviewer", () => {
     const text = read("skills/implement-plan/SKILL.md");
     expect(text).not.toMatch(/pr-review-toolkit/);
-    expect(text).toMatch(/no review has run and that the `review-and-verify` skill comes next/);
+    expect(text).toMatch(/Unless a runner or coordinator started you, say that no review has run and that the `review-and-verify` skill comes next/);
+  });
+
+  test("implement-plan's person-facing limits stay in its text", () => {
+    const text = read("skills/implement-plan/SKILL.md");
+    expect(text).toMatch(/When unattended, or when the person asked for commits, commit now/);
+    expect(text).toMatch(/If the branch has commits `origin\/main` lacks, merge `origin\/main` first/);
   });
 
   test("create-worktree's headless launch reviews what it opens", () => {
