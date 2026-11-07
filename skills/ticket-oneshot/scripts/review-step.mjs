@@ -136,21 +136,32 @@ function findingProblems(result, cwd) {
     const name = finding?.id ?? `${finding?.path}:${finding?.line}`;
     if (finding?.verdict === "valid") {
       const sha = finding.fix?.sha;
-      const landed = typeof sha === "string" && spawnSync("git", ["merge-base", "--is-ancestor", sha, result.final_head], { cwd }).status === 0;
-      if (!landed) problems.push(`finding ${name} is valid with no fix commit on this branch`);
+      const ancestor = (of) => spawnSync("git", ["merge-base", "--is-ancestor", sha, of], { cwd }).status === 0;
+      // The fix came after the review: on the way to final_head, and not already in what was reviewed.
+      const landed = /^[0-9a-f]{40}$/.test(sha ?? "") && ancestor(result.final_head) && !ancestor(result.reviewed_head);
+      if (!landed) problems.push(`finding ${name} is valid with no fix commit since the review`);
+      else if (finding.path && !git(cwd, ["show", "--format=", "--name-only", sha]).split("\n").includes(finding.path)) problems.push(`finding ${name}: fix ${sha} does not change ${finding.path}`);
     } else if (finding?.verdict === "needs-human") problems.push(`finding ${name} needs a person. Raise an ask and record stage wait answer`);
-    else if (finding?.verdict === "deferred") { if (!finding.follow_up) problems.push(`finding ${name} is deferred with no follow_up ticket`); }
+    else if (finding?.verdict === "deferred") { if (!/\b[A-Z][A-Z0-9]*-\d+\b/.test(finding.follow_up ?? "")) problems.push(`finding ${name} is deferred with no follow_up ticket`); }
     else if (["invalid", "already-fixed"].includes(finding?.verdict)) { if (!finding.reason) problems.push(`finding ${name} is ${finding.verdict} with no reason`); }
     else problems.push(`finding ${name} has no verdict`);
   }
   return problems;
 }
+// Only a real "nothing to review" (exit 3) waives code review. A scope step that cannot answer leaves it owed.
+export function codeOwed(dir, base, cwd) {
+  return spawnSync("bash", [join(SKILLS, "review-code/scripts/review-scope.sh"), "--base", base], { cwd, encoding: "utf8", env: { ...process.env, CATALYST_ARTIFACT_DIR: dir } }).status !== 3;
+}
 // Every gate that claims a verdict needs the session that produced it. Returns one line per problem.
 export function reviewGateProblems(dir, result, cwd, { provenCheck }) {
   const problems = [];
+  // The base decides which diff everything below reads, so it comes from git and not from the file.
+  const forkPoint = spawnSync("git", ["merge-base", "origin/main", result.reviewed_head], { cwd, encoding: "utf8" });
+  if (forkPoint.status !== 0) problems.push(`the review's base cannot be checked: no merge base of origin/main and ${result.reviewed_head}`);
+  else if (forkPoint.stdout.trim() !== result.base) problems.push(`the review names base ${result.base}, and the branch left origin/main at ${forkPoint.stdout.trim()}`);
   const gates = (result.gates ?? []).filter(Boolean);
   const touchesTypes = () => git(cwd, ["diff", "--name-only", result.base, result.final_head]).split("\n").some((path) => /\.tsx?$|(^|\/)tsconfig[^/]*\.json$/.test(path));
-  const hasCode = () => spawnSync("bash", [join(SKILLS, "review-code/scripts/review-scope.sh"), "--base", result.base], { cwd, encoding: "utf8", env: { ...process.env, CATALYST_ARTIFACT_DIR: dir } }).status === 0;
+  const hasCode = () => codeOwed(dir, result.base, cwd);
   const receiptFor = (skill, head) => {
     try { return JSON.parse(readFileSync(receiptPath(dir, skill, head), "utf8")); } catch { return null; }
   };
@@ -179,7 +190,7 @@ export function reviewGateProblems(dir, result, cwd, { provenCheck }) {
       continue;
     }
     if (gate.verdict === "SKIPPED") continue;
-    if (["FAIL", "PARTIAL"].includes(gate.verdict) && !(result.findings ?? []).length) problems.push(`${gate.step} is ${gate.verdict} and the review records no finding for it`);
+    if (["FAIL", "PARTIAL"].includes(gate.verdict) && !(result.findings ?? []).length) problems.push(`${gate.step} is ${gate.verdict} and the review records no findings`);
     if (!skill) continue;
     const seen = receiptFor(skill, result.reviewed_head);
     if (!seen) problems.push(`${gate.step} is ${gate.verdict} but ${skill} never ran in its own session at ${result.reviewed_head}. Run stage review-step ${skill} --base ${result.base}, or set the verdict to SKIPPED with the reason`);

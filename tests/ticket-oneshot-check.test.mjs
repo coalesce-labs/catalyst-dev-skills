@@ -5,7 +5,7 @@ import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 import { checkVerdict, expandCheck, failuresIn } from "../skills/ticket-oneshot/scripts/check.mjs";
 import { scanDiff, unrecorded } from "../skills/ticket-oneshot/scripts/scan-shortcuts.mjs";
-import { reviewDepth } from "../skills/ticket-oneshot/scripts/review-step.mjs";
+import { codeOwed, reviewDepth } from "../skills/ticket-oneshot/scripts/review-step.mjs";
 
 const STAGE = resolve(import.meta.dir, "../skills/ticket-oneshot/scripts/stage");
 let root, repo, artifacts;
@@ -526,8 +526,15 @@ test("a failed review with no finding does not finish the run", () => {
   failedReview([]);
   const refused = stage(["done", "review"]);
   expect(refused.status).toBe(1);
-  expect(refused.stderr).toContain("code-review is FAIL and the review records no finding for it");
+  expect(refused.stderr).toContain("code-review is FAIL and the review records no findings");
   expect(stage(["next"]).stdout.trim()).toBe("review");
+});
+
+test.each(["origin/main", "HEAD"])("a fix commit must come after the review: %s does not count", (name) => {
+  failedReview([{ id: "F1", verdict: "valid", fix: { sha: git("rev-parse", name) } }]);
+  const refused = stage(["done", "review"]);
+  expect(refused.status).toBe(1);
+  expect(refused.stderr).toContain("finding F1 is valid with no fix commit since the review");
 });
 
 test("a failed review finishes when each finding is set aside with a reason", () => {
@@ -536,11 +543,13 @@ test("a failed review finishes when each finding is set aside with a reason", ()
 });
 
 test.each([
-  [{ id: "F1", verdict: "valid" }, "finding F1 is valid with no fix commit on this branch"],
-  [{ id: "F1", verdict: "valid", fix: { sha: "0".repeat(40) } }, "finding F1 is valid with no fix commit on this branch"],
+  [{ id: "F1", verdict: "valid" }, "finding F1 is valid with no fix commit since the review"],
+  [{ id: "F1", verdict: "valid", fix: { sha: "0".repeat(40) } }, "finding F1 is valid with no fix commit since the review"],
+  [{ id: "F1", verdict: "valid", fix: { sha: "HEAD" } }, "finding F1 is valid with no fix commit since the review"],
   [{ id: "F1", verdict: "invalid" }, "finding F1 is invalid with no reason"],
   [{ id: "F1", verdict: "already-fixed" }, "finding F1 is already-fixed with no reason"],
   [{ id: "F1", verdict: "deferred" }, "finding F1 is deferred with no follow_up ticket"],
+  [{ id: "F1", verdict: "deferred", follow_up: "later" }, "finding F1 is deferred with no follow_up ticket"],
   [{ id: "F1", verdict: "needs-human", reason: "r" }, "finding F1 needs a person"],
   [{ id: "F1" }, "finding F1 has no verdict"],
 ])("a finding that has not ended is refused: %j", (finding, message) => {
@@ -551,15 +560,17 @@ test.each([
 });
 
 const afterFixes = () => {
-  const { head, result, reviewStep } = atReview();
+  const { base, head, result, reviewStep } = atReview();
   expect(reviewStep("review-code", "code-review", "FAIL").status).toBe(0);
   expect(reviewStep("validate-type-safety", "type-safety", "PASS").status).toBe(0);
   writeFileSync(join(repo, "a.ts"), "export const x = 2;\n"); commit("fix");
   const final = git("rev-parse", "HEAD");
   expect(stage(["check"]).status).toBe(0);
-  const recheckSession = (verdict) => stage(["review-step", "review-code", "--base", head], { CATALYST_REVIEW_SESSION_CMD: `cat >/dev/null; printf '\`\`\`catalyst-review-step\\n{"step":"code-review","verdict":"${verdict}","detail":"d"}\\n\`\`\`\\n'` });
+  const sessionAt = (verdict, from) => stage(["review-step", "review-code", "--base", from], { CATALYST_REVIEW_SESSION_CMD: `cat >/dev/null; printf '\`\`\`catalyst-review-step\\n{"step":"code-review","verdict":"${verdict}","detail":"d"}\\n\`\`\`\\n'` });
+  const recheckSession = (verdict) => sessionAt(verdict, head);
+  const recheckAt = (from) => sessionAt("PASS", from);
   const write = (recheck) => result([{ step: "code-review", verdict: "FAIL" }, { step: "type-safety", verdict: "PASS" }, recheck], { final_head: final, depth: "light", findings: [{ id: "F1", verdict: "valid", fix: { sha: final } }] });
-  return { recheckSession, write };
+  return { base, final, recheckAt, recheckSession, result, write };
 };
 
 test("a recheck cannot be skipped once fixes are committed", () => {
@@ -648,4 +659,70 @@ test("depth counts as deep when the depth script cannot answer", () => {
   expect(reviewDepth(repo, "0".repeat(40), head)).toBe("deep");
   writeFileSync(join(repo, "b.txt"), "x\n"); commit("light");
   expect(reviewDepth(repo, head, git("rev-parse", "HEAD"))).toBe("light");
+});
+
+test("code review stays owed unless the scope step says nothing to review", () => {
+  const head = git("rev-parse", "HEAD");
+  expect(codeOwed(artifacts, head, repo)).toBe(false);
+  expect(codeOwed(artifacts, "0".repeat(40), repo)).toBe(true);
+});
+
+test("a base the branch did not leave from is refused, even one with a harmless diff", () => {
+  const { head, result, reviewStep } = onDeepPath();
+  const parent = git("rev-parse", "HEAD~1");
+  expect(reviewStep("review-security", "security-review", "PASS").status).toBe(0);
+  result([{ step: "plan-conformance", verdict: "PASS" }], { base: parent, depth: "light", reviewed_head: head, final_head: head });
+  const refused = stage(["done", "review"]);
+  expect(refused.status).toBe(1);
+  expect(refused.stderr).toContain(`the review names base ${parent}, and the branch left origin/main at`);
+});
+
+test("a review cannot finish when commits landed after its final head", () => {
+  const { head, result } = atReview();
+  writeFileSync(join(repo, "b.ts"), "export const y = 2;\n"); commit("after");
+  result(LIGHT_PASS, { depth: "light", reviewed_head: head, final_head: head });
+  const refused = stage(["done", "review"]);
+  expect(refused.status).toBe(1);
+  expect(refused.stderr).toContain("final_head must equal HEAD");
+});
+
+test("a session at the final head on another base is not the fix-range session", () => {
+  const { base, recheckAt, write } = afterFixes();
+  expect(recheckAt(base).status).toBe(0);
+  write({ step: "recheck", verdict: "PASS" });
+  const refused = stage(["done", "review"]);
+  expect(refused.status).toBe(1);
+  expect(refused.stderr).toContain("recheck is PASS with no review-code session on the fix range");
+});
+
+test("a valid finding's fix has to change the finding's path", () => {
+  const { final, recheckSession, result } = afterFixes();
+  expect(recheckSession("PASS").status).toBe(0);
+  const gates = [{ step: "code-review", verdict: "FAIL" }, { step: "type-safety", verdict: "PASS" }, { step: "recheck", verdict: "PASS" }];
+  result(gates, { final_head: final, depth: "light", findings: [{ id: "F1", path: "other.ts", verdict: "valid", fix: { sha: final } }] });
+  const refused = stage(["done", "review"]);
+  expect(refused.status).toBe(1);
+  expect(refused.stderr).toContain(`finding F1: fix ${final} does not change other.ts`);
+  result(gates, { final_head: final, depth: "light", findings: [{ id: "F1", path: "a.ts", verdict: "valid", fix: { sha: final } }] });
+  expect(stage(["done", "review"]).status).toBe(0);
+});
+
+test("a fix names a commit by its full sha: a branch name that moves does not count", () => {
+  const { final, recheckSession, result } = afterFixes();
+  expect(recheckSession("PASS").status).toBe(0);
+  const gates = [{ step: "code-review", verdict: "FAIL" }, { step: "type-safety", verdict: "PASS" }, { step: "recheck", verdict: "PASS" }];
+  result(gates, { final_head: final, depth: "light", findings: [{ id: "F1", verdict: "valid", fix: { sha: "HEAD" } }] });
+  const refused = stage(["done", "review"]);
+  expect(refused.status).toBe(1);
+  expect(refused.stderr).toContain("finding F1 is valid with no fix commit since the review");
+});
+
+test("a review whose base cannot be checked is refused", () => {
+  const { result, reviewStep } = atReview();
+  expect(reviewStep("review-code", "code-review", "PASS").status).toBe(0);
+  result([{ step: "code-review", verdict: "PASS" }, { step: "type-safety", verdict: "SKIPPED" }], { depth: "light" });
+  git("update-ref", "-d", "refs/remotes/origin/main");
+  const refused = stage(["done", "review"]);
+  expect(refused.status).toBe(1);
+  expect(refused.stderr).toContain("the review's base cannot be checked");
 });
