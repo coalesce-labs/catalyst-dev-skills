@@ -6,7 +6,7 @@ import { closeSync, existsSync, mkdirSync, mkdtempSync, openSync, readdirSync, r
 import { tmpdir } from "node:os";
 import { dirname, join, relative } from "node:path";
 import { fileURLToPath } from "node:url";
-import { atomicWrite, baseRef } from "./lib.mjs";
+import { atomicWrite, baseRef, noBaseMessage } from "./lib.mjs";
 
 const RUN = /^(.*\s)?(?:bun|npm|pnpm|yarn) run ([\w:.@/-]+)$/;
 const NOT_SPLITTABLE = /[|;()`$<>'"\\]/;
@@ -134,7 +134,9 @@ export function recordBase(dir, cwd, say) {
   if (!existsSync(headPath(dir, tree))) throw new Error("no check record for this tree: run `stage check` first");
   const red = JSON.parse(readFileSync(headPath(dir, tree), "utf8")).steps.filter((step) => step.exit !== 0);
   const ref = baseRef(cwd);
-  const base = git(cwd, ["merge-base", ref, "HEAD"]);
+  const forkPoint = spawnSync("git", ["merge-base", ref, "HEAD"], { cwd, encoding: "utf8" });
+  if (forkPoint.status !== 0) throw new Error(noBaseMessage(ref, "HEAD"));
+  const base = forkPoint.stdout.trim();
   const copy = mkdtempSync(join(dir, "checks-base-"));
   try {
     git(cwd, ["worktree", "add", "-q", "--detach", copy, base]);

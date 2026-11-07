@@ -2,7 +2,7 @@
 import { readFileSync, readdirSync, existsSync, statSync } from "node:fs";
 import { join } from "node:path";
 import { spawnSync } from "node:child_process";
-import { artifactDir, atomicWrite, baseRef, catalog, markerPath, readMarker, readFrontmatter, stageIndex, ticket, requirementProblems, verifyDoc, verifyReview } from "./lib.mjs";
+import { artifactDir, atomicWrite, baseRef, catalog, noBaseMessage, markerPath, readMarker, readFrontmatter, stageIndex, ticket, requirementProblems, verifyDoc, verifyReview } from "./lib.mjs";
 import { appendCheckResult, checkVerdict, recordBase, recordHead, requireProvenCheck, toolsHash } from "./check.mjs";
 import { scanRange, unrecorded } from "./scan-shortcuts.mjs";
 import { reviewGateProblems, runReviewStep } from "./review-step.mjs";
@@ -104,7 +104,7 @@ try {
   } else if (action === "base") {
     const ref = baseRef(process.cwd());
     const forkPoint = spawnSync("git", ["merge-base", ref, "HEAD"], { encoding: "utf8" });
-    if (forkPoint.status !== 0) throw new Error(`no merge base of ${ref} and HEAD`);
+    if (forkPoint.status !== 0) throw new Error(noBaseMessage(ref, "HEAD"));
     process.stdout.write(forkPoint.stdout);
   } else if (action === "review-step") {
     if (!readMarker(dir, "review", "start")) throw new Error("run stage start review first");

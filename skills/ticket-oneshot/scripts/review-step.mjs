@@ -5,7 +5,7 @@ import { createHash } from "node:crypto";
 import { existsSync, readdirSync, readFileSync, realpathSync } from "node:fs";
 import { dirname, join, relative } from "node:path";
 import { fileURLToPath } from "node:url";
-import { atomicWrite, baseRef } from "./lib.mjs";
+import { atomicWrite, baseRef, noBaseMessage } from "./lib.mjs";
 
 const SKILLS = realpathSync(join(dirname(fileURLToPath(import.meta.url)), "../.."));
 export const REVIEW_STEPS = {
@@ -158,7 +158,7 @@ export function reviewGateProblems(dir, result, cwd, { provenCheck }) {
   // The base decides which diff everything below reads, so it comes from git and not from the file.
   const ref = baseRef(cwd);
   const forkPoint = spawnSync("git", ["merge-base", ref, result.reviewed_head], { cwd, encoding: "utf8" });
-  if (forkPoint.status !== 0) problems.push(`the review's base cannot be checked: no merge base of ${ref} and ${result.reviewed_head}`);
+  if (forkPoint.status !== 0) problems.push(`the review's base cannot be checked: ${noBaseMessage(ref, result.reviewed_head)}`);
   else if (forkPoint.stdout.trim() !== result.base) problems.push(`the review names base ${result.base}, and the branch left ${ref} at ${forkPoint.stdout.trim()}`);
   const gates = (result.gates ?? []).filter(Boolean);
   const touchesTypes = () => git(cwd, ["diff", "--name-only", result.base, result.final_head]).split("\n").some((path) => /\.tsx?$|(^|\/)tsconfig[^/]*\.json$/.test(path));

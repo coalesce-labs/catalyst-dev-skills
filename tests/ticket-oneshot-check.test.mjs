@@ -725,6 +725,7 @@ test("a review whose base cannot be checked is refused", () => {
   const refused = stage(["done", "review"]);
   expect(refused.status).toBe(1);
   expect(refused.stderr).toContain("the review's base cannot be checked");
+  expect(refused.stderr).toContain("Set CATALYST_BASE_REF");
 });
 
 test.each([
@@ -779,4 +780,37 @@ test("an honest review still finishes when main is merged into the branch after 
   result([...LIGHT_PASS, { step: "recheck", verdict: "PASS" }], { depth: "light", final_head: final });
   expect(stage(["done", "review"]).status).toBe(0);
   expect(stage(["next"]).stdout).toContain("complete");
+});
+
+test("an empty base variable falls through to the default", () => {
+  const { base } = atReview();
+  expect(stage(["base"], { CATALYST_BASE_REF: "" }).stdout.trim()).toBe(base);
+});
+
+test("origin's default branch that no longer exists falls through to origin/main", () => {
+  const { base } = atReview();
+  git("symbolic-ref", "refs/remotes/origin/HEAD", "refs/remotes/origin/renamed-away");
+  const printed = stage(["base"]);
+  expect(printed.status).toBe(0);
+  expect(printed.stdout.trim()).toBe(base);
+});
+
+test("stage base stops with a named variable when it has no answer", () => {
+  atReview();
+  const refused = stage(["base"], { CATALYST_BASE_REF: "origin/nowhere" });
+  expect(refused.status).toBe(1);
+  expect(refused.stdout).toBe("");
+  expect(refused.stderr).toContain("Set CATALYST_BASE_REF");
+});
+
+test("stage check --base reads the same base as the review", () => {
+  atImplement();
+  writeFileSync(join(repo, "a.ts"), "export const x = 1;\n"); commit("change");
+  expect(stage(["check"]).status).toBe(0);
+  git("update-ref", "refs/remotes/origin/master", git("rev-parse", "origin/main"));
+  git("update-ref", "-d", "refs/remotes/origin/main");
+  expect(stage(["check", "--base"], { CATALYST_BASE_REF: "origin/master" }).status).toBe(0);
+  const refused = stage(["check", "--base"]);
+  expect(refused.status).toBe(1);
+  expect(refused.stderr).toContain("Set CATALYST_BASE_REF");
 });

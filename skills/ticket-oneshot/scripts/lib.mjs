@@ -27,9 +27,13 @@ export function inside(root, path) {
 // The branch this work left: CATALYST_BASE_REF, else what origin calls its default, else origin/main.
 export function baseRef(cwd) {
   if (process.env.CATALYST_BASE_REF) return process.env.CATALYST_BASE_REF;
-  const head = spawnSync("git", ["symbolic-ref", "--short", "refs/remotes/origin/HEAD"], { cwd, encoding: "utf8" });
-  return head.status === 0 && head.stdout.trim() ? head.stdout.trim() : "origin/main";
+  const head = spawnSync("git", ["symbolic-ref", "--short", "refs/remotes/origin/HEAD"], { cwd, encoding: "utf8" }).stdout?.trim();
+  // A renamed default branch leaves origin/HEAD naming a branch that is gone.
+  const resolves = head && spawnSync("git", ["rev-parse", "--verify", "--quiet", `${head}^{commit}`], { cwd }).status === 0;
+  return resolves ? head : "origin/main";
 }
+
+export const noBaseMessage = (ref, head) => `no merge base of ${ref} and ${head}. Set CATALYST_BASE_REF to the branch this work left`;
 
 export function atomicWrite(path, value) {
   mkdirSync(dirname(path), { recursive: true });
