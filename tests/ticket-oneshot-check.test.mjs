@@ -5,6 +5,7 @@ import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 import { checkVerdict, expandCheck, failuresIn } from "../skills/ticket-oneshot/scripts/check.mjs";
 import { scanDiff, unrecorded } from "../skills/ticket-oneshot/scripts/scan-shortcuts.mjs";
+import { reviewDepth } from "../skills/ticket-oneshot/scripts/review-step.mjs";
 
 const STAGE = resolve(import.meta.dir, "../skills/ticket-oneshot/scripts/stage");
 let root, repo, artifacts;
@@ -212,7 +213,10 @@ test("review cannot finish until every scan hit is a recorded finding", () => {
   stage(["start", "pr"]); writeFileSync(join(artifacts, "pr.md"), "T\n");
   marker("1-pr.done.json", "pr");
   expect(stage(["start", "review"]).status).toBe(0);
-  const result = (findings) => writeFileSync(join(artifacts, "review-result.json"), JSON.stringify({ version: 1, reviewed_head: head, final_head: head, base, gates: [{ step: "security-review", verdict: "SKIPPED", reason: "this test is about the scan" }], findings }));
+  const result = (findings) => writeFileSync(join(artifacts, "review-result.json"), JSON.stringify({ version: 1, reviewed_head: head, final_head: head, base, gates: [{ step: "security-review", verdict: "SKIPPED", reason: "this test is about the scan" }, { step: "code-review", verdict: "FAIL" }, { step: "type-safety", verdict: "FAIL" }], findings }));
+  for (const [skill, step] of [["review-code", "code-review"], ["validate-type-safety", "type-safety"]]) {
+    expect(stage(["review-step", skill, "--base", base], { CATALYST_REVIEW_SESSION_CMD: `cat >/dev/null; printf '\`\`\`catalyst-review-step\\n{"step":"${step}","verdict":"FAIL","detail":"d"}\\n\`\`\`\\n'` }).status).toBe(0);
+  }
   result([]);
   const refused = stage(["done", "review"]);
   expect(refused.status).toBe(1);
@@ -381,13 +385,15 @@ test("a light review may skip security, with no session", () => {
 test("committed fixes need a recheck session on the fix range", () => {
   const { head, result, reviewStep } = atReview();
   expect(reviewStep("review-code", "code-review", "FAIL").status).toBe(0);
+  expect(reviewStep("validate-type-safety", "type-safety", "PASS").status).toBe(0);
   writeFileSync(join(repo, "a.ts"), "export const x = 2;\n"); commit("fix");
   const final = git("rev-parse", "HEAD");
   expect(stage(["check"]).status).toBe(0);
   result([{ step: "code-review", verdict: "FAIL" }, TYPES_OK], { final_head: final });
   let refused = stage(["done", "review"]);
   expect(refused.stderr).toContain("records no recheck gate");
-  result([{ step: "code-review", verdict: "FAIL" }, { step: "recheck", verdict: "PASS" }], { final_head: final });
+  const findings = [{ id: "F1", verdict: "valid", fix: { sha: final } }];
+  result([{ step: "code-review", verdict: "FAIL" }, { step: "type-safety", verdict: "PASS" }, { step: "recheck", verdict: "PASS" }], { final_head: final, findings });
   refused = stage(["done", "review"]);
   expect(refused.stderr).toContain("with no review-code session on the fix range");
   const fixRange = stage(["review-step", "review-code", "--base", head], { CATALYST_REVIEW_SESSION_CMD: `cat >/dev/null; printf '\`\`\`catalyst-review-step\\n{"step":"code-review","verdict":"PASS","detail":"d"}\\n\`\`\`\\n'` });
@@ -402,7 +408,8 @@ test("type safety PASS also needs a green recorded check of the tree under revie
   const head = git("rev-parse", "HEAD");
   const ran = stage(["review-step", "validate-type-safety", "--base", base], { CATALYST_REVIEW_SESSION_CMD: `cat >/dev/null; printf '\`\`\`catalyst-review-step\\n{"step":"type-safety","verdict":"PASS","detail":"d"}\\n\`\`\`\\n'` });
   expect(ran.status).toBe(0);
-  result([{ step: "type-safety", verdict: "PASS" }], { reviewed_head: head, final_head: head });
+  expect(stage(["review-step", "review-code", "--base", base], { CATALYST_REVIEW_SESSION_CMD: `cat >/dev/null; printf '\`\`\`catalyst-review-step\\n{"step":"code-review","verdict":"PASS","detail":"d"}\\n\`\`\`\\n'` }).status).toBe(0);
+  result([{ step: "type-safety", verdict: "PASS" }, { step: "code-review", verdict: "PASS" }], { reviewed_head: head, final_head: head });
   const refused = stage(["done", "review"]);
   expect(refused.status).toBe(1);
   expect(refused.stderr).toContain("type-safety is PASS but the full check is not recorded green");
@@ -463,4 +470,182 @@ test("a copy of the stage scripts run from elsewhere cannot finish a stage the s
   const refused = stageFrom(elsewhere, ["done", "implement"]);
   expect(refused.status).toBe(1);
   expect(refused.stderr).toContain("the skills changed during stage implement");
+});
+
+// What the diff owes comes from the diff, whatever the result file lists or says.
+const LIGHT_PASS = [{ step: "code-review", verdict: "PASS" }, { step: "type-safety", verdict: "PASS" }, { step: "security-review", verdict: "SKIPPED" }];
+
+test("leaving out a gate the diff owes is refused like skipping it", () => {
+  const { result } = atReview();
+  result([{ step: "plan-conformance", verdict: "PASS" }], { depth: "deep" });
+  const refused = stage(["done", "review"]);
+  expect(refused.status).toBe(1);
+  expect(refused.stderr).toContain("security-review is missing, and a deep review always runs it");
+  expect(refused.stderr).toContain("type-safety is missing, and the diff touches TypeScript");
+  expect(refused.stderr).toContain("code-review is missing, and the diff has code to review");
+});
+
+const onDeepPath = () => {
+  const at = atReview();
+  mkdirSync(join(repo, "auth"), { recursive: true });
+  writeFileSync(join(repo, "auth/login.ts"), "export const y = 1;\n");
+  commit("auth");
+  expect(stage(["check"]).status).toBe(0);
+  const head = git("rev-parse", "HEAD");
+  expect(at.reviewStep("review-code", "code-review", "PASS").status).toBe(0);
+  expect(at.reviewStep("validate-type-safety", "type-safety", "PASS").status).toBe(0);
+  return { ...at, head };
+};
+
+test("a diff on a deep path owes security, whatever the result says its depth is", () => {
+  const { head, result } = onDeepPath();
+  result(LIGHT_PASS, { depth: "light", reviewed_head: head, final_head: head });
+  const refused = stage(["done", "review"]);
+  expect(refused.status).toBe(1);
+  expect(refused.stderr).toContain("the review says light, and the paths it changes make it deep");
+  expect(refused.stderr).toContain("security-review is SKIPPED, and a deep review always runs it");
+});
+
+test("a diff on a deep path owes security when the result names no depth", () => {
+  const { head, result } = onDeepPath();
+  result(LIGHT_PASS, { reviewed_head: head, final_head: head });
+  const refused = stage(["done", "review"]);
+  expect(refused.status).toBe(1);
+  expect(refused.stderr).toContain("security-review is SKIPPED, and a deep review always runs it");
+  expect(refused.stderr).not.toContain("the review says light");
+});
+
+const failedReview = (findings) => {
+  const { result, reviewStep } = atReview();
+  expect(reviewStep("review-code", "code-review", "FAIL").status).toBe(0);
+  expect(reviewStep("validate-type-safety", "type-safety", "PASS").status).toBe(0);
+  result([{ step: "code-review", verdict: "FAIL" }, { step: "type-safety", verdict: "PASS" }, { step: "security-review", verdict: "SKIPPED" }], { depth: "light", findings });
+};
+
+test("a failed review with no finding does not finish the run", () => {
+  failedReview([]);
+  const refused = stage(["done", "review"]);
+  expect(refused.status).toBe(1);
+  expect(refused.stderr).toContain("code-review is FAIL and the review records no finding for it");
+  expect(stage(["next"]).stdout.trim()).toBe("review");
+});
+
+test("a failed review finishes when each finding is set aside with a reason", () => {
+  failedReview([{ id: "F1", verdict: "invalid", reason: "the path is unreachable" }, { id: "F2", verdict: "deferred", follow_up: "CTC-2" }]);
+  expect(stage(["done", "review"]).status).toBe(0);
+});
+
+test.each([
+  [{ id: "F1", verdict: "valid" }, "finding F1 is valid with no fix commit on this branch"],
+  [{ id: "F1", verdict: "valid", fix: { sha: "0".repeat(40) } }, "finding F1 is valid with no fix commit on this branch"],
+  [{ id: "F1", verdict: "invalid" }, "finding F1 is invalid with no reason"],
+  [{ id: "F1", verdict: "already-fixed" }, "finding F1 is already-fixed with no reason"],
+  [{ id: "F1", verdict: "deferred" }, "finding F1 is deferred with no follow_up ticket"],
+  [{ id: "F1", verdict: "needs-human", reason: "r" }, "finding F1 needs a person"],
+  [{ id: "F1" }, "finding F1 has no verdict"],
+])("a finding that has not ended is refused: %j", (finding, message) => {
+  failedReview([finding]);
+  const refused = stage(["done", "review"]);
+  expect(refused.status).toBe(1);
+  expect(refused.stderr).toContain(message);
+});
+
+const afterFixes = () => {
+  const { head, result, reviewStep } = atReview();
+  expect(reviewStep("review-code", "code-review", "FAIL").status).toBe(0);
+  expect(reviewStep("validate-type-safety", "type-safety", "PASS").status).toBe(0);
+  writeFileSync(join(repo, "a.ts"), "export const x = 2;\n"); commit("fix");
+  const final = git("rev-parse", "HEAD");
+  expect(stage(["check"]).status).toBe(0);
+  const recheckSession = (verdict) => stage(["review-step", "review-code", "--base", head], { CATALYST_REVIEW_SESSION_CMD: `cat >/dev/null; printf '\`\`\`catalyst-review-step\\n{"step":"code-review","verdict":"${verdict}","detail":"d"}\\n\`\`\`\\n'` });
+  const write = (recheck) => result([{ step: "code-review", verdict: "FAIL" }, { step: "type-safety", verdict: "PASS" }, recheck], { final_head: final, depth: "light", findings: [{ id: "F1", verdict: "valid", fix: { sha: final } }] });
+  return { recheckSession, write };
+};
+
+test("a recheck cannot be skipped once fixes are committed", () => {
+  const { write } = afterFixes();
+  write({ step: "recheck", verdict: "SKIPPED" });
+  const refused = stage(["done", "review"]);
+  expect(refused.status).toBe(1);
+  expect(refused.stderr).toContain("recheck is SKIPPED with no review-code session on the fix range");
+});
+
+test("a recheck that fails does not finish the run", () => {
+  const { recheckSession, write } = afterFixes();
+  expect(recheckSession("FAIL").status).toBe(0);
+  write({ step: "recheck", verdict: "FAIL" });
+  const refused = stage(["done", "review"]);
+  expect(refused.status).toBe(1);
+  expect(refused.stderr).toContain("recheck is FAIL, so the fixes still fail");
+});
+
+test("a recheck has to match its session", () => {
+  const { recheckSession, write } = afterFixes();
+  expect(recheckSession("FAIL").status).toBe(0);
+  write({ step: "recheck", verdict: "PASS" });
+  const refused = stage(["done", "review"]);
+  expect(refused.status).toBe(1);
+  expect(refused.stderr).toContain("recheck says PASS, and its session reported FAIL");
+});
+
+test("a finished review ends the run: next prints complete, and a fresh run resumes there from the handoff", () => {
+  const { result, reviewStep } = atReview();
+  expect(reviewStep("review-code", "code-review", "PASS").status).toBe(0);
+  expect(reviewStep("validate-type-safety", "type-safety", "PASS").status).toBe(0);
+  result(LIGHT_PASS, { depth: "light" });
+  expect(stage(["done", "review"]).status).toBe(0);
+  expect(stage(["next"]).stdout.trim()).toBe("complete");
+  const handoff = join(artifacts, "handoff.md");
+  expect(readFileSync(handoff, "utf8")).toContain("next_stage: complete");
+  const fresh = join(root, "fresh-artifacts"); mkdirSync(fresh);
+  expect(stage(["next", "--resume", "--handoff", handoff], { CATALYST_ARTIFACT_DIR: fresh }).stdout.trim()).toBe("complete");
+});
+
+// The validation report's verifier.
+const VERIFY_VALIDATION = resolve(import.meta.dir, "../skills/ticket-oneshot/scripts/verify-validation");
+const verifyReport = (text) => {
+  const path = join(artifacts, "report.md");
+  writeFileSync(path, text);
+  return spawnSync("node", [VERIFY_VALIDATION, path], { cwd: repo, encoding: "utf8", env: { ...process.env, CATALYST_TICKET: "CTC-1", CATALYST_ARTIFACT_DIR: artifacts, CATALYST_REPOSITORY: "demo" } });
+};
+const goodReport = () => { atValidate(); return readFileSync(join(artifacts, "validation.md"), "utf8"); };
+const CODE_SKIPPED = '"step":"code-review","verdict":"SKIPPED"';
+
+test("a complete validation report passes its verifier", () => {
+  expect(verifyReport(goodReport()).status).toBe(0);
+});
+
+test.each([
+  ["code-review UNAVAILABLE", (d) => d.replace(CODE_SKIPPED, '"step":"code-review","verdict":"UNAVAILABLE"'), "code-review is UNAVAILABLE"],
+  ["code-review FAIL", (d) => d.replace(CODE_SKIPPED, '"step":"code-review","verdict":"FAIL"'), "code-review is FAIL"],
+  ["plan-conformance SKIPPED", (d) => d.replace('"step":"plan-conformance","verdict":"PASS"', '"step":"plan-conformance","verdict":"SKIPPED"'), "plan-conformance is SKIPPED"],
+  ["a second ladder", (d) => `${d}\n${/```catalyst-validation-ladder[\s\S]*?```/.exec(d)[0]}\n`, "expected one catalyst-validation-ladder block, found 2"],
+  ["a step named twice", (d) => d.replace('"step":"security-audit"', '"step":"code-review"'), "the ladder must name code-review exactly once"],
+  ["no Requirements section", (d) => d.replace("## Requirements", "## Other"), "missing required section"],
+  ["no ticket", (d) => d.replace("source_ticket: CTC-1\n", ""), "source_ticket must be CTC-1"],
+  ["a broken reference", (d) => d.replace("`run.sh:1`", "`gone.sh:1`"), "unresolved file:line reference: gone.sh:1"],
+  ["no reference", (d) => d.replace("`run.sh:1`", "run.sh:1"), "missing file:line reference"],
+])("a validation report is refused with %s", (_name, change, message) => {
+  const refused = verifyReport(change(goodReport()));
+  expect(refused.status).not.toBe(0);
+  expect(refused.stderr).toContain(message);
+});
+
+test("a report filled in from validate-plan's own template passes its verifier", () => {
+  const text = readFileSync(resolve(import.meta.dir, "../skills/validate-plan/SKILL.md"), "utf8");
+  const report = /```markdown\n(---\n[\s\S]*?# Validation Report:[\s\S]*?)\n```/.exec(text)?.[1];
+  const ladder = /```catalyst-validation-ladder\n[\s\S]*?\n```/.exec(text)?.[0];
+  expect(report).toBeTruthy();
+  expect(ladder).toBeTruthy();
+  const filled = report.replace("{TICKET}", "CTC-1").replace("{repo name}", "demo");
+  const passing = ladder.replace('"step":"code-review","verdict":"FAIL"', '"step":"code-review","verdict":"SKIPPED"');
+  expect(verifyReport(`${filled}\n\nEvidence: \`run.sh:1\`\n\n${passing}\n`).status).toBe(0);
+  expect(text).toContain("`file:line` in backticks");
+});
+
+test("depth counts as deep when the depth script cannot answer", () => {
+  const head = git("rev-parse", "HEAD");
+  expect(reviewDepth(repo, "0".repeat(40), head)).toBe("deep");
+  writeFileSync(join(repo, "b.txt"), "x\n"); commit("light");
+  expect(reviewDepth(repo, head, git("rev-parse", "HEAD"))).toBe("light");
 });

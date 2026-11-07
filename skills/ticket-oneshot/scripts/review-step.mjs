@@ -123,32 +123,63 @@ export function runReviewStep(dir, skill, baseInput, cwd, tools) {
   return write(parseVerdict(report, item.step), report, prompt, files, usd);
 }
 
+// Light or deep comes from the paths, never from the result file. An unusable answer counts as deep.
+export function reviewDepth(cwd, base, head) {
+  const run = spawnSync("node", [join(SKILLS, "review-and-verify/scripts/review-depth.mjs"), "--base", base, "--head", head], { cwd, encoding: "utf8" });
+  const depth = /^depth: (light|deep)$/m.exec(run.stdout ?? "")?.[1];
+  return run.status === 0 && depth ? depth : "deep";
+}
+// A finding has to end somewhere: fixed in a commit on this branch, set aside with a reason, or deferred to a ticket.
+function findingProblems(result, cwd) {
+  const problems = [];
+  for (const finding of result.findings ?? []) {
+    const name = finding?.id ?? `${finding?.path}:${finding?.line}`;
+    if (finding?.verdict === "valid") {
+      const sha = finding.fix?.sha;
+      const landed = typeof sha === "string" && spawnSync("git", ["merge-base", "--is-ancestor", sha, result.final_head], { cwd }).status === 0;
+      if (!landed) problems.push(`finding ${name} is valid with no fix commit on this branch`);
+    } else if (finding?.verdict === "needs-human") problems.push(`finding ${name} needs a person. Raise an ask and record stage wait answer`);
+    else if (finding?.verdict === "deferred") { if (!finding.follow_up) problems.push(`finding ${name} is deferred with no follow_up ticket`); }
+    else if (["invalid", "already-fixed"].includes(finding?.verdict)) { if (!finding.reason) problems.push(`finding ${name} is ${finding.verdict} with no reason`); }
+    else problems.push(`finding ${name} has no verdict`);
+  }
+  return problems;
+}
 // Every gate that claims a verdict needs the session that produced it. Returns one line per problem.
 export function reviewGateProblems(dir, result, cwd, { provenCheck }) {
   const problems = [];
+  const gates = (result.gates ?? []).filter(Boolean);
   const touchesTypes = () => git(cwd, ["diff", "--name-only", result.base, result.final_head]).split("\n").some((path) => /\.tsx?$|(^|\/)tsconfig[^/]*\.json$/.test(path));
+  const hasCode = () => spawnSync("bash", [join(SKILLS, "review-code/scripts/review-scope.sh"), "--base", result.base], { cwd, encoding: "utf8", env: { ...process.env, CATALYST_ARTIFACT_DIR: dir } }).status === 0;
   const receiptFor = (skill, head) => {
     try { return JSON.parse(readFileSync(receiptPath(dir, skill, head), "utf8")); } catch { return null; }
   };
   const fixed = result.final_head !== result.reviewed_head;
-  for (const gate of result.gates ?? []) {
-    if (!gate) continue;
+  const depth = reviewDepth(cwd, result.base, result.final_head);
+  if (depth === "deep" && result.depth === "light") problems.push("the review says light, and the paths it changes make it deep");
+  // What the diff owes. Leaving a step out is the same as skipping it.
+  const owed = [
+    ["security-review", () => depth === "deep" || result.depth === "deep", "a deep review always runs it"],
+    ["type-safety", touchesTypes, "the diff touches TypeScript"],
+    ["code-review", hasCode, "the diff has code to review"],
+  ];
+  for (const [step, owes, why] of owed) {
+    const gate = gates.find((item) => item.step === step);
+    if (gate && gate.verdict !== "SKIPPED") continue;
+    if (owes()) problems.push(`${step} is ${gate ? "SKIPPED" : "missing"}, and ${why}`);
+  }
+  for (const gate of gates) {
     const skill = STEP_SKILL[gate.step];
-    if (gate.verdict === "SKIPPED") {
-      if (gate.step === "security-review" && result.depth === "deep") problems.push("security-review is SKIPPED, and a deep review always runs it");
-      if (gate.step === "type-safety" && touchesTypes()) problems.push("type-safety is SKIPPED, and the diff touches TypeScript");
-      if (gate.step === "code-review") {
-        const scope = spawnSync("bash", [join(SKILLS, "review-code/scripts/review-scope.sh"), "--base", result.base], { cwd, encoding: "utf8", env: { ...process.env, CATALYST_ARTIFACT_DIR: dir } });
-        if (scope.status === 0) problems.push("code-review is SKIPPED, and the diff has code to review");
-      }
-      continue;
-    }
     if (gate.step === "recheck") {
       if (!fixed) continue;
       const seen = receiptFor("review-code", result.final_head);
       if (!seen || seen.base !== result.reviewed_head) problems.push(`recheck is ${gate.verdict} with no review-code session on the fix range ${result.reviewed_head}..${result.final_head}. Run stage review-step review-code --base ${result.reviewed_head}`);
+      else if (seen.verdict !== gate.verdict) problems.push(`recheck says ${gate.verdict}, and its session reported ${seen.verdict}`);
+      else if (["FAIL", "PARTIAL"].includes(gate.verdict)) problems.push(`recheck is ${gate.verdict}, so the fixes still fail`);
       continue;
     }
+    if (gate.verdict === "SKIPPED") continue;
+    if (["FAIL", "PARTIAL"].includes(gate.verdict) && !(result.findings ?? []).length) problems.push(`${gate.step} is ${gate.verdict} and the review records no finding for it`);
     if (!skill) continue;
     const seen = receiptFor(skill, result.reviewed_head);
     if (!seen) problems.push(`${gate.step} is ${gate.verdict} but ${skill} never ran in its own session at ${result.reviewed_head}. Run stage review-step ${skill} --base ${result.base}, or set the verdict to SKIPPED with the reason`);
@@ -158,6 +189,7 @@ export function reviewGateProblems(dir, result, cwd, { provenCheck }) {
       try { provenCheck(); } catch (error) { problems.push(`type-safety is ${gate.verdict} but the full check is not recorded green for this tree: ${error.message.split("\n")[0]}`); }
     }
   }
-  if (fixed && !(result.gates ?? []).some((gate) => gate?.step === "recheck")) problems.push("the review committed fixes and records no recheck gate");
+  if (fixed && !gates.some((gate) => gate.step === "recheck")) problems.push("the review committed fixes and records no recheck gate");
+  problems.push(...findingProblems(result, cwd));
   return problems;
 }

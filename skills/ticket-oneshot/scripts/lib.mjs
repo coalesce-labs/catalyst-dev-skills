@@ -95,7 +95,7 @@ export function verifyDoc(kind, path, root = process.cwd()) {
   const refs = [...doc.matchAll(/`([^`\n]+)`/g)]
     .map((match) => match[1])
     .filter((value) => /^[^:\s]+:\d+(?:-\d+)?$/.test(value));
-  if (refs.length === 0) errors.push("missing file:line reference");
+  if (refs.length === 0) errors.push("missing file:line reference: write at least one as `path:line`, in backticks");
   for (const ref of refs) {
     const [, file, line, endLine] = /^(.+):(\d+)(?:-(\d+))?$/.exec(ref) ?? [];
     if (!file || file.includes("://") || file.startsWith("/") || file.split("/").includes("..")) { errors.push(`invalid file:line reference: ${ref}`); continue; }

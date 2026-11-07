@@ -52,7 +52,7 @@ pr: {number, or none yet}
 
 | Requirement | Result | Proof |
 | -- | -- | -- |
-| {AC1 or the ticket scenario} | met / not met / not tried | {the test you read, a command and its exit code, or file:line} |
+| {AC1 or the ticket scenario} | met / not met / not tried | {the test you read, a command and its exit code, or `file:line` in backticks} |
 
 ## Validation Source
 
