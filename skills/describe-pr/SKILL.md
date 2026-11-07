@@ -1,37 +1,28 @@
 ---
 name: describe-pr
-description:
-  "Generate or update a PR's description and title, incrementally, preserving manual edits. Use
-  when the user says 'describe the PR', 'update PR description' or 'generate PR description', or
-  after new commits are pushed to an existing PR."
-disable-model-invocation: false
+description: "Write or update a pull request's title and description from its diff, plan and checks, keeping a person's manual edits, and save it to thoughts/shared/prs/. Use when asked to describe the PR, update the PR description, or after new commits land on a PR."
 allowed-tools: Bash, Read, Write
-version: 2.0.0
+metadata:
+  version: "3.0.0"
 ---
 
-# Generate/Update PR Description
+# Describe PR
 
-Runs fully automated, with no interactive prompts: it regenerates the auto-generated sections, preserves manual edits, updates the title, and names the Linear ticket. When `CATALYST_PHASE` is set, never ask and wait at any step, including the error paths.
+The description tells a reviewer what changed, why, and how it was verified. Write it from evidence: the diff, the plan, and the check results the implement stage reported. Do not rerun the checks here. Name a check as passed only when you saw it pass in its own output. When a coordinator's stage script records the check, it adds that section itself, so say nothing about the full check.
 
-**Paths.** Commands below name files inside this skill's own directory as `${CLAUDE_SKILL_DIR}/…`. Claude Code fills that in. On any other harness, set CLAUDE_SKILL_DIR to the absolute directory that contains this SKILL.md before running them. If you cannot, stop and report `skill_dir_unresolved`.
+**Unattended.** When `CATALYST_PHASE` is set, or a coordinator started you, never ask and wait.
 
-## Prerequisites
+**Paths.** `${CLAUDE_SKILL_DIR}` is this skill's directory. On a harness that does not fill it in, set it to the directory holding this file.
 
-```bash
-# Thoughts must exist for this skill's documents. That is the only host check here: the skill runs anywhere.
-[[ -e thoughts/shared ]] || echo "⚠️ thoughts/shared is missing in $(pwd) — run \`humanlayer thoughts init\` in the repo root, or create the worktree with the create-worktree skill, which does it; if the prompt names an output path, write there" >&2
-if [[ -n "${CATALYST_PHASE:-}" ]]; then echo "unattended: CATALYST_PHASE=$CATALYST_PHASE, so never ask and wait"; fi
-```
+## Steps
 
-## Rules
+1. **Gather.** Read `thoughts/shared/pr_description.md` (the template) if it exists. Find the PR: the number you were given, else the current branch's (`gh pr view`). Take the ticket from the branch name or PR title. Read the diff against the base, the commits, the plan and its acceptance criteria, and the existing description if there is one.
+2. **Write.** Fill the template's sections from the evidence. On an update, regenerate the summary, changes and verification sections, and keep what a person wrote in the others. Name the ticket with a `Fixes <ticket URL>` line, and refer to any related work by its GitHub PR number only ([references/linear-sibling-guard.md](references/linear-sibling-guard.md) explains why).
+3. **Title.** `<TICKET>: <ticket title>`, up to about 70 characters. Read the ticket title with `catalyst_ticket_json <TICKET>` from `${CLAUDE_SKILL_DIR}/scripts/lib/catalyst-cloud-read.sh`; when that fails, title from the branch name.
+4. **Save and sync.** Write the PR's file in `thoughts/shared/prs/`, using the lookup at the top of [references/write-back.md](references/write-back.md) (it rewrites the PR's existing file on an update), then `humanlayer thoughts sync`. If the sync fails, the file is still saved: say so in the report.
+5. **Write back,** as [references/write-back.md](references/write-back.md) shows:
+   - Under a runner (`CATALYST_PHASE` set) or a coordinator: write `$CATALYST_ARTIFACT_DIR/pr.md`, first line the title, a blank line, then the body. The runner or coordinator opens or updates the PR from it.
+   - Otherwise: update the PR's title and body on GitHub.
+6. **Report** whether this was a first description or an update, and end with the saved file's path on its own last line.
 
-- **Author:** descriptions are professional and attributed to the human author. The PR title and body carry no "Generated with Claude Code", "Co-Authored-By: Claude" or other AI-assistance reference.
-- **Ticket:** write nothing to it; the ticket stays where it is until the PR merges.
-- **Phase-container guard:** skip every `linearis` call when `CATALYST_PHASE` is set (a phase container holds no Linear credential; the runner owns the ticket write-back) or when `command -v linearis` fails (the CLI is not installed); say so in one line and continue.
-
-## Process
-
-1. **Gather.** Read the template, identify the PR (the number or URL the arguments name, else the current branch's PR), extract its ticket, and gather its diff, commits and checks. See [process.md](references/process.md).
-2. **Merge and title.** Merge the new analysis into the existing description, add the Linear reference, and generate the title. On a cloud account, read the ticket with `catalyst query issue <ID> --json`. Reference sibling tickets by GitHub PR number, never a bare Linear token; the own ticket's `Fixes https://linear.app/{workspace}/issue/{ticket}` line stays. See [merge-and-title.md](references/merge-and-title.md); the reason for the sibling rule is in [linear-sibling-guard.md](references/linear-sibling-guard.md).
-3. **Verify and write back.** Run the verification checks, save to `thoughts/shared/prs/`, and write the description and title to GitHub with the Linear sibling-skip guard block from `linear-pr-skip.sh`'s `linear_sibling_skip_block_from_branch` + `linear_sibling_skip_block_from_body`. See [verify-and-writeback.md](references/verify-and-writeback.md).
-4. **Report** whether this was a first-time generation or an incremental update, and end with the saved file's path on its own last line, so whoever started this run reads the file. See [metadata-and-errors.md](references/metadata-and-errors.md), which also covers error handling and the `.catalyst/config.json` schema (`teamKey`, `pr.testCommand`).
+The description is the author's own: no AI attribution line. Leave the ticket's state alone.
