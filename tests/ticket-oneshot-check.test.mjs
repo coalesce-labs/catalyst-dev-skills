@@ -726,3 +726,57 @@ test("a review whose base cannot be checked is refused", () => {
   expect(refused.status).toBe(1);
   expect(refused.stderr).toContain("the review's base cannot be checked");
 });
+
+test.each([
+  ["origin's default branch", () => { git("symbolic-ref", "refs/remotes/origin/HEAD", "refs/remotes/origin/master"); return {}; }],
+  ["the variable that names it", () => ({ CATALYST_BASE_REF: "origin/master" })],
+])("a repository with no main finishes a review, through %s", (_how, setUp) => {
+  const { base, result, reviewStep } = atReview();
+  expect(reviewStep("review-code", "code-review", "PASS").status).toBe(0);
+  expect(reviewStep("validate-type-safety", "type-safety", "PASS").status).toBe(0);
+  result(LIGHT_PASS, { depth: "light" });
+  git("update-ref", "refs/remotes/origin/master", git("rev-parse", "origin/main"));
+  git("update-ref", "-d", "refs/remotes/origin/main");
+  const env = setUp();
+  const printed = stage(["base"], env);
+  expect(printed.status).toBe(0);
+  expect(printed.stdout.trim()).toBe(base);
+  expect(stage(["done", "review"], env).status).toBe(0);
+});
+
+const reviewSessionCmd = (step, verdict) => `cat >/dev/null; printf '\`\`\`catalyst-review-step\\n{"step":"${step}","verdict":"${verdict}","detail":"d"}\\n\`\`\`\\n'`;
+
+test("a run on another base reads that base even where origin/main exists", () => {
+  writeFileSync(join(repo, "develop.txt"), "d\n"); commit("on develop");
+  const develop = git("rev-parse", "HEAD");
+  git("update-ref", "refs/remotes/origin/develop", develop);
+  const { result } = atReview();
+  const env = { CATALYST_BASE_REF: "origin/develop" };
+  expect(stage(["base"], env).stdout.trim()).toBe(develop);
+  for (const [skill, step] of [["review-code", "code-review"], ["validate-type-safety", "type-safety"]]) {
+    expect(stage(["review-step", skill, "--base", develop], { ...env, CATALYST_REVIEW_SESSION_CMD: reviewSessionCmd(step, "PASS") }).status).toBe(0);
+  }
+  result(LIGHT_PASS, { depth: "light", base: develop });
+  const unset = stage(["done", "review"]);
+  expect(unset.status).toBe(1);
+  expect(unset.stderr).toContain(`the review names base ${develop}, and the branch left origin/main at`);
+  expect(stage(["done", "review"], env).status).toBe(0);
+});
+
+test("an honest review still finishes when main is merged into the branch after it", () => {
+  const { head, result, reviewStep } = atReview();
+  expect(reviewStep("review-code", "code-review", "PASS").status).toBe(0);
+  expect(reviewStep("validate-type-safety", "type-safety", "PASS").status).toBe(0);
+  git("checkout", "-q", "--detach", "origin/main");
+  writeFileSync(join(repo, "moved.ts"), "export const y = 1;\n"); commit("main moved");
+  const moved = git("rev-parse", "HEAD");
+  git("update-ref", "refs/remotes/origin/main", moved);
+  git("checkout", "-q", "-");
+  git("-c", "core.hooksPath=/dev/null", "merge", "-q", "--no-edit", moved);
+  const final = git("rev-parse", "HEAD");
+  expect(stage(["check"]).status).toBe(0);
+  expect(stage(["review-step", "review-code", "--base", head], { CATALYST_REVIEW_SESSION_CMD: reviewSessionCmd("code-review", "PASS") }).status).toBe(0);
+  result([...LIGHT_PASS, { step: "recheck", verdict: "PASS" }], { depth: "light", final_head: final });
+  expect(stage(["done", "review"]).status).toBe(0);
+  expect(stage(["next"]).stdout).toContain("complete");
+});

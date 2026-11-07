@@ -1,5 +1,6 @@
 import { readFileSync, existsSync, statSync, writeFileSync, renameSync, mkdirSync, readdirSync } from "node:fs";
 import { resolve, dirname, relative, isAbsolute, join } from "node:path";
+import { spawnSync } from "node:child_process";
 import { randomUUID } from "node:crypto";
 import { fileURLToPath } from "node:url";
 
@@ -23,6 +24,13 @@ export function inside(root, path) {
   if (rel.startsWith("..") || isAbsolute(rel)) throw new Error(`path escapes ${root}: ${path}`);
   return absolute;
 }
+// The branch this work left: CATALYST_BASE_REF, else what origin calls its default, else origin/main.
+export function baseRef(cwd) {
+  if (process.env.CATALYST_BASE_REF) return process.env.CATALYST_BASE_REF;
+  const head = spawnSync("git", ["symbolic-ref", "--short", "refs/remotes/origin/HEAD"], { cwd, encoding: "utf8" });
+  return head.status === 0 && head.stdout.trim() ? head.stdout.trim() : "origin/main";
+}
+
 export function atomicWrite(path, value) {
   mkdirSync(dirname(path), { recursive: true });
   const temp = `${path}.${randomUUID()}.tmp`;
