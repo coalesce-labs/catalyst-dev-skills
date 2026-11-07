@@ -1,9 +1,14 @@
 #!/usr/bin/env node
-import { verifyDoc } from "./lib.mjs";
-const path = process.argv[2];
-if (!path) { process.stderr.write("usage: verify-validation <document>\n"); process.exit(2); }
+import { requirementProblems, verifyDoc } from "./lib.mjs";
+const [path, plan] = process.argv.slice(2);
+if (!path) { process.stderr.write("usage: verify-validation <document> [plan]\n"); process.exit(2); }
 try {
   const result = verifyDoc("validation", path);
+  if (plan && result.ok !== undefined) {
+    const missing = requirementProblems(path, plan);
+    result.errors.push(...missing);
+    result.ok = result.ok && missing.length === 0;
+  }
   process.stdout.write(JSON.stringify({ stage: "validation", ...result }) + "\n");
   if (!result.ok) { process.stderr.write(result.errors.join("\n") + "\n"); process.exitCode = 1; }
 } catch (error) { process.stderr.write(error.message + "\n"); process.exitCode = 2; }

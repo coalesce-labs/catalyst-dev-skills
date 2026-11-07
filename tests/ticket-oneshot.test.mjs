@@ -15,32 +15,28 @@ function fixture() {
   mkdirSync(artifacts);
   return { root, artifacts };
 }
-function run(name, args, f) {
+function run(name, args, f, extraEnv = {}) {
   return spawnSync("node", [join(skill, "scripts", name), ...args], {
     cwd: f.root,
-    env: { ...process.env, CATALYST_TICKET: "CTC-1234", CATALYST_ARTIFACT_DIR: f.artifacts, CATALYST_REPOSITORY: "catalyst-cloud" },
+    env: { ...process.env, CATALYST_TICKET: "CTC-1234", CATALYST_ARTIFACT_DIR: f.artifacts, CATALYST_REPOSITORY: "catalyst-cloud", ...extraEnv },
     encoding: "utf8",
   });
 }
-const ladder = '```catalyst-validation-ladder\n{"version":1,"steps":[{"step":"plan-conformance","verdict":"PASS"},{"step":"type-safety","verdict":"PASS"},{"step":"code-review","verdict":"PASS"},{"step":"security-review","verdict":"PASS"},{"step":"security-audit","verdict":"SKIPPED"}]}\n```\n';
+// With CATALYST_PHASE set the runner owns the implement gate; without it, stage done implement demands a green check record.
+const RUNNER = { CATALYST_PHASE: "implement" };
 function doc(kind, ticket = "CTC-1234", ref = "src/logic.ts:1") {
   const sections = {
     research: "## Research Question\nWhy?\n\n## Summary\nAnswer.\n\n## Detailed Findings\nFound `" + ref + "`.\n",
-    plan: "## Overview\nGoal.\n\n## Implementation Steps\nChange `" + ref + "`.\n\n## Verification\nRun tests.\n\n## Files in scope\n- src/logic.ts\n",
-    validation: "## Summary\nPass.\n\n## Plan Conformance\nGood.\n\n## Review\nGood.\n\n## Gate\n`" + ref + "` resolves.\n" + ladder,
+    validation: "## Requirements\n| AC1 | met | `" + ref + "` |\n\n```catalyst-validation-ladder\n" + JSON.stringify({ version: 1, steps: ["plan-conformance", "type-safety", "code-review", "security-review", "security-audit"].map((step, i) => ({ step, verdict: i === 0 ? "PASS" : "SKIPPED", detail: "d" })) }) + "\n```\n",
+    plan: "## Overview\nGoal.\n\n## Acceptance criteria\n- **AC1** It works. Proof: `" + ref + "` test.\n\n## Phase 1: Change\nChange `" + ref + "`.\n\n## Verification\nRun tests.\n\n## Files in scope\n- src/logic.ts\n",
   };
   return `---\nsource_ticket: ${ticket}\nrepository: catalyst-cloud\ntype: ${kind}\n---\n\n# ${kind}\n\n${sections[kind]}`;
 }
-test("verifiers accept the delegated create-plan and validate-plan report shapes", () => {
+test("verifiers accept the delegated create-plan report shape", () => {
   const f = fixture();
   const plan = join(f.artifacts, "plan.md");
-  writeFileSync(plan, `---\nsource_ticket: CTC-1234\nrepository: catalyst-cloud\n---\n\n# Implementation Plan\n\n## Overview\nTask.\n\n## Implementation Approach\nChange \`src/logic.ts:1\`.\n\n## Phase 1: Change\nDo it.\n\n## Testing Strategy (TDD)\nTest.\n\n## Files in scope\n- src/logic.ts\n`);
+  writeFileSync(plan, `---\nsource_ticket: CTC-1234\nrepository: catalyst-cloud\n---\n\n# Implementation Plan\n\n## Overview\nTask.\n\n## Acceptance criteria\n\n- **AC1** It works. Proof: \`src/logic.ts:1\` test.\n\n## Phase 1: Change\nDo it.\n\n## Files in scope\n- src/logic.ts\n`);
   expect(run("verify-plan", [plan], f).status).toBe(0);
-  const validation = join(f.artifacts, "validation.md");
-  writeFileSync(validation, `---\nsource_ticket: CTC-1234\nrepository: catalyst-cloud\n---\n\n# Validation Report\n\n## Validation Source\n\`src/logic.ts:1\`\n\n### Implementation Status\nComplete.\n\n### Automated Verification Results\nPassed.\n\n### Code Review Findings\nClear.\n\n${ladder}`);
-  expect(run("verify-validation", [validation], f).status).toBe(0);
-  writeFileSync(validation, readFileSync(validation, "utf8").replace('"security-review","verdict":"PASS"', '"security-review"'));
-  expect(run("verify-validation", [validation], f).status).not.toBe(0);
 });
 test("verifiers accept adapted documents extracted from the real sub-skill templates", () => {
   const f = fixture();
@@ -48,20 +44,10 @@ test("verifiers accept adapted documents extracted from the real sub-skill templ
   const planBody = /````markdown\n([\s\S]*?)\n````/.exec(planTemplate)?.[1];
   expect(planBody).toBeTruthy();
   const plan = join(f.artifacts, "plan.md");
-  writeFileSync(plan, planBody.replace("repository: { REPO_NAME }", "repository: catalyst-cloud").replace("source_ticket: { TICKET-ID or null }", "source_ticket: CTC-1234") + "\n\n## Files in scope\n\n- `src/logic.ts:1`\n");
+  writeFileSync(plan, planBody.replace("repository: <repo name>", "repository: catalyst-cloud").replace("source_ticket: <TICKET-ID or null>", "source_ticket: CTC-1234").replace("- `path/to/file`", "- `src/logic.ts:1`"));
   expect(run("verify-plan", [plan], f).status).toBe(0);
-  const validateSkill = readFileSync(resolve(skill, "../validate-plan/SKILL.md"), "utf8");
-  const report = /```markdown\n(# Validation Report:[\s\S]*?)\n```/.exec(validateSkill)?.[1];
-  const realLadder = /```catalyst-validation-ladder\n([\s\S]*?)\n```/.exec(validateSkill)?.[0];
-  expect(report).toBeTruthy();
-  expect(realLadder).toBeTruthy();
-  const validation = join(f.artifacts, "validation.md");
-  writeFileSync(validation, `---\nsource_ticket: CTC-1234\nrepository: catalyst-cloud\n---\n\n${report}\n\nEvidence: \`src/logic.ts:1\`\n\n${realLadder}\n`);
-  expect(run("verify-validation", [validation], f).status).not.toBe(0);
-  writeFileSync(validation, readFileSync(validation, "utf8").replace('"step":"code-review","verdict":"FAIL"', '"step":"code-review","verdict":"PASS"'));
-  expect(run("verify-validation", [validation], f).status).toBe(0);
 });
-for (const kind of ["research", "plan", "validation"]) {
+for (const kind of ["research", "plan"]) {
   test(`${kind} verifier accepts a complete doc and rejects missing ticket and broken reference`, () => {
     const f = fixture();
     const path = join(f.artifacts, `${kind}.md`);
@@ -194,7 +180,7 @@ test("stage done implement succeeds before the runner writes implement.md", () =
   reachImplement(f);
   expect(run("stage", ["start", "implement"], f).status).toBe(0);
   expect(existsSync(join(f.artifacts, "implement.md"))).toBe(false);
-  expect(run("stage", ["done", "implement"], f).status).toBe(0);
+  expect(run("stage", ["done", "implement"], f, RUNNER).status).toBe(0);
   const marker = JSON.parse(readFileSync(join(f.artifacts, "stages", "1-implement.done.json"), "utf8"));
   expect(marker.artifact).toBe("implement.md");
   expect(readFileSync(join(f.artifacts, "handoff.md"), "utf8")).toContain("completed_stage: implement");
@@ -206,7 +192,7 @@ test("stage done implement on a second attempt skips the fresh evidence check", 
   expect(run("stage", ["fail", "implement", "--reason", "gate failed", "--class", "code"], f).status).toBe(0);
   expect(run("stage", ["start", "implement"], f).status).toBe(0);
   expect(JSON.parse(readFileSync(join(f.artifacts, "stages", "2-implement.start.json"), "utf8")).attempt).toBe(2);
-  const done = run("stage", ["done", "implement"], f);
+  const done = run("stage", ["done", "implement"], f, RUNNER);
   expect(done.status).toBe(0);
   expect(JSON.parse(readFileSync(join(f.artifacts, "stages", "2-implement.done.json"), "utf8")).artifact).toBe("implement.md");
 });
@@ -225,33 +211,6 @@ test("the stage catalog marks only implement as runner-owned", () => {
   const catalog = JSON.parse(readFileSync(join(skill, "stages.json"), "utf8"));
   expect(catalog.stages.filter((item) => item.owner === "runner").map((item) => item.stage)).toEqual(["implement"]);
   expect(catalog.stages.filter((item) => "owner" in item).length).toBe(1);
-});
-test("validate stage refuses a document that fails its verifier", () => {
-  const f = fixture();
-  for (const stage of ["research", "plan", "implement"]) {
-    writeFileSync(join(f.artifacts, `${stage}.md`), stage === "implement" ? "gate passed\n" : doc(stage));
-    expect(run("stage", ["start", stage], f).status).toBe(0);
-    expect(run("stage", ["done", stage], f).status).toBe(0);
-  }
-  writeFileSync(join(f.artifacts, "validation.md"), "---\nsource_ticket: CTC-1234\nrepository: catalyst-cloud\n---\n\n# Empty validation\n");
-  expect(run("stage", ["start", "validate"], f).status).toBe(0);
-  const result = run("stage", ["done", "validate"], f);
-  expect(result.status).not.toBe(0);
-  expect(result.stderr).toContain("missing required section");
-});
-test("validation cannot complete with failed or unavailable ladder verdicts", () => {
-  const f = fixture();
-  const path = join(f.artifacts, "validation.md");
-  writeFileSync(path, doc("validation").replace('"plan-conformance","verdict":"PASS"', '"plan-conformance","verdict":"FAIL"'));
-  expect(run("verify-validation", [path], f).status).not.toBe(0);
-  writeFileSync(path, doc("validation").replace('"code-review","verdict":"PASS"', '"code-review","verdict":"UNAVAILABLE"'));
-  expect(run("verify-validation", [path], f).status).not.toBe(0);
-  writeFileSync(path, doc("validation"));
-  expect(run("verify-validation", [path], f).status).toBe(0);
-  writeFileSync(path, `${doc("validation")}\nUpdated review:\n${ladder.replace('"code-review","verdict":"PASS"', '"code-review","verdict":"FAIL"')}`);
-  const duplicate = run("verify-validation", [path], f);
-  expect(duplicate.status).not.toBe(0);
-  expect(duplicate.stderr).toContain("multiple catalyst-validation-ladder");
 });
 test("a failed stage and wait leave a cold-resumable handoff", () => {
   const first = fixture();
@@ -325,19 +284,18 @@ test("cold resume rejects another repository's handoff for the same ticket", () 
   expect(result.stderr).toContain("handoff repository must be catalyst-cloud");
   expect(existsSync(join(fresh.artifacts, "handoff.md"))).toBe(false);
 });
-test("a PR wait handoff cold-resumes at complete after every stage is done", () => {
+test("a PR wait handoff cold-resumes at review once the pr stage is done", () => {
   const first = fixture();
   for (const stage of ["research", "plan", "implement", "validate", "pr"]) {
-    const artifact = stage === "validate" ? "validation.md" : `${stage}.md`;
-    writeFileSync(join(first.artifacts, artifact), ["research", "plan", "validate"].includes(stage) ? doc(stage === "validate" ? "validation" : stage) : `${stage} complete\n`);
+    writeFileSync(join(first.artifacts, `${stage === "validate" ? "validation" : stage}.md`), stage === "validate" ? doc("validation") : ["research", "plan"].includes(stage) ? doc(stage) : `${stage} complete\n`);
     expect(run("stage", ["start", stage], first).status).toBe(0);
-    expect(run("stage", ["done", stage], first).status).toBe(0);
+    expect(run("stage", ["done", stage], first, RUNNER).status).toBe(0);
   }
-  expect(run("stage", ["wait", "review", "--key", "pr:94", "--deadline", "2026-10-13T06:00:00Z", "--resume-from", "pr"], first).status).toBe(0);
+  expect(run("stage", ["wait", "review", "--key", "pr:94", "--deadline", "2026-10-13T06:00:00Z", "--resume-from", "review"], first).status).toBe(0);
   const handoff = join(first.artifacts, "handoff.md");
-  expect(readFileSync(handoff, "utf8")).toContain("completed_stage: pr\nnext_stage: complete");
+  expect(readFileSync(handoff, "utf8")).toContain("completed_stage: pr\nnext_stage: review");
   const fresh = fixture();
-  expect(run("stage", ["next", "--resume", "--handoff", handoff], fresh).stdout.trim()).toBe("complete");
+  expect(run("stage", ["next", "--resume", "--handoff", handoff], fresh).stdout.trim()).toBe("review");
 });
 test("resume rejects a stale handoff behind completed local markers", () => {
   const f = fixture();

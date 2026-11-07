@@ -51,7 +51,9 @@ describe("every ask or wait step in a dispatched skill is guarded by CATALYST_PH
 
   test("research-codebase goes straight to its steps under CATALYST_PHASE", () => {
     const body = readFileSync(`${skillsDir}/research-codebase/SKILL.md`, "utf8");
-    const start = body.slice(body.indexOf("## Start"), body.indexOf("## ", body.indexOf("## Start") + 3));
+    const at = body.indexOf("**Unattended.**");
+    expect(at).toBeGreaterThan(-1);
+    const start = body.slice(at, body.indexOf("\n\n", at));
     expect(start).toMatch(/CATALYST_PHASE/);
     expect(findUnguardedWaits(start)).toEqual([]);
   });
