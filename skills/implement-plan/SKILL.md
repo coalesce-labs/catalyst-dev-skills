@@ -1,78 +1,25 @@
 ---
 name: implement-plan
-description: "Implement an approved technical plan from thoughts/shared/plans/, phase by phase, test first (Red-Green-Refactor). **ALWAYS use when** the user says 'implement the plan', 'start implementing', 'build from the plan', or wants to execute a previously created implementation plan. Supports team mode for parallel implementation."
-disable-model-invocation: false
+description: "Implement a plan from thoughts/shared/plans/ phase by phase, test first, until the repository's checks are green and every acceptance criterion is proven. Use when asked to implement the plan, start implementing, or build from a plan."
 allowed-tools: Read, Write, Edit, Grep, Glob, Task, TodoWrite, Bash
-version: 1.0.0
+metadata:
+  version: "2.0.0"
 ---
 
-# Implement Plan
+# Implement plan
 
-**Paths.** Commands below name files inside this skill's own directory as `${CLAUDE_SKILL_DIR}/…`. Claude Code fills that in. On any other harness, set CLAUDE_SKILL_DIR to the absolute directory that contains this SKILL.md before running them. If you cannot, stop and report `skill_dir_unresolved`.
+Done means two things, both true in this session: the repository's checks ran green on your final tree, and every acceptance criterion in the plan has its proof. Handing over red work only moves the failure to a later stage.
 
-**Automated runs.** When `CATALYST_PHASE` or `CATALYST_STAGE` is set, also follow [references/automated-phase.md](references/automated-phase.md): a commit and draft-PR push after every Green step, and the dispatch prompt's one gate in place of the local quality gates.
+**Unattended.** When `CATALYST_PHASE` is set, or a coordinator started you, implement the plan file you were given, never search for another, and never ask and wait. With no plan file, stop and report `no_plan_found`. Otherwise confirm the plan with the person first.
 
-## 1. Find the plan and prepare
+## Steps
 
-```bash
-# Thoughts must exist for this skill's documents. That is the only host check here: the skill runs anywhere.
-[[ -e thoughts/shared ]] || echo "⚠️ thoughts/shared is missing in $(pwd) — run \`humanlayer thoughts init\` in the repo root, or create the worktree with the create-worktree skill, which does it; if the prompt names an output path, write there" >&2
-if [[ -n "${CATALYST_PHASE:-}" ]]; then echo "unattended: CATALYST_PHASE=$CATALYST_PHASE, so never ask and wait"; fi
-# explicit-input discovery: begin
-# The plan to implement: a `thoughts/shared/plans/` path in the argument text (Claude Code fills in the
-# token below; elsewhere, use the path the prompt names). Under a phase that path is the only input.
-# Off a phase, else the ticket's newest document, else the newest; `[!0-9]` keeps PROJ-1 off PROJ-10's.
-SKILL_ARGS=$(cat <<'CATALYST_SKILL_ARGS'
-$ARGUMENTS
-CATALYST_SKILL_ARGS
-)
-RECENT_PLAN=$(printf '%s' "$SKILL_ARGS" | grep -oE '[^[:space:]"()<>`]*thoughts/shared/plans/[^[:space:]"()<>`]+[.]md' | head -1); [[ -f "$RECENT_PLAN" ]] || RECENT_PLAN=""
-TICKET_ID="${TICKET_ID:-${CATALYST_TICKET:-}}"
-[[ -n "$TICKET_ID" ]] || TICKET_ID=$(printf '%s' "$SKILL_ARGS" | grep -oE '[A-Z][A-Z0-9]*-[0-9]+' | head -1)
-[[ -n "$TICKET_ID" ]] || TICKET_ID=$(printf '%s' "$SKILL_ARGS" | tr '[:lower:]' '[:upper:]' | grep -oE '[A-Z][A-Z0-9]*-[0-9]+' | head -1)
-if [[ -z "$RECENT_PLAN" && -z "${CATALYST_PHASE:-}" ]]; then
-  if [[ -n "$TICKET_ID" ]]; then
-    RECENT_PLAN=$(find -H thoughts/shared/plans -type f -name '*.md' -ipath "*${TICKET_ID}[!0-9]*" -exec ls -t {} + 2>/dev/null | head -1)
-  else
-    RECENT_PLAN=$(find -H thoughts/shared/plans -type f -name '*.md' -exec ls -t {} + 2>/dev/null | head -1)
-  fi
-fi
-# explicit-input discovery: end
-if [[ -n "$RECENT_PLAN" ]]; then
-  echo "📋 Found plan: $RECENT_PLAN"
-else
-  echo "⚠️ No plan found on disk for ${TICKET_ID:-this run}"
-fi
+1. **Read** the plan whole, its ticket, and every file it names. Checked items (`- [x]`) are done; resume at the first unchecked one. If the branch already has commits, merge `origin/main` first and resolve any conflict.
+2. **Each phase, in order:** write the phase's tests and watch them fail; write the smallest change that passes them; clean up with the tests green. Then run the fastest checks that cover what you touched (the affected tests, the type check, the linter), fix what fails, check the phase's items off in the plan, and commit. Commit only after the type check passes: a test runner can pass code the type checker rejects.
+3. **The full check.** After the last phase, run the repository's own check command (the one its AGENTS.md, CLAUDE.md, CONTRIBUTING or CI names), or the command your coordinator gave you. It can outlast a foreground command limit: start it with your harness's background option on the command itself, with the longest timeout it allows (two hours, 7200000 ms, in Claude Code; with none it is stopped after ten minutes), and wait for it, because a trailing `&` loses the result when the shell ends. Fix and rerun until it is green. If it cannot run here (a missing service, no permission, the wrong operating system, out of time), stop and report it as an environment failure with the command and its output, rather than handing over.
+   - **A failure your change did not cause.** Run the same failing tests on `origin/main` without your change. If they fail there too, they are not yours to fix: stop and report an environment failure that lists each test, its result with your change, and its result on `origin/main`. Do not call the work done while the check is red.
+4. **Prove the criteria.** For each `AC<n>` in the plan, name the test or command that proves it and confirm it passed. When a criterion cannot be met as written, say so as a deviation.
+5. **Record departures** from the plan in `thoughts/shared/plans/<TICKET>/deviations.json` as [references/deviations.md](references/deviations.md) shows. Write no file when the plan was followed.
+6. **Report** the check command and its result, each criterion with its proof, and any deviation. A check that stops at its first failure did not run the steps after it: name only the steps you saw pass.
 
-# Session tracking uses the installed catalyst-session CLI when this host has one; skipped otherwise.
-SESSION_SCRIPT="$(command -v catalyst-session 2>/dev/null || true)"
-if [[ -n "$SESSION_SCRIPT" ]]; then
-  CATALYST_SESSION_ID=$("$SESSION_SCRIPT" start --skill "implement-plan" \
-    --ticket "${TICKET_ID:-}" \
-    --workflow "${CATALYST_SESSION_ID:-}")
-  export CATALYST_SESSION_ID
-  "$SESSION_SCRIPT" phase "$CATALYST_SESSION_ID" "implementing" --phase 1
-fi
-```
-
-**Input: the plan file.** A plan path passed as an argument wins. When `CATALYST_PHASE` is set, never search and never ask: implement the plan file the arguments or the prompt name, even when other plans for the ticket exist, and with none, stop and report `no_plan_found`. Otherwise, after `📋 Found plan`, show the path and ask "**Proceed with this plan?** [Y/n]". Otherwise, or on no, list the five most recent plans in `thoughts/shared/plans/` with dates and ticket numbers, and wait for the user to pick one.
-
-Read the plan whole (no limit or offset), the ticket in its `source_ticket` frontmatter (this skill moves no ticket; when someone asks for a move, read [references/linear.md](references/linear.md)), and every file it mentions. Checked items (`- [x]`) are done: resume from the first unchecked one. On an adopted branch, where `git fetch origin main && git log --oneline origin/main..HEAD` lists commits before you change anything, run `git merge --no-edit origin/main` first and resolve any conflict as part of this phase. Record the merge commit and main SHA used; later validation must separate main's movement from this plan's changes. Then make a todo list.
-
-## 2. Implement each phase: Red → Green → Refactor
-
-Finish each phase before the next, always in this order: **Red**, write the tests from the phase's "Tests First" section (or for its expected behaviour when it has none) and watch them fail; **Green**, write the minimum code from "Implementation" that passes them; **Refactor**, clean up with the tests green, applying the plan's refactoring notes.
-
-After each phase, run its success-criteria commands, fix what fails, check its items off in the plan file, and print the context status in [references/context-and-handoff.md](references/context-and-handoff.md), which sets when to hand off. Record friction worth fixing (a bug in adjacent code, a missing tool) the moment you see it, with `add-finding.sh` from [references/improvement-queue.md](references/improvement-queue.md). Follow the plan unless code evidence requires a departure. Record departures for `validate-plan` in `thoughts/shared/plans/<TICKET-ID>/deviations.json` using [references/deviations.md](references/deviations.md); write no file when the plan was followed.
-
-When the code has drifted and the plan cannot be followed, stop and present `Issue in Phase [N]:` with `Expected:` (what the plan says), `Found:` (the actual situation), `Why this matters:`, and `How should I proceed?`. With `--team`, or when the plan spans three or more independent domains, follow [references/team-mode.md](references/team-mode.md).
-
-## 3. Quality gates and finish
-
-After the last phase, run the local gates in [references/quality-gates.md](references/quality-gates.md): the `validate-type-safety` skill, this pack's `review-security` and `review-code` skills, and a test-coverage subagent. Then file the recorded findings with the end-of-run block in [references/improvement-queue.md](references/improvement-queue.md), and end the session:
-
-```bash
-if [[ -n "${CATALYST_SESSION_ID:-}" && -x "$SESSION_SCRIPT" ]]; then
-  "$SESSION_SCRIPT" end "$CATALYST_SESSION_ID" --status done
-fi
-```
+When the code has drifted so far that the plan cannot be followed, stop and report `Expected:` (the plan), `Found:` (the code), and why it matters. With `--team`, or a plan spanning three or more independent areas, see [references/team-mode.md](references/team-mode.md).

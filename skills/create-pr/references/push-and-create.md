@@ -68,7 +68,7 @@ The commit-message body makes the PR immediately readable even before the `descr
 
 ## Step 10 — Run the describe-pr skill
 
-Immediately run the `describe-pr` skill with the PR number to generate the full description, run verification, refine the title, and save to `thoughts/`.
+Immediately run the `describe-pr` skill with the PR number to generate the full description, refine the title, and save to `thoughts/`.
 
 ## Step 11 — Leave the ticket where it is
 

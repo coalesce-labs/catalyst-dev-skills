@@ -19,10 +19,9 @@ describe("retired skills are gone and unnamed", () => {
 });
 
 describe("each skill's instructions match what it runs", () => {
-  test("implement-plan reviews with this pack's review-code skill, the same in every harness", () => {
+  test("implement-plan leaves review to the review stage and names no harness-only reviewer", () => {
     const text = read("skills/implement-plan/SKILL.md");
     expect(text).not.toMatch(/pr-review-toolkit/);
-    expect(text).toMatch(/`review-code`/);
   });
 
   test("merge-pr describes the review skills by what they check", () => {

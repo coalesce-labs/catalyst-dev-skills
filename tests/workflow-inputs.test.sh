@@ -37,7 +37,6 @@ END_MARK='explicit-input discovery: end'
 # a phase never searches. resume-handoff (`ticket`) still finds the ticket's newest handoff.
 READERS="create-plan|RECENT_RESEARCH|research|given
 validate-plan|RECENT_PLAN|plans|given
-implement-plan|RECENT_PLAN|plans|given
 resume-handoff|RECENT_HANDOFF|handoffs|ticket"
 
 for skill in create-plan validate-plan implement-plan resume-handoff create-handoff create-pr; do
@@ -230,7 +229,7 @@ done <<READERS_EOF
 $READERS
 READERS_EOF
 # `[].every()` is true: a loop that never ran must not print a green summary.
-[ "$ITERATIONS" -eq 4 ] || fail "the reader loop covered all four skills" "ran ${ITERATIONS} iteration(s)"
+[ "$ITERATIONS" -eq 3 ] || fail "the reader loop covered all four skills" "ran ${ITERATIONS} iteration(s)"
 
 echo ""
 echo "PASS: $PASS  FAIL: $FAIL"
