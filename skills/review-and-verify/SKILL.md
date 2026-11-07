@@ -1,10 +1,10 @@
 ---
 name: review-and-verify
-description: "Review a pull request at one exact head, fix what is valid, and prove the fixes, in one pass. Runs the existing review skills by name (validate-plan for plan conformance, review-code, validate-type-safety with its reward-hacking scan, review-security), verifies every finding before fixing it, commits one fix per valid finding, re-checks only the fix range, and writes one review-result.json that the cloud posts as a GitHub review. Chooses light or deep from the paths the change touches, and honours CATALYST_REVIEW_AUTO_MERGE=false by making the pull request wait for a person. Use when dispatched as a review phase, or when the user says 'review and fix this PR', 'review-and-verify', 'review it and fix what you find'. Not for answering someone else's review comments (review-comments) or fixing a failed validate (remediate-plan)."
-disable-model-invocation: false
+description: "Review a pull request at one exact head, fix what is valid, and prove the fixes, in one pass: acceptance criteria from the plan, defects (review-code), TypeScript safety with the reward-hacking scan (validate-type-safety), and security (review-security). Verifies each finding before fixing it, re-checks only the fix range, and writes one review-result.json. Use when dispatched as the review stage, or asked to review and fix a PR. Not for answering someone else's review comments (review-comments)."
 allowed-tools: Bash, Read, Grep, Glob, Edit, Write
 argument-hint: "[PR-number] [--recheck <review-result.json>]"
-version: 1.0.0
+metadata:
+  version: "1.0.0"
 ---
 
 # Review and verify
@@ -23,11 +23,11 @@ When `CATALYST_PHASE` is set the run is unattended: never ask and wait.
 
 ## Steps 1–4: Review (record only, change nothing yet)
 
-Run each skill by name with base `B`. Turn each verdict into a `gates` entry and each finding into a `findings` entry numbered F1, F2, …, with `source` naming the skill and the lens or pattern.
+When the caller hands you review-step reports (a one-shot run), those are the steps they name: take each verdict and finding from its report, and do not run that skill again. A step with no report and a reason it does not apply gets `SKIPPED`. Otherwise run each skill by name with base `B`. Each one sits beside this skill, at `../<name>/SKILL.md`: read that file and every reference it names before its step and follow it. A step you did not run through its skill gets the verdict `SKIPPED` with the reason, never `PASS`, and a finding's `source` names a skill only when that skill produced it. Turn each verdict into a `gates` entry and each finding into a `findings` entry numbered F1, F2, …, with `source` naming the skill and the lens or pattern.
 
-1. **Plan conformance:** `validate-plan`, its plan-conformance step only, when a plan exists for the ticket. Without one, the gate is `SKIPPED` with `no_plan_found`.
+1. **Acceptance criteria:** when a validate stage already judged them (its `validation.md` sits beside the plan), record the gate `plan-conformance` as `SKIPPED` with the detail "the validate stage ran this" and go on. Otherwise, for each `AC<n>` in the plan you were given, find its proof (the named test or command) and confirm it passes at `H`. Record one `conformance` entry per criterion, under the gate `plan-conformance`. A criterion with no passing proof is a finding. Read `deviations.json` beside the plan first: a recorded deviation with evidence is not a finding. With no plan, the gate is `SKIPPED` with `no_plan_found`.
 2. **Defects:** `review-code`.
-3. **TypeScript:** `validate-type-safety` when the diff touches `.ts`, `.tsx` or a tsconfig, under its validate-stage rules (record, never fix; reuse the pull request's CI at `H`). It runs `scan-reward-hacking --base "$B"`.
+3. **TypeScript:** `validate-type-safety` when the diff touches `.ts`, `.tsx` or a tsconfig, under its validate-stage rules (record, never fix; reuse the pull request's CI at `H`). It applies the `scan-reward-hacking` skill, a checklist with no script, with base `B`.
 4. **Security:** `review-security`, always when deep; when light, only if the diff touches a surface `references/depth.md` lists.
 
 ## Step 5: Verify, then fix, once
@@ -39,8 +39,8 @@ Read `${CLAUDE_SKILL_DIR}/assets/references/resolving-review-findings.md` and fo
 With `F` as the new head:
 
 - run each regression test: it fails with its fix reverted and passes with the fix in place;
-- run `scan-reward-hacking --base "$H"`, so your own fixes face the same rules;
-- run `review-code` on `H..F` under its re-validate bar.
+- apply the `scan-reward-hacking` skill with base `H`, so your own fixes face the same rules;
+- run `review-code` on `H..F` under its re-validate bar. In a one-shot run the coordinator runs this one in its own session and records the `recheck` gate, so leave it out.
 
 There is no second loop. A new finding from this step is `deferred` with a follow-up ticket, or `needs-human`. A deep review also needs a second opinion from another model family; `references/depth.md` says how.
 

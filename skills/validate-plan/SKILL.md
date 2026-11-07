@@ -10,38 +10,7 @@ version: 1.0.0
 
 ## 1. Find the plan
 
-```bash
-# Thoughts must exist for this skill's documents. That is the only host check here: the skill runs anywhere.
-[[ -e thoughts/shared ]] || echo "⚠️ thoughts/shared is missing in $(pwd) — run \`humanlayer thoughts init\`; if the prompt names an output path, write there" >&2
-if [[ -n "${CATALYST_PHASE:-}" ]]; then echo "unattended: CATALYST_PHASE=$CATALYST_PHASE, so never ask and wait"; fi
-# explicit-input discovery: begin
-# The plan to validate: a `thoughts/shared/plans/` path in the argument text (Claude Code fills in the
-# token below; elsewhere, use the path the prompt names). Under a phase that path is the only input.
-# Off a phase, else the ticket's newest document, else the newest; `[!0-9]` keeps PROJ-1 off PROJ-10's.
-SKILL_ARGS=$(cat <<'CATALYST_SKILL_ARGS'
-$ARGUMENTS
-CATALYST_SKILL_ARGS
-)
-RECENT_PLAN=$(printf '%s' "$SKILL_ARGS" | grep -oE '[^[:space:]"()<>`]*thoughts/shared/plans/[^[:space:]"()<>`]+[.]md' | head -1); [[ -f "$RECENT_PLAN" ]] || RECENT_PLAN=""
-TICKET_ID="${TICKET_ID:-${CATALYST_TICKET:-}}"
-[[ -n "$TICKET_ID" ]] || TICKET_ID=$(printf '%s' "$SKILL_ARGS" | grep -oE '[A-Z][A-Z0-9]*-[0-9]+' | head -1)
-[[ -n "$TICKET_ID" ]] || TICKET_ID=$(printf '%s' "$SKILL_ARGS" | tr '[:lower:]' '[:upper:]' | grep -oE '[A-Z][A-Z0-9]*-[0-9]+' | head -1)
-if [[ -z "$RECENT_PLAN" && -z "${CATALYST_PHASE:-}" ]]; then
-  if [[ -n "$TICKET_ID" ]]; then
-    RECENT_PLAN=$(find -H thoughts/shared/plans -type f -name '*.md' -ipath "*${TICKET_ID}[!0-9]*" -exec ls -t {} + 2>/dev/null | head -1)
-  else
-    RECENT_PLAN=$(find -H thoughts/shared/plans -type f -name '*.md' -exec ls -t {} + 2>/dev/null | head -1)
-  fi
-fi
-# explicit-input discovery: end
-if [[ -n "$RECENT_PLAN" ]]; then
-  echo "📋 Found plan: $RECENT_PLAN"
-else
-  echo "⚠️ No plan found on disk for ${TICKET_ID:-this run}"
-fi
-```
-
-**Inputs: the plan file and the PR.** A plan path argument wins, and the PR is the number or URL the arguments name (else the current branch's PR, `gh pr view --json number`). When `CATALYST_PHASE` is set, never search and never ask: validate the plan file the arguments or the prompt name, and with none, stop and report `no_plan_found`. Otherwise, after `📋 Found plan`, show the path and ask "**Validate this plan?** [Y/n]". Otherwise, or on no, search recent commits for plan references, list the plans in `thoughts/shared/plans/`, and ask which to validate.
+**Inputs: the plan file and the PR.** A plan path argument wins, and the PR is the number or URL the arguments name (else the current branch's PR, `gh pr view --json number`). When `CATALYST_PHASE` is set the run is unattended: never search and never ask. Validate the plan file the arguments or the prompt name, and with none, stop and report `no_plan_found`. With no phase and no path, take the ticket's newest file under `thoughts/shared/plans/` (the newest there with no ticket), show the path and ask "**Validate this plan?** [Y/n]". On no, list the plans and ask which. When `thoughts/shared` is missing, say to run `humanlayer thoughts init`, and write to the output path the prompt names, if any.
 
 ## 2. Gather evidence
 
@@ -55,7 +24,9 @@ Read the plan whole, noting every file it expects to change and every success cr
 - Spawn parallel tasks comparing planned with actual: database changes; code changes, file by file; tests, and whether each phase's tests were committed before or with its code (TDD).
 - If you implemented it, check your todo list too and name every shortcut or unfinished item.
 
-## 3. Validate each phase
+## 3. Judge the requirements, then each phase
+
+**List every requirement under `## Requirements`,** one row each: every scenario in the ticket (the prompt, or `$CATALYST_ARTIFACT_DIR/ticket.md`) and every `AC<n>` in the plan. Each row says met, not met or not tried, with the proof you checked. A test counts only after you read it and confirm it exercises that behaviour; a test that passes while missing the behaviour is not met. A ticket scenario the plan left out still counts. `not tried` names why it could not be tried here. Any requirement not met makes `plan-conformance` FAIL.
 
 Confirm that every phase checked off (`- [x]`) has matching code and every "Automated Verification" command ran; find the root cause of each failure. Turn manual criteria into clear steps for the user. Look for unhandled errors, missing validations, regressions and departures from the repo's patterns.
 
@@ -64,11 +35,24 @@ Confirm that every phase checked off (`- [x]`) has matching code and every "Auto
 Write the report to `thoughts/shared/validations/YYYY-MM-DD-<TICKET>-<slug>.md`, where `<TICKET>` is the plan's `source_ticket` and `<slug>` is a few words from the plan's name (`YYYY-MM-DD-<slug>.md` with no ticket). Write only under `thoughts/shared/validations/`; `thoughts/searchable/` is a read-only index. Give it `source_ticket`, `repository`, `plan` and `pr` frontmatter. Then run `humanlayer thoughts sync`, which commits and pushes the thoughts repo, show the report, and end with the file's path on its own last line, so whoever started this run can read the file rather than this conversation.
 
 ```markdown
+---
+source_ticket: {TICKET}
+repository: {repo name}
+plan: {plan path}
+pr: {number, or none yet}
+---
+
 # Validation Report: {Feature Name}
 
 **Plan**: `thoughts/shared/plans/YYYY-MM-DD-PROJ-XXXX-feature.md`
 **Validated**: {date}
 **Validation Status**: {PASS/FAIL/PARTIAL}
+
+## Requirements
+
+| Requirement | Result | Proof |
+| -- | -- | -- |
+| {AC1 or the ticket scenario} | met / not met / not tried | {the test you read, a command and its exit code, or `file:line` in backticks} |
 
 ## Validation Source
 
@@ -76,10 +60,6 @@ Write the report to `thoughts/shared/validations/YYYY-MM-DD-<TICKET>-<slug>.md`,
 - `branch`: {branch}
 - `git_main_sha`: {full main SHA captured at validation start}
 - `git_merge_base`: {full merge-base of git_main_sha and git_commit}
-
-## 📊 Context Status
-Current usage: {X}% ({Y}K/{Z}K tokens)
-{Above 60%: ⚠️ start a fresh session for `commit` and `describe-pr`. Else: ✅ Ready for PR creation.}
 
 ### Implementation Status
 ✓ Phase 1: [Name] - Fully implemented
@@ -131,6 +111,8 @@ A Catalyst Cloud validate phase may put its own ladder instructions in the promp
 Keep each `detail` under about 1,200 characters and the whole block small: a cloud run carries it in a size-limited receipt, and a step that overflows is rejected.
 
 #### Filling each step
+
+**In a workflow with its own review stage** (a one-shot run, or any caller that says so), fill `plan-conformance` only and write the other four steps as `SKIPPED` with the detail "the review stage runs this". The run's full check already ran, so read the code rather than running it again.
 
 | step | how | when it cannot run |
 | -- | -- | -- |

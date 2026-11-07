@@ -6,6 +6,7 @@
 # following the numbered steps reaches the step's own instruction before any trailing
 # `## Linear Integration` section, so the step that posts the research-complete comment (8b) must
 # itself say to skip when CATALYST_PHASE is set and to skip silently when no tool is available.
+# (That step no longer exists; the file now guards against its return. See the end of this file.)
 # The coding skills write no ticket state at all; tests/ticket-moves.test.mjs holds that rule.
 #
 # Run: bash tests/linear-write-guards.test.sh
@@ -66,8 +67,17 @@ case "$(guard_problem '**8b.** Comment. Skip this when `CATALYST_PHASE` is set.'
   *) fail "control: a step missing the no-tool skip is caught" "the probe accepted a half-guarded line" ;;
 esac
 
-assert_guarded "research-codebase: the research-complete comment (8b) is guarded in-step" \
-  "$RESEARCH" '**8b. Linear comment**'
+# The research-complete comment (old step 8b) was removed on purpose: the cloud records the phase
+# outcome itself, and the coding skills write no ticket state (tests/ticket-moves.test.mjs). The
+# guard has no step left to probe, so the live assertion is that no Linear write came back.
+WRITE_RE='linearis|catalyst write|Linear comment'
+if printf 'Comment with linearis issues discuss\n' | grep -Eq "$WRITE_RE"; then
+  ok "control: the write pattern matches a known Linear write line"
+else
+  fail "control: the write pattern matches a known Linear write line" "pattern: $WRITE_RE"
+fi
+hits="$(grep -nE "$WRITE_RE" "$RESEARCH" "$(dirname "$RESEARCH")"/references/*.md 2>/dev/null)"
+if [ -z "$hits" ]; then ok "research-codebase posts no Linear comment"; else fail "research-codebase posts no Linear comment" "$hits"; fi
 
 echo ""
 echo "PASS: $PASS  FAIL: $FAIL"

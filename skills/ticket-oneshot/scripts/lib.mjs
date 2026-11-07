@@ -1,5 +1,6 @@
 import { readFileSync, existsSync, statSync, writeFileSync, renameSync, mkdirSync, readdirSync } from "node:fs";
 import { resolve, dirname, relative, isAbsolute, join } from "node:path";
+import { spawnSync } from "node:child_process";
 import { randomUUID } from "node:crypto";
 import { fileURLToPath } from "node:url";
 
@@ -23,6 +24,17 @@ export function inside(root, path) {
   if (rel.startsWith("..") || isAbsolute(rel)) throw new Error(`path escapes ${root}: ${path}`);
   return absolute;
 }
+// The branch this work left: CATALYST_BASE_REF, else what origin calls its default, else origin/main.
+export function baseRef(cwd) {
+  if (process.env.CATALYST_BASE_REF) return process.env.CATALYST_BASE_REF;
+  const head = spawnSync("git", ["symbolic-ref", "--short", "refs/remotes/origin/HEAD"], { cwd, encoding: "utf8" }).stdout?.trim();
+  // A renamed default branch leaves origin/HEAD naming a branch that is gone.
+  const resolves = head && spawnSync("git", ["rev-parse", "--verify", "--quiet", `${head}^{commit}`], { cwd }).status === 0;
+  return resolves ? head : "origin/main";
+}
+
+export const noBaseMessage = (ref, head) => `no merge base of ${ref} and ${head}. Set CATALYST_BASE_REF to the branch this work left`;
+
 export function atomicWrite(path, value) {
   mkdirSync(dirname(path), { recursive: true });
   const temp = `${path}.${randomUUID()}.tmp`;
@@ -41,9 +53,30 @@ export function readFrontmatter(doc) {
 }
 const headings = {
   research: [/^## Research Question\s*$/im, /^## Summary\s*$/im, /^## Detailed Findings\s*$/im],
-  plan: [/^## Overview\s*$/im, /^## (?:Implementation Steps|Implementation Plan|Implementation Approach|Phases|Phase\s+\d+\b.*)$/im, /^## (?:Verification|Success Criteria|Testing(?: Strategy.*)?)\s*$/im, /^## Files in scope\s*$/im],
-  validation: [/^## (?:Summary|Verdict|Validation Source)\s*$/im, /^(?:##|###) (?:Plan Conformance|Implementation Status)\s*$/im, /^(?:##|###) (?:Review|Code Review Findings)\s*$/im, /^(?:##|###) (?:Gate|Automated Verification Results)\s*$/im],
+  validation: [/^## Requirements\s*$/im],
+  plan: [/^## Overview\s*$/im, /^## Acceptance criteria\s*$/im, /^- \*\*AC1\*\*/m, /^## (?:Phases|Phase\s+\d+\b.*)$/im, /^## Files in scope\s*$/im],
 };
+// Validate's mechanical half: the report accounts for every criterion the plan numbered.
+export function requirementProblems(validationPath, planPath) {
+  if (!existsSync(planPath)) return [`missing plan: ${planPath}`];
+  const section = /^## Requirements\s*$([\s\S]*?)(?=^## |(?![\s\S]))/im.exec(readFileSync(validationPath, "utf8"))?.[1] ?? "";
+  const ids = [...new Set([...readFileSync(planPath, "utf8").matchAll(/\*\*(AC\d+)\*\*/g)].map((match) => match[1]))];
+  return ids.filter((id) => !new RegExp(`\\b${id}\\b`).test(section)).map((id) => `## Requirements does not account for ${id}`);
+}
+export function verifyReview(path, head) {
+  const errors = [];
+  if (!existsSync(path) || !statSync(path).isFile()) return { ok: false, errors: [`missing review artifact: ${path}`] };
+  let result;
+  try { result = JSON.parse(readFileSync(path, "utf8")); } catch { return { ok: false, errors: ["review-result.json is not valid JSON"] }; }
+  if (result?.version !== 1) errors.push("review-result.json version must be 1");
+  for (const key of ["reviewed_head", "final_head", "base"]) {
+    if (!/^[0-9a-f]{40}$/.test(result?.[key] ?? "")) errors.push(`${key} must be a full 40-character sha`);
+  }
+  if (head && result?.final_head !== head) errors.push(`final_head must equal HEAD ${head}`);
+  if (!Array.isArray(result?.gates) || result.gates.length === 0) errors.push("gates must list every review step");
+  if (!Array.isArray(result?.findings)) errors.push("findings must be an array");
+  return { ok: errors.length === 0, errors };
+}
 export function verifyDoc(kind, path, root = process.cwd()) {
   const errors = [];
   if (!existsSync(path) || !statSync(path).isFile()) return { ok: false, errors: [`missing ${kind} artifact: ${path}`] };
@@ -57,25 +90,24 @@ export function verifyDoc(kind, path, root = process.cwd()) {
   }
   if (kind === "validation") {
     const ladders = [...doc.matchAll(/```catalyst-validation-ladder\s*\n([\s\S]*?)\n```/g)];
-    if (ladders.length === 0) errors.push("missing catalyst-validation-ladder verdict");
-    else if (ladders.length !== 1) errors.push("multiple catalyst-validation-ladder verdicts");
+    if (ladders.length !== 1) errors.push(`expected one catalyst-validation-ladder block, found ${ladders.length}`);
     else {
       try {
         const steps = JSON.parse(ladders[0][1]).steps;
         const required = ["plan-conformance", "type-safety", "code-review", "security-review", "security-audit"];
-        if (!Array.isArray(steps) || required.some((name) => {
-          const matches = steps.filter((item) => item?.step === name);
-          return matches.length !== 1 || !(
-            matches[0].verdict === "PASS" || (name !== "plan-conformance" && matches[0].verdict === "SKIPPED")
-          );
-        })) errors.push("catalyst-validation-ladder has missing or unsuccessful verdicts");
+        for (const name of required) {
+          const matches = Array.isArray(steps) ? steps.filter((item) => item?.step === name) : [];
+          const verdict = matches[0]?.verdict;
+          if (matches.length !== 1) errors.push(`the ladder must name ${name} exactly once`);
+          else if (name === "plan-conformance" ? verdict !== "PASS" : !["PASS", "SKIPPED"].includes(verdict)) errors.push(`${name} is ${verdict}: ${matches[0].detail ?? "no detail"}`);
+        }
       } catch { errors.push("invalid catalyst-validation-ladder JSON"); }
     }
   }
   const refs = [...doc.matchAll(/`([^`\n]+)`/g)]
     .map((match) => match[1])
     .filter((value) => /^[^:\s]+:\d+(?:-\d+)?$/.test(value));
-  if (refs.length === 0) errors.push("missing file:line reference");
+  if (refs.length === 0) errors.push("missing file:line reference: write at least one as `path:line`, in backticks");
   for (const ref of refs) {
     const [, file, line, endLine] = /^(.+):(\d+)(?:-(\d+))?$/.exec(ref) ?? [];
     if (!file || file.includes("://") || file.startsWith("/") || file.split("/").includes("..")) { errors.push(`invalid file:line reference: ${ref}`); continue; }

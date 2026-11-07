@@ -10,7 +10,7 @@ metadata:
 
 Done means two things, both true in this session: the repository's checks ran green on your final tree, and every acceptance criterion in the plan has its proof. Handing over red work only moves the failure to a later stage.
 
-**Unattended.** When `CATALYST_PHASE` is set, or a coordinator started you, implement the plan file you were given, never search for another, and never ask and wait. With no plan file, stop and report `no_plan_found`. Otherwise confirm the plan with the person first.
+**Unattended.** When `CATALYST_PHASE` is set, or a coordinator started you, implement the plan file you were given, never search for another, and never ask and wait. With no plan file, stop and report `no_plan_found`. A plan path in the arguments needs no confirmation. Otherwise confirm the plan with the person first.
 
 ## Steps
 

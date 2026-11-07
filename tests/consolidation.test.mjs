@@ -30,24 +30,25 @@ describe("ask-triage is retired", () => {
 
 describe("create-plan revises plans; iterate-plan is its alias", () => {
   const create = read("skills/create-plan/SKILL.md");
-  const revise = create.split("## Revising an existing plan")[1] ?? "";
+  const revise = create.split("## Revising a plan")[1] ?? "";
 
   test("create-plan has a revise mode carrying the revision procedure", () => {
     expect(revise.length).toBeGreaterThan(0);
-    for (const rule of [/Iteration History/, /completed phases/i, /thoughts\/shared\/plans/, /research/i]) expect(revise).toMatch(rule);
+    for (const rule of [/Iteration history/i, /pending phases/i, /research/i]) expect(revise).toMatch(rule);
   });
 
   test("create-plan's description routes revision requests", () => {
     const desc = String(front("skills/create-plan/SKILL.md").description);
-    expect(desc).toMatch(/update the plan/);
-    expect(desc).toMatch(/revise|change the plan/);
+    expect(desc).toMatch(/update a plan/);
+    expect(desc).toMatch(/revise/i);
   });
 
   test("iterate-plan is a thin alias that hands off to create-plan's revise mode", () => {
     const alias = read("skills/iterate-plan/SKILL.md");
     expect(alias.split("\n").length).toBeLessThanOrEqual(25);
     expect(alias).toMatch(/`create-plan`/);
-    expect(alias).toMatch(/Revising an existing plan/);
+    expect(alias).toMatch(/Revising a plan/);
+    expect(readFileSync(new URL("../skills/create-plan/SKILL.md", import.meta.url), "utf8")).toMatch(/^## Revising a plan$/m);
     expect(existsSync(join(repoRoot, "skills", "iterate-plan", "assets"))).toBe(false);
   });
 

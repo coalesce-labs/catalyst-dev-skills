@@ -1,8 +1,11 @@
 #!/usr/bin/env node
-import { readFileSync, existsSync, statSync } from "node:fs";
+import { readFileSync, readdirSync, existsSync, statSync } from "node:fs";
 import { join } from "node:path";
 import { spawnSync } from "node:child_process";
-import { artifactDir, atomicWrite, catalog, markerPath, readMarker, readFrontmatter, stageIndex, ticket, verifyDoc } from "./lib.mjs";
+import { artifactDir, atomicWrite, baseRef, catalog, noBaseMessage, markerPath, readMarker, readFrontmatter, stageIndex, ticket, requirementProblems, verifyDoc, verifyReview } from "./lib.mjs";
+import { appendCheckResult, checkVerdict, recordBase, recordHead, requireProvenCheck, toolsHash } from "./check.mjs";
+import { scanRange, unrecorded } from "./scan-shortcuts.mjs";
+import { reviewGateProblems, runReviewStep } from "./review-step.mjs";
 
 function option(name) { const index = process.argv.indexOf(`--${name}`); return index < 0 ? null : process.argv[index + 1]; }
 function fail(message) { process.stderr.write(`${message}\n`); process.exitCode = 1; }
@@ -16,6 +19,15 @@ function save(dir, stage, state, data) {
   const path = markerPath(dir, stage, state, data.attempt);
   if (existsSync(path)) throw new Error(`marker already exists: ${path}`);
   atomicWrite(path, JSON.stringify(data, null, 2) + "\n");
+}
+// A phase has a runner that verifies each marker and owns the gate. With no runner, this script does.
+const runnerOwnsGate = () => Boolean(process.env.CATALYST_PHASE);
+function failMarkers(dir, stage) {
+  const folder = join(dir, "stages");
+  if (!existsSync(folder)) return [];
+  const suffix = `-${stage}.fail.json`;
+  const isMarker = (name) => name.endsWith(suffix) && /^[1-9][0-9]*$/.test(name.slice(0, -suffix.length));
+  return readdirSync(folder).filter(isMarker).map((name) => JSON.parse(readFileSync(join(folder, name), "utf8")));
 }
 function completed(dir) {
   const path = join(dir, "handoff.md");
@@ -78,13 +90,34 @@ try {
       if (fields.source_ticket !== id || fields.completed_stage !== last || fields.next_stage !== next) throw new Error(`handoff progress does not match completed stage ${last} and next stage ${next}`);
     }
     process.stdout.write(`${catalog.stages[count]?.stage ?? "complete"}\n`);
+  } else if (action === "check") {
+    const say = (line) => process.stdout.write(`${line}\n`);
+    if (process.argv.includes("--base")) {
+      recordBase(dir, process.cwd(), say);
+      const verdict = requireProvenCheck(dir, process.cwd());
+      say(`not caused by this change: ${verdict.not_ours.map((row) => row.step).join(", ")}. Run stage done implement.`);
+    } else {
+      const head = recordHead(dir, process.cwd(), say);
+      const verdict = checkVerdict(head, null);
+      say(verdict.green ? `green: ${verdict.ran} steps. Run stage done implement.` : `red: ${head.steps.filter((row) => row.exit !== 0).map((row) => row.step).join(", ")}. Fix it and run stage check again, or run stage check --base if this change did not cause it.`);
+      if (!verdict.green) process.exitCode = 1;
+    }
+  } else if (action === "base") {
+    const ref = baseRef(process.cwd());
+    const forkPoint = spawnSync("git", ["merge-base", ref, "HEAD"], { encoding: "utf8" });
+    if (forkPoint.status !== 0) throw new Error(noBaseMessage(ref, "HEAD"));
+    process.stdout.write(forkPoint.stdout);
+  } else if (action === "review-step") {
+    if (!readMarker(dir, "review", "start")) throw new Error("run stage start review first");
+    const done = runReviewStep(dir, stage, option("base"), process.cwd(), toolsHash());
+    process.stdout.write(`${done.step} ${done.verdict}: ${done.detail}\nReport: ${done.report}\n`);
   } else if (action === "wait") {
     const kind = stage;
     if (!["ci", "review", "answer", "timer"].includes(kind)) throw new Error("wait kind must be ci, review, answer or timer");
     const key = option("key");
     const deadline = option("deadline");
     if (!key || !deadline || Number.isNaN(Date.parse(deadline))) throw new Error("wait requires --key and ISO --deadline");
-    const resumeFrom = option("resume-from") ?? catalog.stages[completed(dir)]?.stage ?? "pr";
+    const resumeFrom = option("resume-from") ?? catalog.stages[completed(dir)]?.stage ?? "review";
     if (!stageIndex.has(resumeFrom)) throw new Error(`unknown resume stage: ${resumeFrom}`);
     const progress = completed(dir);
     const resumeIndex = stageIndex.get(resumeFrom);
@@ -105,24 +138,59 @@ try {
         if (!process.argv.includes("--resume")) throw new Error(`stage ${stage} attempt ${lastStart.attempt} is still open; use --resume to continue it`);
       } else {
         const attempt = (lastStart?.attempt ?? 0) + 1;
-        save(dir, stage, "start", { stage, at: new Date().toISOString(), attempt, ticket: id, event: `phase.${stage}.started` });
+        const limit = catalog.max_attempts_per_stage ?? 2;
+        // An environment failure (a killed harness, a host that cannot run the check) says nothing
+        // about the work, so it does not use up an attempt. A hard cap still stops an endless loop.
+        const failClasses = failMarkers(dir, stage).map((marker) => marker.class);
+        const counted = failClasses.filter((value) => value !== "environment").length;
+        if (counted >= limit) throw new Error(`stage ${stage} already used its ${limit} attempts; stop and leave the handoff for a person`);
+        if (attempt > limit * 2) throw new Error(`stage ${stage} reached ${limit * 2} attempts counting environment failures; stop and leave the handoff for a person`);
+        save(dir, stage, "start", { stage, at: new Date().toISOString(), attempt, ticket: id, tools: toolsHash(), event: `phase.${stage}.started` });
       }
     } else if (action === "done") {
       const lastStart = readMarker(dir, stage, "start");
       if (!lastStart) throw new Error(`stage ${stage} has no start marker`);
       if (readMarker(dir, stage, "fail")?.attempt === lastStart.attempt) throw new Error(`stage ${stage} attempt ${lastStart.attempt} already failed`);
+      // The scripts that check this stage must be the ones it started with, run from the same place.
+      const tools = toolsHash();
+      if (lastStart.tools && (lastStart.tools.hash !== tools.hash || lastStart.tools.dir !== tools.dir)) throw new Error(`the skills changed during stage ${stage} (started with ${lastStart.tools.hash} in ${lastStart.tools.dir}, now ${tools.hash} in ${tools.dir}). Restore them as shipped. If a stage script is wrong, stop with \`stage fail ${stage} --class environment --reason "<the bug>"\` instead of changing it.`);
       const item = catalog.stages[index];
       const path = join(dir, item.artifact);
-      if (item.owner !== "runner") {
+      if (item.owner !== "runner" || !runnerOwnsGate()) {
         if (!existsSync(path)) throw new Error(`missing stage artifact: ${path}`);
         if (lastStart.attempt > 1 && statSync(path).mtimeMs < Date.parse(lastStart.at)) throw new Error(`stage ${stage} retry requires fresh artifact evidence`);
       }
-      if (["research", "plan", "validate"].includes(stage)) {
-        const result = verifyDoc(stage === "validate" ? "validation" : stage, path);
+      if (["research", "plan"].includes(stage)) {
+        const result = verifyDoc(stage, path);
         if (!result.ok) throw new Error(result.errors.join("; "));
       }
+      if (stage === "validate") {
+        const result = verifyDoc("validation", path);
+        const errors = [...result.errors, ...(existsSync(path) ? requirementProblems(path, join(dir, "plan.md")) : [])];
+        if (errors.length) throw new Error(errors.join("; "));
+      }
+      if (stage === "review") {
+        const result = verifyReview(path, headSha());
+        if (!result.ok) throw new Error(result.errors.join("; "));
+      }
+      let check = null;
+      if (!runnerOwnsGate() && !readMarker(dir, stage, "done")) {
+        if (stage === "implement") {
+          const verdict = requireProvenCheck(dir, process.cwd());
+          check = { green: verdict.green, not_ours: verdict.not_ours, flaky: verdict.flaky, tree: verdict.tree, command: verdict.command };
+        }
+        if (stage === "validate") requireProvenCheck(dir, process.cwd());
+        if (stage === "pr" && readMarker(dir, "implement", "done")?.check) appendCheckResult(path, dir, process.cwd());
+        if (stage === "review") {
+          const result = JSON.parse(readFileSync(path, "utf8"));
+          const missing = unrecorded(scanRange(result.base, process.cwd()), result.findings);
+          if (missing.length) throw new Error(`the shortcut scan found lines this review does not record. Add each as a finding with its path and line, valid and fixed or invalid with the reason:\n${missing.map((hit) => `${hit.file}:${hit.line} ${hit.pattern}: ${hit.text}`).join("\n")}`);
+          const unbacked = reviewGateProblems(dir, result, process.cwd(), { provenCheck: () => requireProvenCheck(dir, process.cwd()) });
+          if (unbacked.length) throw new Error(`review gates claim work with no record that it ran. Run the step through its skill, or set its verdict to SKIPPED with the reason:\n${unbacked.join("\n")}`);
+        }
+      }
       repository();
-      if (!readMarker(dir, stage, "done")) save(dir, stage, "done", { stage, attempt: lastStart.attempt, at: new Date().toISOString(), artifact: item.artifact, ...(headSha() ? { head_sha: headSha() } : {}), ticket: id, event: `phase.${stage}.complete` });
+      if (!readMarker(dir, stage, "done")) save(dir, stage, "done", { stage, attempt: lastStart.attempt, at: new Date().toISOString(), artifact: item.artifact, ...(check ? { check } : {}), ...(headSha() ? { head_sha: headSha() } : {}), ticket: id, event: `phase.${stage}.complete` });
       handoff(dir, stage, item.artifact);
     } else {
       if (!readMarker(dir, stage, "start")) throw new Error(`stage ${stage} has no start marker`);
@@ -133,5 +201,5 @@ try {
       save(dir, stage, "fail", { stage, attempt: readMarker(dir, stage, "start").attempt, at: new Date().toISOString(), reason, class: failureClass, ticket: id, event: `phase.${stage}.failed` });
       pausedHandoff(dir, stage);
     }
-  } else throw new Error("usage: stage start|done|fail <stage> | next [--resume] | wait <kind> --key K --deadline ISO");
+  } else throw new Error("usage: stage start|done|fail <stage> | check [--base] | base | review-step <skill> --base <ref> | next [--resume] | wait <kind> --key K --deadline ISO");
 } catch (error) { fail(error.message); }

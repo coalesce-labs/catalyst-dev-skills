@@ -26,7 +26,7 @@ for f in "$PLAN" "$RESEARCH" "$HANDOFF" "$VALIDATE"; do
     ok "$(basename "$(dirname "$f")"): records commit, branch, main SHA and merge-base"
   else fail "$(basename "$(dirname "$f")"): records commit, branch, main SHA and merge-base"; fi
 done
-if contains "$PLAN" 'git rev-parse HEAD' && ! contains "$PLAN" 'GIT_COMMIT_SHORT'; then ok 'plan metadata uses a full commit SHA'; else fail 'plan metadata uses a full commit SHA'; fi
+if contains "$PLAN" 'git_commit: <full HEAD sha>' && contains "$PLAN" 'every sha in full' && ! contains "$PLAN" 'GIT_COMMIT_SHORT'; then ok 'plan metadata uses a full commit SHA'; else fail 'plan metadata uses a full commit SHA'; fi
 
 # Scenario 2: whole-branch validation uses the main SHA recorded at validation start.
 if contains "$VALIDATE" 'git diff.*merge-base.*validation_main_sha.*HEAD' && contains "$VALIDATE" 'main SHA recorded at validation start'; then

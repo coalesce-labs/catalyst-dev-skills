@@ -106,7 +106,7 @@ describe("every skill that uses linearis carries the phase-container guard", () 
   test("the set of linearis users is read from the tree, not an empty listing", () => {
     expect(skills.length).toBeGreaterThanOrEqual(28);
     expect(users).toContain("merge-pr");
-    expect(users.length).toBeGreaterThanOrEqual(13);
+    expect(users.length).toBeGreaterThanOrEqual(11);
   });
 
   // describe-pr no longer drives Linear: its SKILL.md writes nothing to a ticket and names no linearis

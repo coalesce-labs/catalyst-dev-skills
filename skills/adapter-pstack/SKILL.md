@@ -23,7 +23,8 @@ Resolve the installed `ticket-oneshot` skill by name as `ONESHOT_SKILL_DIR` and 
 | research | Investigate and `how` | `research.md`; run `verify-research`. |
 | plan | Feature planning or `multi-phase-plan` | `plan.md` with files in scope; run `verify-plan`. |
 | implement | Build under the chosen pstack feature or bug playbook | `implement.md` with committed head, full repository gate command, exit code and result. Open the first useful draft PR early. |
-| validate | `show-me-your-work` and Catalyst `validate-plan` | `validation.md` with the five-step verdict ladder; run `verify-validation`. Repair real findings at most twice. |
-| pr | Pstack Opening a PR, then Catalyst `describe-pr` | `pr.md` with draft PR URL and current head SHA. The outer ticket workflow owns CI, independent review, ready state and merge. |
+| validate | Catalyst `validate-plan`, leaving code and security review to the review stage | `validation.md`; run `verify-validation`. |
+| pr | Pstack Opening a PR, then Catalyst `describe-pr` | `pr.md` with draft PR URL and current head SHA. |
+| review | `show-me-your-work`, then Catalyst `review-and-verify` | `review-result.json`; run `verify-review`. Repair real findings at most twice. The outer ticket workflow owns CI, ready state and merge. |
 
 The adapter's stage map records the exact output file and thoughts kind for each row. Catalyst's marker and verifier contract wins when a pstack playbook names a different output path or tries to stop for a routine proceed prompt. File a real decision through the host ticket workflow, then call `stage fail <stage> --reason <text> --class question`, write `stage wait answer --key <ask-id> --deadline <ISO time>`, and end with the handoff. Do not wait in the session for CI, review or an answer. On any other failure, call `stage fail` with `code`, `environment` or `scope` and preserve the handoff.
