@@ -164,6 +164,18 @@ test("a runner owns retries: a third start under a phase runner is allowed, and 
   expect(third.status).not.toBe(0);
   expect(third.stderr).toContain("already used its 2 attempts; stop and leave the handoff for a person");
 });
+test("with no runner, environment failures do not use up an attempt, and a fifth start after four is refused", () => {
+  const f = fixture();
+  const env = { CATALYST_PHASE: "" };
+  for (const attempt of [1, 2, 3, 4]) {
+    expect(run("stage", ["start", "research"], f, env).status).toBe(0);
+    expect(run("stage", ["fail", "research", "--reason", `host lost ${attempt}`, "--class", "environment"], f, env).status).toBe(0);
+  }
+  const fifth = run("stage", ["start", "research"], f, env);
+  expect(fifth.status).not.toBe(0);
+  expect(fifth.stderr).toContain("reached 4 attempts counting environment failures; stop and leave the handoff for a person");
+  expect(existsSync(join(f.artifacts, "stages", "5-research.start.json"))).toBe(false);
+});
 test("resuming an open attempt preserves its start marker", () => {
   const f = fixture();
   expect(run("stage", ["start", "research"], f).status).toBe(0);
