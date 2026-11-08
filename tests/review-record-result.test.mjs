@@ -115,14 +115,33 @@ test("a hand-written result is refused, and the same result recorded through the
   expect(existsSync(join(artifacts, "stages/1-review.done.json"))).toBe(true);
 });
 
-test("a result edited after it was recorded is refused", () => {
+test("a result edited after it was recorded, with one finding removed, is refused on the seal", () => {
   const { draft } = atReview();
-  expect(record(draft()).status).toBe(0);
+  const findings = [1, 2].map((line) => ({ id: `F${line}`, path: "notes.txt", line, verdict: "invalid", reason: "fixture" }));
+  expect(record(draft({ findings })).status).toBe(0);
   const result = JSON.parse(readFileSync(resultPath(), "utf8"));
-  writeFileSync(resultPath(), JSON.stringify({ ...result, gates: [{ step: "plan-conformance", verdict: "PASS" }] }, null, 2) + "\n");
+  writeFileSync(resultPath(), JSON.stringify({ ...result, findings: findings.slice(0, 1) }, null, 2) + "\n");
   const refused = stage(["done", "review"]);
   expect(refused.status).toBe(1);
   expect(refused.stderr).toContain("changed after the review skill recorded it");
+  expect(existsSync(join(artifacts, "stages/1-review.done.json"))).toBe(false);
+});
+
+test("the exact bytes the old hand-writing test helper wrote are refused by both gates, and the same draft recorded passes", () => {
+  const { base, head } = atReview();
+  const gates = [{ step: "plan-conformance", verdict: "SKIPPED", detail: "no plan" }];
+  const typed = { version: 1, reviewed_head: head, final_head: head, base, gates, findings: [] };
+  writeFileSync(resultPath(), JSON.stringify(typed));
+  const refused = stage(["done", "review"]);
+  expect(refused.status).toBe(1);
+  expect(refused.stderr).toContain("was not written by the review skill's record step");
+  expect(refused.stderr).toContain("Record the result through the review skill's last step");
+  const verified = spawnSync("node", [VERIFY, resultPath()], { cwd: repo, encoding: "utf8", env: env() });
+  expect(verified.status).toBe(1);
+  expect(verified.stderr).toContain("Record the result through the review skill's last step");
+  expect(record(typed).status).toBe(0);
+  expect(stage(["done", "review"]).status).toBe(0);
+  expect(existsSync(join(artifacts, "stages/1-review.done.json"))).toBe(true);
 });
 
 test("a seal copied from another head is refused", () => {

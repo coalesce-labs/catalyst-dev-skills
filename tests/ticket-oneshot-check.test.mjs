@@ -213,7 +213,7 @@ test("review cannot finish until every scan hit is a recorded finding", () => {
   stage(["start", "pr"]); writeFileSync(join(artifacts, "pr.md"), "T\n");
   marker("1-pr.done.json", "pr");
   expect(stage(["start", "review"]).status).toBe(0);
-  const result = (findings) => writeFileSync(join(artifacts, "review-result.json"), JSON.stringify({ version: 1, reviewed_head: head, final_head: head, base, gates: [{ step: "security-review", verdict: "SKIPPED", reason: "this test is about the scan" }, { step: "code-review", verdict: "FAIL" }, { step: "type-safety", verdict: "FAIL" }], findings }));
+  const result = (findings) => ((path, draft) => { writeFileSync(path, JSON.stringify(draft)); const r = spawnSync("node", [resolve(import.meta.dir, "../skills/review-and-verify/scripts/record-result.mjs"), "--draft", path], { cwd: repo, encoding: "utf8", env: { ...process.env, CATALYST_ARTIFACT_DIR: artifacts } }); if (r.status !== 0) throw new Error(r.stderr); })(join(root, "draft.json"), { version: 1, reviewed_head: head, final_head: head, base, gates: [{ step: "security-review", verdict: "SKIPPED", reason: "this test is about the scan" }, { step: "code-review", verdict: "FAIL" }, { step: "type-safety", verdict: "FAIL" }], findings });
   for (const [skill, step] of [["review-code", "code-review"], ["validate-type-safety", "type-safety"]]) {
     expect(stage(["review-step", skill, "--base", base], { CATALYST_REVIEW_SESSION_CMD: `cat >/dev/null; printf '\`\`\`catalyst-review-step\\n{"step":"${step}","verdict":"FAIL","detail":"d"}\\n\`\`\`\\n'` }).status).toBe(0);
   }
@@ -239,7 +239,7 @@ const atReview = () => {
   expect(stage(["start", "review"]).status).toBe(0);
   const base = git("merge-base", "origin/main", "HEAD");
   const head = git("rev-parse", "HEAD");
-  const result = (gates, overrides = {}) => writeFileSync(join(artifacts, "review-result.json"), JSON.stringify({ version: 1, reviewed_head: head, final_head: head, base, gates, findings: [], ...overrides }));
+  const result = (gates, overrides = {}) => ((path, draft) => { writeFileSync(path, JSON.stringify(draft)); const r = spawnSync("node", [resolve(import.meta.dir, "../skills/review-and-verify/scripts/record-result.mjs"), "--draft", path], { cwd: repo, encoding: "utf8", env: { ...process.env, CATALYST_ARTIFACT_DIR: artifacts } }); if (r.status !== 0) throw new Error(r.stderr); })(join(root, "draft.json"), { version: 1, reviewed_head: head, final_head: head, base, gates, findings: [], ...overrides });
   const session = (step, verdict, { extra = "" } = {}) => {
     return `cat > ${join(root, "prompt.txt")}; ${extra} printf 'report\\n\`\`\`catalyst-review-step\\n{"step":"${step}","verdict":"${verdict}","detail":"d"}\\n\`\`\`\\n'`;
   };
