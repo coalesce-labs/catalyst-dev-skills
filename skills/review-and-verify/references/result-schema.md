@@ -78,7 +78,11 @@ The one document this skill writes. In a cloud run, the cloud reads it to post o
     { "role": "verify", "model": "provider-a/large-model" },
     { "role": "second-opinion", "model": "provider-b/large-model" }
   ],
-  "decisions": []
+  "decisions": [],
+  "steps": [
+    { "skill": "review-code", "step": "code-review", "base": "0000000000000000000000000000000000000000", "head": "1111111111111111111111111111111111111111", "verdict": "FAIL", "at": "2026-01-01T10:00:00.000Z" }
+  ],
+  "recorded": { "by": "review-and-verify/scripts/record-result.mjs", "at": "2026-01-01T10:30:00.000Z", "head": "3333333333333333333333333333333333333333" }
 }
 ```
 
@@ -98,6 +102,7 @@ The one document this skill writes. In a cloud run, the cloud reads it to post o
 - **`summary`:** counts that match the findings. `fixed` counts `valid`; `invalid` counts `invalid` and `already-fixed`.
 - **`models`:** the model behind each role: `review`, `fix`, `verify` and, on a deep review, `second-opinion`.
 - **`decisions`:** what the escalation rule raised for a person.
+- **`steps`** and **`recorded`:** written by `scripts/record-result.mjs`, never by hand. `steps` lists each review session that ran at `reviewed_head` or `final_head`, from its receipt: `skill`, `step`, `base`, `head`, `verdict` and `at`. `recorded` names the script, when it ran and the checkout's head. The script also writes `review-result.seal.json` beside the file, holding the sha256 of its exact bytes; a gate refuses a result whose seal is missing or no longer matches.
 
 ## Rules the cloud enforces before it posts
 
