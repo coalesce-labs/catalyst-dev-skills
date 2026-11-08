@@ -61,7 +61,10 @@ export function verifyDoc(kind, path, root = process.cwd()) {
     else if (ladders.length !== 1) errors.push("multiple catalyst-validation-ladder verdicts");
     else {
       try {
-        const steps = JSON.parse(ladders[0][1]).steps;
+        const ladder = JSON.parse(ladders[0][1]);
+        // A Catalyst Cloud run reads no other version.
+        if (ladder?.version !== 1) errors.push(`the ladder must carry "version":1, found ${JSON.stringify(ladder?.version ?? null)}`);
+        const steps = ladder?.steps;
         const required = ["plan-conformance", "type-safety", "code-review", "security-review", "security-audit"];
         if (!Array.isArray(steps) || required.some((name) => {
           const matches = steps.filter((item) => item?.step === name);

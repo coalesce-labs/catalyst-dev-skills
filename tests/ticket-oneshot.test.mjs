@@ -253,6 +253,20 @@ test("validation cannot complete with failed or unavailable ladder verdicts", ()
   expect(duplicate.status).not.toBe(0);
   expect(duplicate.stderr).toContain("multiple catalyst-validation-ladder");
 });
+test("validation cannot complete with a ladder block whose version is missing or not 1", () => {
+  const f = fixture();
+  const path = join(f.artifacts, "validation.md");
+  writeFileSync(path, doc("validation").replace('{"version":1,"steps"', '{"steps"'));
+  const missing = run("verify-validation", [path], f);
+  expect(missing.status).not.toBe(0);
+  expect(missing.stderr).toContain('the ladder must carry "version":1, found null');
+  writeFileSync(path, doc("validation").replace('{"version":1,"steps"', '{"version":2,"steps"'));
+  const two = run("verify-validation", [path], f);
+  expect(two.status).not.toBe(0);
+  expect(two.stderr).toContain('the ladder must carry "version":1, found 2');
+  writeFileSync(path, doc("validation"));
+  expect(run("verify-validation", [path], f).status).toBe(0);
+});
 test("a failed stage and wait leave a cold-resumable handoff", () => {
   const first = fixture();
   expect(run("stage", ["start", "research"], first).status).toBe(0);
