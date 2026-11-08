@@ -79,6 +79,35 @@ test("the record step writes the result from the draft, naming the head and each
   expect(existsSync(join(artifacts, "review-result.seal.json"))).toBe(true);
 });
 
+test("the record step lists a step run at the fix head beside the review's own, and a re-record lists one added later", () => {
+  const { base, head, draft } = atReview();
+  writeFileSync(join(repo, "fix.txt"), "fixed\n"); commit("fix");
+  const final = git("rev-parse", "HEAD");
+  const receipt = (skill, step, at, receiptBase, receiptHead) =>
+    writeFileSync(join(artifacts, "reviews", `${skill}-${receiptHead}.json`), JSON.stringify({ skill, step, base: receiptBase, head: receiptHead, verdict: "PASS", at }));
+  mkdirSync(join(artifacts, "reviews"), { recursive: true });
+  receipt("review-code", "code-review", "2026-01-01T10:00:00.000Z", base, head);
+  receipt("review-code", "code-review", "2026-01-01T11:00:00.000Z", head, final);
+  expect(record(draft()).status).toBe(0);
+  const first = JSON.parse(readFileSync(resultPath(), "utf8"));
+  expect(first.final_head).toBe(final);
+  expect(first.steps.map((step) => [step.head, step.base, step.at])).toEqual([
+    [head, base, "2026-01-01T10:00:00.000Z"],
+    [final, head, "2026-01-01T11:00:00.000Z"],
+  ]);
+  receipt("review-security", "security-review", "2026-01-01T12:00:00.000Z", head, final);
+  Bun.sleepSync(5);
+  const copy = join(root, "copy.json");
+  writeFileSync(copy, JSON.stringify(first));
+  const again = spawnSync("node", [RECORD, "--draft", copy, "--out", resultPath()], { cwd: repo, encoding: "utf8", env: env() });
+  expect(again.status).toBe(0);
+  const second = JSON.parse(readFileSync(resultPath(), "utf8"));
+  expect(second.steps.map((step) => step.skill)).toEqual(["review-code", "review-code", "review-security"]);
+  expect(Date.parse(second.recorded.at)).toBeGreaterThan(Date.parse(first.recorded.at));
+  const verified = spawnSync("node", [VERIFY, resultPath()], { cwd: repo, encoding: "utf8", env: env() });
+  expect(verified.status).toBe(0);
+});
+
 test("the record step keeps a final_head the draft names, and prints the result when it has nowhere to write", () => {
   const draft = { reviewed_head: "a".repeat(40), final_head: "b".repeat(40), base: "c".repeat(40), findings: [] };
   const result = buildResult(draft, { head: "d".repeat(40), reviewsDir: join(tmpdir(), "no-such-reviews-dir") });
