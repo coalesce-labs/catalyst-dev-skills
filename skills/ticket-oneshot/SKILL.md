@@ -39,7 +39,7 @@ Work in the ticket's own worktree, on the ticket's branch. Read the ticket and `
    - Good: run `stage done <stage>`. This checks the artifact, records `phase.<stage>.complete` and refreshes `handoff.md`.
    - Fixable: run `stage fail <stage> --reason <what to change> --class code`, then `stage start <stage>` again and hand the stage that one specific note. Each stage gets two attempts; the script refuses a third. An `environment` failure does not use one up. Under a phase runner (`CATALYST_PHASE` set) the runner decides retries and the script sets no limit.
    - Not fixable here: run `stage fail <stage> --reason <text> --class environment|scope|question`, which records `phase.<stage>.failed`, and stop.
-6. Repeat until `stage next` prints `complete`. Report the PR, its head and the review result.
+6. Repeat until `stage next` prints `complete`. Report the PR, its head and the review result. Under a phase runner (`CATALYST_PHASE` set) the stage list ends at `pr`, so `stage next` prints `complete` after it, because the runner runs its own review jobs and there is no review stage to start.
 
 ## Rules
 
