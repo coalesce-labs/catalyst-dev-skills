@@ -101,6 +101,7 @@ A Catalyst Cloud validate phase may put its own ladder instructions in the promp
 ]}
 ```
 
+- **`version`**: always `1`. A block with no version, or any other number, is refused as unreadable.
 - **`step`**: each of the five ids appears exactly once: `plan-conformance`, `type-safety`, `code-review`, `security-review`, `security-audit`. A step left out counts as unreported, never as skipped.
 - **`verdict`**: one of `PASS`, `FAIL`, `SKIPPED`, `UNAVAILABLE`, `ENVIRONMENT_GAP`. (`UNREPORTED` also exists, but only a reader writes it, for a missing or malformed step.)
 - **`detail`**: one line naming the evidence: the command and its outcome, the finding, or why the step did not run.
