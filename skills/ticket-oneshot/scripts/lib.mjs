@@ -93,7 +93,10 @@ export function verifyDoc(kind, path, root = process.cwd()) {
     if (ladders.length !== 1) errors.push(`expected one catalyst-validation-ladder block, found ${ladders.length}`);
     else {
       try {
-        const steps = JSON.parse(ladders[0][1]).steps;
+        const ladder = JSON.parse(ladders[0][1]);
+        // A Catalyst Cloud run reads no other version, so a block without it fails there, not here.
+        if (ladder?.version !== 1) errors.push(`the ladder must carry "version":1, found ${JSON.stringify(ladder?.version ?? null)}`);
+        const steps = ladder?.steps;
         const required = ["plan-conformance", "type-safety", "code-review", "security-review", "security-audit"];
         for (const name of required) {
           const matches = Array.isArray(steps) ? steps.filter((item) => item?.step === name) : [];

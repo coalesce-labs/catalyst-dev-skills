@@ -632,6 +632,8 @@ test.each([
   ["plan-conformance SKIPPED", (d) => d.replace('"step":"plan-conformance","verdict":"PASS"', '"step":"plan-conformance","verdict":"SKIPPED"'), "plan-conformance is SKIPPED"],
   ["a second ladder", (d) => `${d}\n${/```catalyst-validation-ladder[\s\S]*?```/.exec(d)[0]}\n`, "expected one catalyst-validation-ladder block, found 2"],
   ["a step named twice", (d) => d.replace('"step":"security-audit"', '"step":"code-review"'), "the ladder must name code-review exactly once"],
+  ["a ladder with no version", (d) => d.replace('{"version":1,"steps"', '{"steps"'), 'the ladder must carry "version":1, found null'],
+  ["a ladder at version 2", (d) => d.replace('{"version":1,"steps"', '{"version":2,"steps"'), 'the ladder must carry "version":1, found 2'],
   ["no Requirements section", (d) => d.replace("## Requirements", "## Other"), "missing required section"],
   ["no ticket", (d) => d.replace("source_ticket: CTC-1\n", ""), "source_ticket must be CTC-1"],
   ["a broken reference", (d) => d.replace("`run.sh:1`", "`gone.sh:1`"), "unresolved file:line reference: gone.sh:1"],
