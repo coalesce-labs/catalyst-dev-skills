@@ -145,6 +145,25 @@ test("only a stage's own numbered fail markers use up its attempts", () => {
   expect(third.status).not.toBe(0);
   expect(third.stderr).toContain("already used its 2 attempts");
 });
+test("a runner owns retries: a third start under a phase runner is allowed, and with no runner it still stops", () => {
+  const runner = fixture();
+  for (const attempt of [1, 2, 3, 4]) {
+    expect(run("stage", ["start", "research"], runner, RUNNER).status).toBe(0);
+    expect(run("stage", ["fail", "research", "--reason", `attempt ${attempt}`, "--class", "code"], runner, RUNNER).status).toBe(0);
+  }
+  const fifth = run("stage", ["start", "research"], runner, RUNNER);
+  expect(fifth.status).toBe(0);
+  expect(JSON.parse(readFileSync(join(runner.artifacts, "stages", "5-research.start.json"), "utf8")).attempt).toBe(5);
+  const alone = fixture();
+  const env = { CATALYST_PHASE: "" };
+  for (const attempt of [1, 2]) {
+    expect(run("stage", ["start", "research"], alone, env).status).toBe(0);
+    expect(run("stage", ["fail", "research", "--reason", `attempt ${attempt}`, "--class", "code"], alone, env).status).toBe(0);
+  }
+  const third = run("stage", ["start", "research"], alone, env);
+  expect(third.status).not.toBe(0);
+  expect(third.stderr).toContain("already used its 2 attempts; stop and leave the handoff for a person");
+});
 test("resuming an open attempt preserves its start marker", () => {
   const f = fixture();
   expect(run("stage", ["start", "research"], f).status).toBe(0);

@@ -37,7 +37,7 @@ Work in the ticket's own worktree, on the ticket's branch. Read the ticket and `
 4. Copy the stage's thoughts document to its artifact name and run `humanlayer thoughts sync`.
 5. Read the artifact yourself and judge it against the ticket:
    - Good: run `stage done <stage>`. This checks the artifact, records `phase.<stage>.complete` and refreshes `handoff.md`.
-   - Fixable: run `stage fail <stage> --reason <what to change> --class code`, then `stage start <stage>` again and hand the stage that one specific note. Each stage gets two attempts; the script refuses a third. An `environment` failure does not use one up.
+   - Fixable: run `stage fail <stage> --reason <what to change> --class code`, then `stage start <stage>` again and hand the stage that one specific note. Each stage gets two attempts; the script refuses a third. An `environment` failure does not use one up. Under a phase runner (`CATALYST_PHASE` set) the runner decides retries and the script sets no limit.
    - Not fixable here: run `stage fail <stage> --reason <text> --class environment|scope|question`, which records `phase.<stage>.failed`, and stop.
 6. Repeat until `stage next` prints `complete`. Report the PR, its head and the review result.
 

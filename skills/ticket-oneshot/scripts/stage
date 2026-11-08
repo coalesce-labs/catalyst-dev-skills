@@ -141,10 +141,13 @@ try {
         const limit = catalog.max_attempts_per_stage ?? 2;
         // An environment failure (a killed harness, a host that cannot run the check) says nothing
         // about the work, so it does not use up an attempt. A hard cap still stops an endless loop.
-        const failClasses = failMarkers(dir, stage).map((marker) => marker.class);
-        const counted = failClasses.filter((value) => value !== "environment").length;
-        if (counted >= limit) throw new Error(`stage ${stage} already used its ${limit} attempts; stop and leave the handoff for a person`);
-        if (attempt > limit * 2) throw new Error(`stage ${stage} reached ${limit * 2} attempts counting environment failures; stop and leave the handoff for a person`);
+        // A phase runner owns its own retry policy, so these caps apply only when no runner owns the stage.
+        if (!runnerOwnsGate()) {
+          const failClasses = failMarkers(dir, stage).map((marker) => marker.class);
+          const counted = failClasses.filter((value) => value !== "environment").length;
+          if (counted >= limit) throw new Error(`stage ${stage} already used its ${limit} attempts; stop and leave the handoff for a person`);
+          if (attempt > limit * 2) throw new Error(`stage ${stage} reached ${limit * 2} attempts counting environment failures; stop and leave the handoff for a person`);
+        }
         save(dir, stage, "start", { stage, at: new Date().toISOString(), attempt, ticket: id, tools: toolsHash(), event: `phase.${stage}.started` });
       }
     } else if (action === "done") {
