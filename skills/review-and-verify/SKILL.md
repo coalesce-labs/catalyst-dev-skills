@@ -46,14 +46,20 @@ There is no second loop. A new finding from this step is `deferred` with a follo
 
 ## Step 7: Write the result
 
-Write `review-result.json` in the shape `references/result-schema.md` gives: to `$CATALYST_ARTIFACT_DIR` when it is set, else to the path the caller named, else print it. Record in `models` the model you ran as for each role.
+Never write `review-result.json` yourself. Write your draft (the fields of `references/result-schema.md` you decided: `pr`, `reviewed_head`, `base`, `depth`, `gates`, `conformance`, `findings`, `models` and the rest) to a file of your own, then record it:
+
+```bash
+node "${CLAUDE_SKILL_DIR}/scripts/record-result.mjs" --draft <draft.json> [--out <path the caller named>]
+```
+
+It writes `review-result.json` to `--out`, else to `$CATALYST_ARTIFACT_DIR`, else prints it. It fills in `final_head` from the checkout when the draft has none, the `steps` each review session ran and when, the `summary` counts, and `recorded`, and writes a seal beside the file. A gate refuses a result with no seal, or one edited after it was recorded: to change it, edit the draft and record again. Record in `models` the model you ran as for each role.
 
 - **A cloud run** makes no GitHub call. The cloud pushes the fix commits, posts the review at `H`, replies to and resolves each fixed thread, and refuses a result that breaks a rule in the schema reference.
 - **Elsewhere,** print the summary and leave the fix commits unpushed for the person to review.
 
 ## `--recheck <review-result.json>`
 
-This is the second opinion on a deep review. Read the file, re-run Step 6 on `reviewed_head..final_head` without fixing anything, add a `second-opinion` entry to `models` and your gates, and write the file back. A defect you find becomes `needs-human`.
+This is the second opinion on a deep review. Read the file, re-run Step 6 on `reviewed_head..final_head` without fixing anything, add a `second-opinion` entry to `models` and your gates in a copy of the file, and record that copy with `node "${CLAUDE_SKILL_DIR}/scripts/record-result.mjs" --draft <copy> --out <the file>`. A defect you find becomes `needs-human`.
 
 ## Boundaries
 
