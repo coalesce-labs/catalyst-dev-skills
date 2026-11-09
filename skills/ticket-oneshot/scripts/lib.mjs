@@ -1,7 +1,7 @@
 import { readFileSync, existsSync, statSync, writeFileSync, renameSync, mkdirSync, readdirSync } from "node:fs";
 import { resolve, dirname, relative, isAbsolute, join } from "node:path";
 import { spawnSync } from "node:child_process";
-import { randomUUID } from "node:crypto";
+import { createHash, randomUUID } from "node:crypto";
 import { fileURLToPath } from "node:url";
 
 export const skillRoot = fileURLToPath(new URL("..", import.meta.url));
@@ -63,11 +63,27 @@ export function requirementProblems(validationPath, planPath) {
   const ids = [...new Set([...readFileSync(planPath, "utf8").matchAll(/\*\*(AC\d+)\*\*/g)].map((match) => match[1]))];
   return ids.filter((id) => !new RegExp(`\\b${id}\\b`).test(section)).map((id) => `## Requirements does not account for ${id}`);
 }
+// review-and-verify's record step (scripts/record-result.mjs) writes the result and, beside it, a seal
+// naming the sha256 of its exact bytes. A file typed by hand, or edited after it was recorded, has no
+// matching seal. The writer could compute one itself, so this stops a shortcut, not a forgery.
+export const reviewSealPath = (path) => `${path.replace(/\.json$/, "")}.seal.json`;
+export function reviewSealProblems(path, text, finalHead) {
+  const how = "Record the result through the review skill's last step: node <review-and-verify>/scripts/record-result.mjs --draft <your draft>";
+  const seal = reviewSealPath(path);
+  if (!existsSync(seal)) return [`review-result.json was not written by the review skill's record step (no ${seal}). ${how}`];
+  let parsed;
+  try { parsed = JSON.parse(readFileSync(seal, "utf8")); } catch { return [`the review result's seal is not valid JSON. ${how}`]; }
+  if (parsed?.sha256 !== createHash("sha256").update(text).digest("hex")) return [`review-result.json changed after the review skill recorded it. ${how}`];
+  if (parsed?.final_head !== finalHead) return [`the review result's seal names head ${parsed?.final_head}, and the file names ${finalHead}. ${how}`];
+  return [];
+}
 export function verifyReview(path, head) {
   const errors = [];
   if (!existsSync(path) || !statSync(path).isFile()) return { ok: false, errors: [`missing review artifact: ${path}`] };
+  const text = readFileSync(path, "utf8");
   let result;
-  try { result = JSON.parse(readFileSync(path, "utf8")); } catch { return { ok: false, errors: ["review-result.json is not valid JSON"] }; }
+  try { result = JSON.parse(text); } catch { return { ok: false, errors: ["review-result.json is not valid JSON"] }; }
+  errors.push(...reviewSealProblems(path, text, result?.final_head));
   if (result?.version !== 1) errors.push("review-result.json version must be 1");
   for (const key of ["reviewed_head", "final_head", "base"]) {
     if (!/^[0-9a-f]{40}$/.test(result?.[key] ?? "")) errors.push(`${key} must be a full 40-character sha`);
