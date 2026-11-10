@@ -22,6 +22,8 @@ function save(dir, stage, state, data) {
 }
 // A phase has a runner that verifies each marker and owns the gate. With no runner, this script does.
 const runnerOwnsGate = () => Boolean(process.env.CATALYST_PHASE);
+// A runner runs the rows not marked `runner: false`; it runs its own review jobs, not the review stage.
+const stagesRun = () => (runnerOwnsGate() ? catalog.stages.filter((item) => item.runner !== false) : catalog.stages);
 function failMarkers(dir, stage) {
   const folder = join(dir, "stages");
   if (!existsSync(folder)) return [];
@@ -38,26 +40,26 @@ function completed(dir) {
     if (fields.repository !== repository()) throw new Error("handoff repository does not match this repository");
     const index = stageIndex.get(fields.completed_stage);
     if (fields.completed_stage !== "none" && index === undefined) throw new Error("handoff has an unknown completed_stage");
-    count = fields.completed_stage === "none" ? 0 : index + 1;
+    count = fields.completed_stage === "none" ? 0 : Math.min(index + 1, stagesRun().length);
   }
-  while (count < catalog.stages.length && readMarker(dir, catalog.stages[count].stage, "done")) count++;
+  while (count < stagesRun().length && readMarker(dir, stagesRun()[count].stage, "done")) count++;
   return count;
 }
 function handoff(dir, stage, artifact) {
   const index = stageIndex.get(stage);
-  const next = catalog.stages[index + 1]?.stage ?? "complete";
+  const next = stagesRun()[index + 1]?.stage ?? "complete";
   atomicWrite(join(dir, "handoff.md"), `---\nsource_ticket: ${ticket()}\nrepository: ${JSON.stringify(repository())}\nupdated_at: ${new Date().toISOString()}\ncompleted_stage: ${stage}\nnext_stage: ${next}\nhead_sha: ${headSha() ?? "none"}\n---\n\n# Handoff: ${ticket()}\n\n## Resume contract\n\n- Completed stage: ${stage}\n- Next stage: ${next}\n- Last artifact: ${artifact}\n- Resume by running \`scripts/stage next --resume\`; keep completed artifacts untouched.\n`);
 }
 function pausedHandoff(dir, resumeFrom, wait = null) {
   const index = stageIndex.get(resumeFrom);
   if (index === undefined) throw new Error(`unknown resume stage: ${resumeFrom}`);
   const count = completed(dir);
-  if (index !== count && !(count === catalog.stages.length && index === count - 1)) throw new Error(`cannot resume ${resumeFrom} before prior stages complete`);
-  const previous = catalog.stages[count - 1];
+  if (index !== count && !(count === stagesRun().length && index === count - 1)) throw new Error(`cannot resume ${resumeFrom} before prior stages complete`);
+  const previous = stagesRun()[count - 1];
   const lastStart = readMarker(dir, resumeFrom, "start");
   const lastFail = readMarker(dir, resumeFrom, "fail");
   const failure = lastFail?.attempt === lastStart?.attempt ? lastFail : null;
-  atomicWrite(join(dir, "handoff.md"), `---\nsource_ticket: ${ticket()}\nrepository: ${JSON.stringify(repository())}\nupdated_at: ${new Date().toISOString()}\ncompleted_stage: ${previous?.stage ?? "none"}\nnext_stage: ${catalog.stages[count]?.stage ?? "complete"}\nresume_stage: ${resumeFrom}\nresume_start: ${JSON.stringify(lastStart)}\nresume_fail: ${JSON.stringify(failure)}\nhead_sha: ${headSha() ?? "none"}\n---\n\n# Handoff: ${ticket()}\n\n## Resume contract\n\n- Completed stage: ${previous?.stage ?? "none"}\n- Resume stage: ${resumeFrom}\n- Last completed artifact: ${previous?.artifact ?? "none"}\n${failure ? `- Failed attempt: ${failure.attempt} (${failure.class}): ${failure.reason}\n` : ""}${wait ? `- Wait: ${wait.kind} ${wait.key} until ${wait.deadline}\n` : ""}- Resume by running \`scripts/stage next --resume\`; keep completed artifacts untouched.\n`);
+  atomicWrite(join(dir, "handoff.md"), `---\nsource_ticket: ${ticket()}\nrepository: ${JSON.stringify(repository())}\nupdated_at: ${new Date().toISOString()}\ncompleted_stage: ${previous?.stage ?? "none"}\nnext_stage: ${stagesRun()[count]?.stage ?? "complete"}\nresume_stage: ${resumeFrom}\nresume_start: ${JSON.stringify(lastStart)}\nresume_fail: ${JSON.stringify(failure)}\nhead_sha: ${headSha() ?? "none"}\n---\n\n# Handoff: ${ticket()}\n\n## Resume contract\n\n- Completed stage: ${previous?.stage ?? "none"}\n- Resume stage: ${resumeFrom}\n- Last completed artifact: ${previous?.artifact ?? "none"}\n${failure ? `- Failed attempt: ${failure.attempt} (${failure.class}): ${failure.reason}\n` : ""}${wait ? `- Wait: ${wait.kind} ${wait.key} until ${wait.deadline}\n` : ""}- Resume by running \`scripts/stage next --resume\`; keep completed artifacts untouched.\n`);
 }
 try {
   const [action, stage] = process.argv.slice(2);
@@ -85,11 +87,11 @@ try {
     if (process.argv.includes("--resume") && existsSync(join(dir, "handoff.md"))) {
       const path = join(dir, "handoff.md");
       const fields = readFrontmatter(readFileSync(path, "utf8"));
-      const last = catalog.stages[count - 1]?.stage ?? "none";
-      const next = catalog.stages[count]?.stage ?? "complete";
+      const last = stagesRun()[count - 1]?.stage ?? "none";
+      const next = stagesRun()[count]?.stage ?? "complete";
       if (fields.source_ticket !== id || fields.completed_stage !== last || fields.next_stage !== next) throw new Error(`handoff progress does not match completed stage ${last} and next stage ${next}`);
     }
-    process.stdout.write(`${catalog.stages[count]?.stage ?? "complete"}\n`);
+    process.stdout.write(`${stagesRun()[count]?.stage ?? "complete"}\n`);
   } else if (action === "check") {
     const say = (line) => process.stdout.write(`${line}\n`);
     if (process.argv.includes("--base")) {
@@ -117,11 +119,12 @@ try {
     const key = option("key");
     const deadline = option("deadline");
     if (!key || !deadline || Number.isNaN(Date.parse(deadline))) throw new Error("wait requires --key and ISO --deadline");
-    const resumeFrom = option("resume-from") ?? catalog.stages[completed(dir)]?.stage ?? "review";
+    const resumeFrom = option("resume-from") ?? stagesRun()[completed(dir)]?.stage ?? stagesRun().at(-1).stage;
     if (!stageIndex.has(resumeFrom)) throw new Error(`unknown resume stage: ${resumeFrom}`);
     const progress = completed(dir);
     const resumeIndex = stageIndex.get(resumeFrom);
-    if (resumeIndex !== progress && !(progress === catalog.stages.length && resumeIndex === progress - 1)) throw new Error(`cannot resume ${resumeFrom} before prior stages complete`);
+    if (resumeIndex >= stagesRun().length) throw new Error(`stage ${resumeFrom} is not run by a phase runner`);
+    if (resumeIndex !== progress && !(progress === stagesRun().length && resumeIndex === progress - 1)) throw new Error(`cannot resume ${resumeFrom} before prior stages complete`);
     repository();
     const waiting = { kind, key, deadline: new Date(deadline).toISOString(), resume_from: resumeFrom, ticket: id };
     atomicWrite(join(dir, "wait.json"), JSON.stringify(waiting, null, 2) + "\n");
@@ -129,7 +132,8 @@ try {
   } else if (["start", "done", "fail"].includes(action)) {
     const index = stageIndex.get(stage);
     if (index === undefined) throw new Error(`unknown stage: ${stage}`);
-    if (completed(dir) !== index && !(action === "done" && completed(dir) === index + 1)) throw new Error(`stage ${stage} is out of order; next is ${catalog.stages[completed(dir)]?.stage ?? "complete"}`);
+    if (index >= stagesRun().length) throw new Error(`stage ${stage} is not run by a phase runner`);
+    if (completed(dir) !== index && !(action === "done" && completed(dir) === index + 1)) throw new Error(`stage ${stage} is out of order; next is ${stagesRun()[completed(dir)]?.stage ?? "complete"}`);
     if (action === "start") {
       if (readMarker(dir, stage, "done")) throw new Error(`stage ${stage} is already complete`);
       const lastStart = readMarker(dir, stage, "start");

@@ -264,6 +264,59 @@ test("the stage catalog marks only implement as runner-owned", () => {
   expect(catalog.stages.filter((item) => item.owner === "runner").map((item) => item.stage)).toEqual(["implement"]);
   expect(catalog.stages.filter((item) => "owner" in item).length).toBe(1);
 });
+const NO_RUNNER = { CATALYST_PHASE: "" };
+function finishFive(f, prEnv = RUNNER) {
+  for (const stage of ["research", "plan", "implement", "validate", "pr"]) {
+    writeFileSync(join(f.artifacts, `${stage === "validate" ? "validation" : stage}.md`), stage === "validate" ? doc("validation") : ["research", "plan"].includes(stage) ? doc(stage) : `${stage} complete\n`);
+    expect(run("stage", ["start", stage], f, RUNNER).status).toBe(0);
+    const result = run("stage", ["done", stage], f, stage === "pr" ? prEnv : RUNNER);
+    expect(result.stderr).toBe("");
+    expect(result.status).toBe(0);
+  }
+}
+test("a supervised run is told the workflow is complete after its pr stage", () => {
+  const f = fixture();
+  finishFive(f);
+  expect(run("stage", ["next"], f, RUNNER).stdout.trim()).toBe("complete");
+  expect(readFileSync(join(f.artifacts, "handoff.md"), "utf8")).toContain("completed_stage: pr\nnext_stage: complete");
+});
+test("with no runner the pr stage is still followed by review", () => {
+  const f = fixture();
+  finishFive(f, NO_RUNNER);
+  expect(run("stage", ["next"], f, NO_RUNNER).stdout.trim()).toBe("review");
+  expect(readFileSync(join(f.artifacts, "handoff.md"), "utf8")).toContain("completed_stage: pr\nnext_stage: review");
+});
+test("a supervised run cannot start the review stage", () => {
+  const f = fixture();
+  finishFive(f);
+  const result = run("stage", ["start", "review"], f, RUNNER);
+  expect(result.status).not.toBe(0);
+  expect(result.stderr).toContain("runner");
+  expect(existsSync(join(f.artifacts, "stages", "1-review.start.json"))).toBe(false);
+});
+test("a supervised wait after pr resumes at pr and cold-resumes to complete", () => {
+  const first = fixture();
+  finishFive(first);
+  const waited = run("stage", ["wait", "ci", "--key", "pr:94", "--deadline", "2026-10-13T06:00:00Z"], first, RUNNER);
+  expect(waited.stderr).toBe("");
+  expect(waited.status).toBe(0);
+  const handoff = join(first.artifacts, "handoff.md");
+  const text = readFileSync(handoff, "utf8");
+  expect(text).toContain("next_stage: complete");
+  expect(text).toContain("resume_stage: pr");
+  const fresh = fixture();
+  expect(run("stage", ["next", "--resume", "--handoff", handoff], fresh, RUNNER).stdout.trim()).toBe("complete");
+});
+test("the stage catalog marks only review as absent under a runner", () => {
+  const catalog = JSON.parse(readFileSync(join(skill, "stages.json"), "utf8"));
+  expect(catalog.stages.filter((item) => item.runner === false).map((item) => item.stage)).toEqual(["review"]);
+  expect(catalog.stages.filter((item) => "owner" in item).map((item) => item.stage)).toEqual(["implement"]);
+});
+test("SKILL.md says a supervised run ends at pr", () => {
+  const text = readFileSync(join(skill, "SKILL.md"), "utf8");
+  const sentences = text.split(/(?<=\.)\s+/);
+  expect(sentences.some((line) => /supervised|phase runner/.test(line) && line.includes("CATALYST_PHASE") && /`pr`/.test(line) && /`complete`/.test(line))).toBe(true);
+});
 test("a failed stage and wait leave a cold-resumable handoff", () => {
   const first = fixture();
   expect(run("stage", ["start", "research"], first).status).toBe(0);
