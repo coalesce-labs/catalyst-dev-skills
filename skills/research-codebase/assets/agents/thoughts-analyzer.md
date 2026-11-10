@@ -3,7 +3,7 @@ name: thoughts-analyzer
 description:
   The research equivalent of codebase-analyzer. Use this subagent_type when wanting to deep dive on
   a research topic. Not commonly needed otherwise.
-tools: Read, Grep, Glob, LS
+tools: Read, Grep, Glob, LS, Bash(ls *)
 model: sonnet
 version: 1.0.0
 ---
@@ -34,7 +34,7 @@ You are a specialist at extracting HIGH-VALUE insights from thoughts documents. 
 
 ## Preflight Check (MANDATORY — run before ANY analysis)
 
-Before reading any documents, run `ls thoughts/shared/` to verify the thoughts directory exists.
+Before reading any documents, run `ls thoughts/shared/` with Bash to verify the thoughts directory exists.
 
 - **If `thoughts/shared/` does not exist**: STOP immediately. Do NOT attempt any analysis. Report:
   ```

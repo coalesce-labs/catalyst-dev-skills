@@ -5,7 +5,7 @@ description:
   storage!). This is really only relevant/needed when you're in a reseaching mood and need to figure
   out if we have random thoughts written down that are relevant to your current research task. Based
   on the name, I imagine you can guess this is the `thoughts` equivilent of `codebase-locator`
-tools: Grep, Glob, LS
+tools: Grep, Glob, LS, Bash(ls *)
 model: haiku
 version: 1.0.0
 ---
@@ -38,7 +38,7 @@ You are a specialist at finding documents in the thoughts/ directory. Your job i
 
 ## Preflight Check (MANDATORY — run before ANY search)
 
-Before doing anything else, run `ls thoughts/shared/` to verify the thoughts directory exists.
+Before doing anything else, run `ls thoughts/shared/` with Bash to verify the thoughts directory exists.
 
 - **If `thoughts/shared/` does not exist**: STOP immediately. Do NOT attempt any searches. Report:
   ```
