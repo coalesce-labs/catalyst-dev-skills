@@ -20,15 +20,11 @@ Filed when a human-owned ticket sits in a stage the relay cannot enter from (usu
 3. Who is working it: the newest PR and ticket comments, seat names in them, and whether that seat is alive.
 4. Whether the tickets it holds are really blocked (stacked branches mean the edge is real).
 
-### Validate-hold asks ("ENG-123: validate keeps failing — re-plan, accept, or fix by hand?")
+### Validate-hold and repair-cap asks ("ENG-123: validate keeps failing", "N repair rounds and still failing")
 
-1. Read the validate report for the held attempt. Name each failing finding with file and line.
-2. Decide per finding: real and new in the branch's own diff, main drift (the branch is far behind and the finding is in main's files), a flake, or grader noise.
-3. Compare the hold's head sha with the PR's head, and read the ledger's `branchHeadEvidence.agreement`. `disagrees` means the mirror missed a push: the hold, the waiver and the next validate are judging stale code. Say so in the record for every shape, not only validate holds.
-4. Is the run converging? Count findings per round across earlier attempts.
-5. Check how far behind main the branch is. Re-planning an old-base branch re-pins it to a main it lacks.
+Follow [`repair-cap.md`](repair-cap.md): what the rounds changed, where validate stands, the step, the option, and the stale inputs. With a checkout, also read the validate report for the held attempt (the `validation.md` artifact the ledger names) and name each failing finding with file and line, and run `git merge-tree` of origin/main against the branch to see the conflicts a main merge must resolve.
 
-Usual answers: continue when the findings are real and small. Prefer `POST /admin/validate-unhold`: it queues one repair round at the same head carrying the held finding. If it refuses (`remediate_parked_or_capped`, `no_branch_to_remediate`), rewind to implement instead, which keeps the plan but carries no finding. Accept with a follow-up ticket when the finding is out of scope. Retry unchanged at validate when the cause was outside the branch. Re-plan only when the plan itself is wrong. Check whether an earlier "continue" was applied as a rewind to validate: that grants no repair round, so its findings come back later looking new.
+Levers, once the step is known: prefer `POST /admin/validate-unhold` for a validate-budget hold: it queues one repair round at the same head carrying the held finding. If it refuses (`remediate_parked_or_capped`, `no_branch_to_remediate`), rewind to implement instead, which keeps the plan but carries no finding. A round-threshold hold is not cleared by validate-unhold: a push to the branch or an answer on the ask grants the next round. Check whether an earlier "continue" was applied as a rewind to validate: that grants no repair round, so its findings come back later looking new.
 
 ### Decision asks raised by a remediate round ("--- raised by --- ENG-123/remediate round N")
 

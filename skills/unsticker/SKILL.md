@@ -24,7 +24,7 @@ Before any deeper investigation, check whether the ask still needs an answer. It
 
 ## 3. Investigate the subject
 
-Follow [`references/investigate.md`](references/investigate.md) for the ask's shape. At minimum check:
+For a repair-cap, validate-hold or remediate-raised ask, follow [`references/repair-cap.md`](references/repair-cap.md) first: its early steps are cheap and usually decide the case. For every other shape, follow [`references/investigate.md`](references/investigate.md). At minimum check:
 
 - the subject's state, owner seat, fence labels and newest comments;
 - its pull requests: open or merged, conflicts, failing checks and whether each is real, review threads at head, queue and hold labels;
@@ -35,17 +35,17 @@ Every claim in the record cites where it came from: a URL, a PR number, a check 
 
 ## 4. Classify
 
-Use [`references/classify.md`](references/classify.md). Exactly one class:
+Use [`references/classify.md`](references/classify.md). Exactly one class, taken from the step the evidence fixes rather than from the ask's option list:
 
 - `mechanical`: nothing needs deciding; something needs doing (conflict, flake, missing review, stale label or fence, duplicate, moot, dead seat, missing delegate).
 - `decidable`: a real choice, but reversible and inside standing authority; a recorded default or the evidence picks the option.
 - `human`: any category on the always-escalate list in classify.md (spend, deleting data or credentials, public release, security, rollout flags, a physical human step, and the rest).
 
-Also give it a `pattern` from the closed tag table in classify.md (`other` if nothing fits), and put the specifics in `pattern_detail`. A `decidable` record names the option it would take in `proposed_answer`.
+Also give it a `pattern` from the closed tag table in classify.md (`other` if nothing fits), and put the specifics in `pattern_detail`. Name the steps in `next_steps` and the option they amount to in `ask_option`. A `decidable` record names the option it would take in `proposed_answer`. Before you finish, list every input a newer input contradicts in `stale_evidence`.
 
 ## 5. Act (only in `act` mode, only within the class)
 
-Follow [`references/act.md`](references/act.md). `mechanical`: do the smallest thing that gets the work moving, or hand it to the owning seat with the exact steps, then answer or close the ask with the evidence. `decidable`: propose only. Post the option, the reasoning and "the human can overrule", and change nothing. `human`: post one short recommendation with its evidence and take no action.
+Follow [`references/act.md`](references/act.md). `mechanical`: do the smallest thing that gets the work moving, or hand it to the owning seat with the exact steps, then answer or close the ask with the evidence. When the run holds the ticket's lease, a writable checkout and a push credential, merge main, make the fixes the evidence names, run the check and push, as [`references/fix.md`](references/fix.md) describes. `decidable`: propose only. Post the option, the reasoning and "the human can overrule", and change nothing. `human`: post one short recommendation with its evidence and take no action.
 
 Never merge by hand, publish, delete data, touch another seat's active branch or worktree, or write a human's `DECIDED:` line. Every comment an agent posts starts with `[bookkeeping]`, except a decision answer, which is posted as the app actor ([`references/act.md`](references/act.md), "Posting").
 

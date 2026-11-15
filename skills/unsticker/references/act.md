@@ -21,10 +21,11 @@ Act only in `act` mode, and only as far as the class allows. Otherwise record `a
 Pick the smallest action that gets the subject moving:
 
 1. The owning seat is alive: send it the exact steps (what fails, where, the fix) and the evidence, and let it do the work.
-2. No owner, or the owner is gone: do the fix yourself in a fresh worktree off the PR's branch, through the normal gates (tests for what you touched, the repository's check command, review at head), then push through the repository's push path.
+2. No owner, or the owner is gone: do the fix yourself under the ticket's lease, as [`fix.md`](fix.md) describes (merge main, only the fixes the evidence names, the repository's check, a fast-forward push). Without the lease, a writable checkout and a push credential, record the steps instead.
 3. A duplicate: comment with the evidence, then mark it a duplicate of the canonical ask. Check first that the duplicate carries no `blocks` edges, because marking a duplicate moves them.
 4. A moot ask: comment with the evidence (the merged PR, the canceled subject) and close it with that evidence.
 5. A validate hold: pull the relay lever first (continue, accept or retry), then close the ask. Closing the ask alone does not clear the hold.
+6. A repair-cap ask: answer it with the option the steps amount to (`ask_option`), or a `DECIDED:` line naming the steps when no option fits, and put the round table and causes in the comment. A push to the branch already grants the next round by itself.
 
 Then answer or close the ask with a `[bookkeeping]` comment that names what was wrong, what was done, and the evidence links. If the ask stays open until the fix lands, say what will close it.
 

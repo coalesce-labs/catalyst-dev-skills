@@ -1,6 +1,6 @@
 # Classifying an ask
 
-Pick exactly one class and say which rule put it there. When two classes fit, take the more conservative one (`human` over `decidable`, `decidable` over `mechanical`).
+Pick exactly one class and say which rule put it there. The class follows the step the evidence fixes, not the shape of the ask: an ask that offers options is still `mechanical` when the evidence leaves one mechanical step. When two classes fit, take the more conservative one (`human` over `decidable`, `decidable` over `mechanical`).
 
 ## `mechanical`
 
@@ -10,7 +10,9 @@ Nothing needs deciding; something needs doing. Signs:
 - a stale label, fence or hold whose reason is gone (confirm with whoever placed it);
 - no delegate or a dead seat on work that is otherwise done;
 - a duplicate ask, a moot ask (subject merged, Done or canceled, found by the premise check), or an answer already given that was never written back;
-- a validate hold whose findings are real, small and in the branch's own diff (continue), or whose hold head is stale because the mirror missed a push.
+- a validate hold whose findings are real, small and in the branch's own diff (continue), or whose hold head is stale because the mirror missed a push;
+- a repair-cap ask whose counted rounds changed no code (platform refusals, setup failures, saved fixes that cannot replay), or whose blocker is the base: a conflict with main, or a failing test outside the branch's diff that main already fixed ([`repair-cap.md`](repair-cap.md));
+- a step that needs access the fleet session lacks but another agent holds, such as a cloud-browser recording or a credentialed check: route it to that agent. A person only reviews what it produced.
 
 ## `decidable` (standing authority)
 
@@ -33,7 +35,7 @@ Any one of these makes it the human's, whatever the evidence says:
 - public releases (an npm publish, a tag, a public repository or post), and merging a public-repository PR;
 - security: a vulnerability, an access or auth boundary, an exposed secret;
 - rollout flag flips;
-- anything a human must physically do: a console setting, an app permission, an OAuth or install step;
+- anything a human must physically do: a console setting, an app permission, an OAuth or install step (a step an agent with the right access can do is not on this list);
 - changing what runs unattended: a schedule, an auto-dispatch or auto-merge rule, a new background job;
 - a default that reverses a recorded human direction;
 - every listed option breaking a pinned acceptance scenario;
@@ -57,6 +59,8 @@ Check this list before anything else, because it decides the class on its own. T
 | `conflict-behind-main` | the PR conflicts with main or is far behind it | — |
 | `ci-failure` | a real, small failing check, or a flake already fixed on main | real-ci-failure-small-fix, flake-fixed-on-main |
 | `validate-hold` | a validate budget, convergence or round-cap hold, including findings carried over unrepaired | validate-hold-real-small-defect, validate-hold-stale-head, finding-carried-over-unrepaired |
+| `rounds-changed-nothing` | most counted repair rounds changed no code: the cap measured platform refusals, setup failures or saved fixes that could not replay | platform-verifier-refusal, wip-reconciliation-counted |
+| `agent-can-do-it` | the step needs access the fleet session lacks, and another agent holds it (a recording, a credentialed check) | recording-needed |
 | `mirror-missed-push` | the ledger's head evidence disagrees with the PR head | — |
 | `waiting-on-open-dependency` | correctly waiting on an open blocker (add the missing relation if there is none) | parked-behind-unlinked-dependency, blocked-by-unmerged-sibling |
 | `no-relay-entry` | work the relay cannot enter from its current stage (human-owned PR stage, never entered the ladder) | no-relay-entry-from-pr-state, zombie-never-entered-ladder |
@@ -71,7 +75,7 @@ Check this list before anything else, because it decides the class on its own. T
 | `human-spend` | raising a cap, a budget or a plan | spend-increase |
 | `human-delete` | deleting data or credentials | credential-store-delete |
 | `human-product` | what to build, or what a customer sees | product-feature-approval, product-copy-call |
-| `human-external` | needs a human to read or change a third-party console behind their login | external-console-verification |
+| `human-external` | needs a human to read or change a third-party console behind their login, and no agent holds that access | external-console-verification |
 | `no-deadline` | secondary only: the ask has no `Auto-executes:` line, so it waits forever | no-deadline-default |
 | `other` | nothing above fits; explain in `notes` | — |
 

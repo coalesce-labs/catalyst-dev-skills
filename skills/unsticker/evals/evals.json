@@ -1,0 +1,3251 @@
+{
+  "version": 1,
+  "reference": "skills/unsticker/references/container.md",
+  "about": "Cases built from real stuck asks, anonymized. Each case is what a triage run reads (the ask and subject rows from the replica, and the evidence snapshot), an optional checkout block a run with a writable checkout would also see, and the right answer established from what actually unstuck the ticket. Grade with grade.mjs; run with run.mjs.",
+  "steps": {
+    "merge-main": "merge current main into the ticket's branch, resolve the conflicts, run the check, push",
+    "fix-on-branch": "change code on the ticket's branch: a fix the evidence names, or work the plan still owes",
+    "review-at-head": "get the missing review recorded at the current head",
+    "rerun-validate": "run validate again at the current head with no code change",
+    "grant-round": "grant one more repair round to the fleet",
+    "accept": "accept the work as it is and file what remains as a follow-up ticket",
+    "re-plan": "rewind the ticket to plan",
+    "route-to-capable-agent": "hand the step to an agent that holds the access the fleet session lacks",
+    "release-lever": "release a park or hold whose cause is gone",
+    "close-moot": "close the ask because its premise is gone",
+    "wait": "nothing to do yet: work already in flight decides it",
+    "human-step": "a step only a person can take"
+  },
+  "cases": [
+    {
+      "id": "cap-no-code-rounds-conflict",
+      "source": "hand-run root-cause analysis",
+      "answer_confidence": "high",
+      "summary": "Six counted rounds, none changed code; every cause was a platform verifier refusal, one since fixed. Validate passed every criterion. CI never ran because the PR is a draft. The only blocker is a one-file conflict with main.",
+      "inputs": {
+        "ask": {
+          "identifier": "ENG-9101",
+          "title": "ENG-4101: 6 repair rounds and still failing — re-plan, fix by hand, or accept?",
+          "state": "Todo",
+          "labels": [
+            "catalyst-ask",
+            "ask/decision"
+          ],
+          "description": "**Ask:** ENG-4101: 6 repair rounds and still failing — re-plan, fix by hand, or accept?\n\nENG-4101 (\"Members should see which repositories are paused\") has spent 6 repair rounds and still fails its checks. No more repair rounds will run on their own, so a person picks the next step: re-plan it, fix it by hand, or accept it.\n\n6 repair rounds counted against a limit of 6 (0 more stopped on a platform problem and are not counted).\n\nAny answer, or a new commit pushed to the branch, allows one more repair round. The count never resets, so if that round also fails, this question comes back.\n\nAssigned to the workspace owner because no eligible work assignee or project lead was found.\n\nIf nobody answers by 2030-03-16T03:55:00Z, Catalyst performs this ask's default: **A — re-plan the ticket (rewind to plan)**.\n\n**Options:**\n\n* **A** — A — re-plan the ticket (rewind to plan)\n* **B** — B — a human fixes it by hand on the branch\n* **C** — C — accept as-is; file what remains as follow-up work\n\n**Default if silent:** A — re-plan the ticket (rewind to plan)\n**Auto-executes:** 2030-03-16T03:55:00Z\n\n**How to answer:** reply in this thread with the option letter on its own (`A`), `(A)`, `option A`, or the option's own text pasted back. For an answer that is not on the list, reply `DECIDED: <your answer>`.",
+          "comments": [],
+          "relations": [
+            {
+              "type": "related",
+              "to": "ENG-4101"
+            }
+          ]
+        },
+        "subjects": [
+          {
+            "identifier": "ENG-4101",
+            "title": "Members should see which repositories are paused, and admins should resume them",
+            "state": "Validate",
+            "comments": [
+              {
+                "at": "2030-03-13T05:03:00Z",
+                "author": "Catalyst Cloud",
+                "body": "✅ Phase complete. Phase: implement. Attempt: 1."
+              },
+              {
+                "at": "2030-03-13T05:04:00Z",
+                "author": "Catalyst Cloud",
+                "body": "🛑 Phase FAILED. Phase: validate. Attempt: 1. > stage_marker_drain_incomplete"
+              },
+              {
+                "at": "2030-03-13T06:11:00Z",
+                "author": "Catalyst Cloud",
+                "body": "🔧 Remediate attempt 1 — succeeded. Class: validate-failure. Repairing: validate. What was done: no change to the branch; the failure was the runner's stage-marker drain, not the code. Head unchanged at e9e6ac40."
+              },
+              {
+                "at": "2030-03-13T07:30:00Z",
+                "author": "Catalyst Cloud",
+                "body": "✅ Phase complete. Phase: validate. Attempt: 2. validate accepted: AC1-AC9 met at e9e6ac40."
+              },
+              {
+                "at": "2030-03-13T08:31:00Z",
+                "author": "Catalyst Cloud",
+                "body": "🛑 Phase FAILED. Phase: pr. Attempt: 1. > stage_verification_failed:pr:stage_phase_verifier_failed (supervised_pr_review_missing: no passing review from another model family at e9e6ac40 (plan_conformance_not_run: the review's plan-conformance gate reported SKIPPED))"
+              },
+              {
+                "at": "2030-03-13T09:39:00Z",
+                "author": "Catalyst Cloud",
+                "body": "🔧 Remediate attempt 2 — succeeded. Repairing: pr. What was done: nothing in this branch can clear the pr failure; no code change. Head unchanged at e9e6ac40."
+              },
+              {
+                "at": "2030-03-13T10:39:00Z",
+                "author": "Catalyst Cloud",
+                "body": "✅ Phase complete. Phase: validate. Attempt: 3. validate accepted at e9e6ac40."
+              },
+              {
+                "at": "2030-03-13T11:49:00Z",
+                "author": "Catalyst Cloud",
+                "body": "🔧 Remediate attempt 3 — FAILED. Repairing: pr. What was done: supervised_pr_review_missing again; no change pushed."
+              },
+              {
+                "at": "2030-03-13T20:15:00Z",
+                "author": "Catalyst Cloud",
+                "body": "🔧 Remediate attempt 4 — FAILED. Repairing: pr. What was done: nothing in this branch can clear the pr failure; no change pushed."
+              },
+              {
+                "at": "2030-03-13T22:04:00Z",
+                "author": "Catalyst Cloud",
+                "body": "[bookkeeping] The review-skip deadlock (a pr-stage review that skips plan conformance and then refuses the head) is fixed on the platform as of 22:04Z."
+              },
+              {
+                "at": "2030-03-13T23:23:00Z",
+                "author": "Catalyst Cloud",
+                "body": "🔧 Remediate attempt 5 — succeeded. Repairing: pr. What was done: no code change; recommended validate."
+              },
+              {
+                "at": "2030-03-14T00:36:00Z",
+                "author": "Catalyst Cloud",
+                "body": "🛑 Phase FAILED. Phase: validate. Attempt: 4. > stage_verification_failed:validate:stage_phase_verifier_failed (supervised_validate_scenarios: of 2 scenarios in the ticket's current text, no scenario was met: both run `catalyst repo status` and `catalyst repo resume`, CLI commands that live in a sibling repository this checkout does not have)"
+              },
+              {
+                "at": "2030-03-14T03:17:00Z",
+                "author": "seat-review",
+                "body": "[bookkeeping] Reworded both scenarios to the API routes this repository checks. The CLI half shipped in a sibling ticket, which is Done. Validate attempt 4's report already marks AC1, AC2, AC3, AC5 and AC6 met."
+              },
+              {
+                "at": "2030-03-14T03:55:00Z",
+                "author": "Catalyst Cloud",
+                "body": "⏸️ Holding — 6 repair rounds counted against a limit of 6 (0 more stopped on a platform problem and are not counted). No further remediate round will be minted. The decision is now a human one, on the blocking ask this hold raises."
+              }
+            ]
+          }
+        ],
+        "snapshot": {
+          "capturedAtMs": 1899691200000,
+          "subjects": [
+            {
+              "identifier": "ENG-4101",
+              "title": "Members should see which repositories are paused, and admins should resume them",
+              "state": "Validate",
+              "labels": [],
+              "fenced": false,
+              "eligibility": {
+                "eligible": false,
+                "reason": "round_threshold_hold",
+                "detail": "6 of 6 counted repair rounds"
+              },
+              "ledger": {
+                "relayPhaseState": {
+                  "phase": "validate",
+                  "attempt": 4,
+                  "status": "held"
+                },
+                "relayPhaseFailures": [
+                  {
+                    "phase": "validate",
+                    "attempt": 1,
+                    "failureClass": "stage_marker_drain_incomplete",
+                    "failedAt": "2030-03-13T05:04:00Z",
+                    "headSha": "e9e6ac40"
+                  },
+                  {
+                    "phase": "pr",
+                    "attempt": 1,
+                    "failureClass": "supervised_pr_review_missing",
+                    "failedAt": "2030-03-13T08:31:00Z",
+                    "headSha": "e9e6ac40"
+                  },
+                  {
+                    "phase": "remediate",
+                    "attempt": 3,
+                    "failureClass": "supervised_pr_review_missing",
+                    "failedAt": "2030-03-13T11:49:00Z",
+                    "headSha": "e9e6ac40"
+                  },
+                  {
+                    "phase": "remediate",
+                    "attempt": 4,
+                    "failureClass": "no_change_possible",
+                    "failedAt": "2030-03-13T20:15:00Z",
+                    "headSha": "e9e6ac40"
+                  },
+                  {
+                    "phase": "validate",
+                    "attempt": 4,
+                    "failureClass": "supervised_validate_scenarios",
+                    "failedAt": "2030-03-14T00:36:00Z",
+                    "headSha": "e9e6ac40"
+                  }
+                ],
+                "relayFailureLedger": [
+                  {
+                    "phase": "validate",
+                    "mode": "verifier",
+                    "class": "supervised_validate_scenarios",
+                    "summary": "no scenario met: scenarios name CLI commands absent from this checkout",
+                    "failedAt": "2030-03-14T00:36:00Z"
+                  }
+                ],
+                "relayParkLedger": [],
+                "branchHeadEvidence": {
+                  "hold": {
+                    "headSha": "e9e6ac40",
+                    "headAgreement": "agrees",
+                    "headEvidence": "push 2030-03-13T05:01Z"
+                  }
+                },
+                "leases": []
+              },
+              "leases": [],
+              "pullRequests": [
+                {
+                  "repoId": "repo_main",
+                  "number": 7101,
+                  "state": "open",
+                  "draft": true,
+                  "headSha": "e9e6ac40",
+                  "mergeableState": "dirty"
+                }
+              ]
+            }
+          ],
+          "priorDeterminations": []
+        },
+        "checkout": {
+          "behind_main": 74,
+          "merge_tree": {
+            "conflicts": [
+              "packages/types/src/registry-manifest.ts (both sides append one entry to the same list)"
+            ]
+          },
+          "ci": "No CI job has run on PR #7101: every job is skipped while the PR is a draft."
+        }
+      },
+      "expected": {
+        "classification": [
+          "mechanical"
+        ],
+        "steps_all": [
+          [
+            "merge-main"
+          ],
+          [
+            "rerun-validate"
+          ]
+        ],
+        "steps_none": [
+          "re-plan",
+          "accept",
+          "human-step"
+        ],
+        "option": [
+          "B",
+          null
+        ],
+        "reaches_human": false,
+        "no_code_rounds": true,
+        "stale": [
+          [
+            "ask.description",
+            "still fails",
+            "checks"
+          ]
+        ],
+        "stale_note": "The ask says the ticket still fails its checks; CI never ran on the draft PR and validate passed AC1-AC9."
+      }
+    },
+    {
+      "id": "cap-stale-base-unused-export",
+      "source": "hand-run root-cause analysis",
+      "answer_confidence": "high",
+      "summary": "Rounds 3 to 6 changed nothing (platform refusals). The PR head is a main merge on top of a validated commit. One real lint miss: an unused re-export. The remediate lease in the snapshot belongs to the round that already failed.",
+      "inputs": {
+        "ask": {
+          "identifier": "ENG-9102",
+          "title": "ENG-4102: 6 repair rounds and still failing — re-plan, fix by hand, or accept?",
+          "state": "Todo",
+          "labels": [
+            "catalyst-ask",
+            "ask/decision"
+          ],
+          "description": "**Ask:** ENG-4102: 6 repair rounds and still failing — re-plan, fix by hand, or accept?\n\nENG-4102 (\"Text phases should read the remote build cache on dedicated hosts\") has spent 6 repair rounds and still fails its checks. No more repair rounds will run on their own, so a person picks the next step: re-plan it, fix it by hand, or accept it.\n\n6 repair rounds counted against a limit of 6 (4 more stopped on a platform problem and are not counted).\n\nAny answer, or a new commit pushed to the branch, allows one more repair round. The count never resets, so if that round also fails, this question comes back.\n\nAssigned to the workspace owner because no eligible work assignee or project lead was found.\n\n**Options:**\n\n* **A** — A — re-plan the ticket (rewind to plan)\n* **B** — B — a human fixes it by hand on the branch\n* **C** — C — accept as-is; file what remains as follow-up work\n\n**Default if silent:** B — a human fixes it by hand on the branch\n\n**How to answer:** reply in this thread with the option letter on its own (`A`), `(A)`, `option A`, or the option's own text pasted back. For an answer that is not on the list, reply `DECIDED: <your answer>`.",
+          "comments": [],
+          "relations": [
+            {
+              "type": "related",
+              "to": "ENG-4102"
+            }
+          ]
+        },
+        "subjects": [
+          {
+            "identifier": "ENG-4102",
+            "title": "Text phases should read the remote build cache on dedicated hosts",
+            "state": "PR",
+            "comments": [
+              {
+                "at": "2030-03-13T20:47:00Z",
+                "author": "Catalyst Cloud",
+                "body": "🔧 Remediate attempt 5 — succeeded. Repairing: pr. What was done: no code change; the pr failure was stage_marker_drain_incomplete."
+              },
+              {
+                "at": "2030-03-13T21:51:00Z",
+                "author": "Catalyst Cloud",
+                "body": "🛑 Phase FAILED. Phase: pr. Attempt: 3. > stage_marker_drain_incomplete. Parked after 3 consecutive pr failures."
+              },
+              {
+                "at": "2030-03-13T23:06:00Z",
+                "author": "Catalyst Cloud",
+                "body": "🔧 Remediate attempt 6 — succeeded. Repairing: pr. What was done: no code change."
+              },
+              {
+                "at": "2030-03-14T00:42:00Z",
+                "author": "Catalyst Cloud",
+                "body": "🛑 Phase FAILED. Phase: pr. Attempt: 4. > stage_resume_handoff_missing"
+              },
+              {
+                "at": "2030-03-14T06:14:00Z",
+                "author": "Catalyst Cloud",
+                "body": "🔧 Remediate attempt 7 — FAILED. Class: review-findings. What was done: gate_not_run_budget: the runner's own full check could not run inside the phase clock."
+              },
+              {
+                "at": "2030-03-14T07:37:00Z",
+                "author": "Catalyst Cloud",
+                "body": "🔧 Remediate attempt 8 — succeeded. Class: review-findings. WIP resumed. Pushed c1445b94."
+              },
+              {
+                "at": "2030-03-14T09:38:00Z",
+                "author": "Catalyst Cloud",
+                "body": "🛑 Phase FAILED. Phase: validate. Attempt: 7. > stage_failed:validate:environment:run_time_short: 29 minutes remain and this gate needs 36 minutes"
+              },
+              {
+                "at": "2030-03-14T11:10:00Z",
+                "author": "Catalyst Cloud",
+                "body": "✅ Phase complete. Phase: validate. Attempt: 8. validate accepted: all 16 criteria and 3 scenarios met at c1445b94."
+              },
+              {
+                "at": "2030-03-14T11:12:00Z",
+                "author": "Catalyst Cloud",
+                "body": "PR #7102 head moved to bc55e949: \"ENG-4102: merge main\" (51 main commits, no change of the branch's own)."
+              },
+              {
+                "at": "2030-03-14T11:17:00Z",
+                "author": "Catalyst Cloud",
+                "body": "🛑 Phase FAILED. Phase: pr. Attempt: 6. > supervised_pr_review_missing: no passing review from another model family at bc55e949 (plan_conformance_not_run: validate checked c1445b94, a different head)."
+              },
+              {
+                "at": "2030-03-14T11:37:00Z",
+                "author": "Catalyst Cloud",
+                "body": "🔧 Remediate attempt 9 — FAILED. What was done: transcript_capture_incomplete."
+              },
+              {
+                "at": "2030-03-14T12:10:00Z",
+                "author": "Catalyst Cloud",
+                "body": "🔧 Remediate attempt 10 — FAILED. What was done: gate_red_at_handover: `bun run check` exited 1: lint (unused exports): `CACHE_CHECKOUT_NAMES` re-exported at packages/protocol/src/index.ts:373 is unused."
+              },
+              {
+                "at": "2030-03-14T12:10:00Z",
+                "author": "Catalyst Cloud",
+                "body": "⏸️ Holding — 6 repair rounds counted against a limit of 6 (4 more stopped on a platform problem and are not counted)."
+              }
+            ]
+          }
+        ],
+        "snapshot": {
+          "capturedAtMs": 1899720660000,
+          "subjects": [
+            {
+              "identifier": "ENG-4102",
+              "title": "Text phases should read the remote build cache on dedicated hosts",
+              "state": "PR",
+              "labels": [],
+              "fenced": false,
+              "eligibility": {
+                "eligible": false,
+                "reason": "round_threshold_hold"
+              },
+              "ledger": {
+                "relayPhaseState": {
+                  "phase": "remediate",
+                  "attempt": 10,
+                  "status": "failed"
+                },
+                "relayPhaseFailures": [
+                  {
+                    "phase": "pr",
+                    "attempt": 3,
+                    "failureClass": "stage_marker_drain_incomplete",
+                    "failedAt": "2030-03-13T21:51:00Z"
+                  },
+                  {
+                    "phase": "pr",
+                    "attempt": 4,
+                    "failureClass": "stage_resume_handoff_missing",
+                    "failedAt": "2030-03-14T00:42:00Z"
+                  },
+                  {
+                    "phase": "remediate",
+                    "attempt": 7,
+                    "failureClass": "gate_not_run_budget",
+                    "failedAt": "2030-03-14T06:14:00Z"
+                  },
+                  {
+                    "phase": "validate",
+                    "attempt": 7,
+                    "failureClass": "environment_gap:run_time_short",
+                    "failedAt": "2030-03-14T09:38:00Z"
+                  },
+                  {
+                    "phase": "pr",
+                    "attempt": 6,
+                    "failureClass": "supervised_pr_review_missing",
+                    "failedAt": "2030-03-14T11:17:00Z",
+                    "headSha": "bc55e949"
+                  },
+                  {
+                    "phase": "remediate",
+                    "attempt": 9,
+                    "failureClass": "transcript_capture_incomplete",
+                    "failedAt": "2030-03-14T11:37:00Z"
+                  },
+                  {
+                    "phase": "remediate",
+                    "attempt": 10,
+                    "failureClass": "gate_red_at_handover",
+                    "failedAt": "2030-03-14T12:10:00Z",
+                    "headSha": "bc55e949"
+                  }
+                ],
+                "relayFailureLedger": [
+                  {
+                    "phase": "remediate",
+                    "mode": "gate",
+                    "class": "gate_red_at_handover",
+                    "summary": "bun run check exited 1",
+                    "failedAt": "2030-03-14T12:10:00Z"
+                  }
+                ],
+                "branchHeadEvidence": {
+                  "hold": {
+                    "headSha": "bc55e949",
+                    "headAgreement": "agrees"
+                  }
+                }
+              },
+              "leases": [
+                {
+                  "phase": "remediate",
+                  "holder": "worker:res_8f14",
+                  "deadlineMs": 1899722400000
+                }
+              ],
+              "pullRequests": [
+                {
+                  "repoId": "repo_main",
+                  "number": 7102,
+                  "state": "open",
+                  "draft": true,
+                  "headSha": "bc55e949",
+                  "mergeableState": "blocked"
+                }
+              ]
+            }
+          ],
+          "priorDeterminations": []
+        },
+        "checkout": {
+          "behind_main": 12,
+          "merge_tree": {
+            "conflicts": [
+              "apps/runner/test/phase-posture.test.ts (both sides append a case at the end of the same table)"
+            ]
+          },
+          "lint": "knip: unused export CACHE_CHECKOUT_NAMES (packages/protocol/src/index.ts:373)"
+        }
+      },
+      "expected": {
+        "classification": [
+          "mechanical"
+        ],
+        "steps_all": [
+          [
+            "fix-on-branch"
+          ]
+        ],
+        "steps_none": [
+          "re-plan",
+          "accept",
+          "human-step"
+        ],
+        "option": [
+          "B"
+        ],
+        "reaches_human": false,
+        "detail_any": [
+          [
+            "cache_checkout_names",
+            "re-export",
+            "unused export"
+          ]
+        ],
+        "stale": [
+          [
+            "lease"
+          ]
+        ],
+        "stale_note": "The remediate lease belongs to attempt 10, which already failed at 12:10; it is not a live round."
+      }
+    },
+    {
+      "id": "cap-main-deleted-symbol-wip-ref",
+      "source": "hand-run root-cause analysis",
+      "answer_confidence": "high",
+      "summary": "Far behind main; main deleted a function the branch edits. Two counted rounds were WIP-reconciliation failures. The code fix passed review; the check failed only on a budget. A leftover WIP ref blocks reconciliation.",
+      "inputs": {
+        "ask": {
+          "identifier": "ENG-9103",
+          "title": "ENG-4103: 6 repair rounds and still failing — re-plan, fix by hand, or accept?",
+          "state": "Todo",
+          "labels": [
+            "catalyst-ask",
+            "ask/decision"
+          ],
+          "description": "**Ask:** ENG-4103: 6 repair rounds and still failing — re-plan, fix by hand, or accept?\n\nENG-4103 (\"Reserved sandbox attempts should keep their provider identity\") has spent 6 repair rounds and still fails its checks. No more repair rounds will run on their own, so a person picks the next step: re-plan it, fix it by hand, or accept it.\n\n6 repair rounds counted against a limit of 6 (0 more stopped on a platform problem and are not counted).\n\nAny answer, or a new commit pushed to the branch, allows one more repair round. The count never resets, so if that round also fails, this question comes back.\n\nAssigned to the workspace owner because no eligible work assignee or project lead was found.\n\nIf nobody answers by 2030-03-16T04:23:00Z, Catalyst performs this ask's default: **A — re-plan the ticket (rewind to plan)**.\n\n**Options:**\n\n* **A** — A — re-plan the ticket (rewind to plan)\n* **B** — B — a human fixes it by hand on the branch\n* **C** — C — accept as-is; file what remains as follow-up work\n\n**Default if silent:** A — re-plan the ticket (rewind to plan)\n**Auto-executes:** 2030-03-16T04:23:00Z\n\n**How to answer:** reply in this thread with the option letter on its own (`A`), `(A)`, `option A`, or the option's own text pasted back. For an answer that is not on the list, reply `DECIDED: <your answer>`.",
+          "comments": [],
+          "relations": [
+            {
+              "type": "related",
+              "to": "ENG-4103"
+            }
+          ]
+        },
+        "subjects": [
+          {
+            "identifier": "ENG-4103",
+            "title": "Reserved sandbox attempts should keep their provider identity",
+            "state": "Validate",
+            "labels": [
+              "catalyst-local-lane"
+            ],
+            "comments": [
+              {
+                "at": "2030-03-11T14:25:00Z",
+                "author": "Catalyst Cloud",
+                "body": "✅ Phase complete. Phase: validate. Attempt: 1."
+              },
+              {
+                "at": "2030-03-11T14:34:00Z",
+                "author": "Catalyst Cloud",
+                "body": "🛑 Phase FAILED. Phase: pr. Attempt: 1. > supervised_pr_review_missing (plan_conformance_not_run)"
+              },
+              {
+                "at": "2030-03-11T15:46:00Z",
+                "author": "Catalyst Cloud",
+                "body": "🔧 Remediate attempt 1 — succeeded. Repairing: pr. No code change."
+              },
+              {
+                "at": "2030-03-11T16:55:00Z",
+                "author": "Catalyst Cloud",
+                "body": "🔧 Remediate attempt 2 — succeeded. Repairing: pr. No code change."
+              },
+              {
+                "at": "2030-03-11T18:00:00Z",
+                "author": "Catalyst Cloud",
+                "body": "🛑 Phase FAILED. Phase: pr. Attempt: 3. > stage_marker_drain_incomplete. Parked after 3 consecutive pr failures."
+              },
+              {
+                "at": "2030-03-11T23:54:00Z",
+                "author": "Catalyst Cloud",
+                "body": "🔧 Remediate attempt 3 — succeeded. Repairing: pr. Pushed 21b365fa (fixes the review's finding in round-record parsing)."
+              },
+              {
+                "at": "2030-03-12T00:24:00Z",
+                "author": "Catalyst Cloud",
+                "body": "🛑 Phase FAILED. Phase: validate. Attempt: 3. > environment:review_helper_unavailable: the different-family review never ran (review helpers failed at startup). Validation itself is done: all four scenarios met."
+              },
+              {
+                "at": "2030-03-12T02:48:00Z",
+                "author": "Catalyst Cloud",
+                "body": "🛑 Phase FAILED. Phase: validate. Attempt: 4. > gate_not_run_budget: the runner's own full check could not run inside the session clock (10 min deadline). The session's own `bun run check` exited 0 and the other-family review passed at 21b365fa."
+              },
+              {
+                "at": "2030-03-14T03:06:00Z",
+                "author": "seat-review",
+                "body": "[bookkeeping] Released the validate park: the runner check now reads the remote build cache, so the budget failure should not recur."
+              },
+              {
+                "at": "2030-03-14T03:42:00Z",
+                "author": "Catalyst Cloud",
+                "body": "🔧 Remediate attempt 4 — FAILED. Class: validate-failure. What was done: wip_reconciliation: conflict (catalyst/wip/ENG-4103/remediate/7@a7acc3ff); observed head 21b365fa."
+              },
+              {
+                "at": "2030-03-14T04:06:00Z",
+                "author": "Catalyst Cloud",
+                "body": "🔧 Remediate attempt 5 — FAILED. What was done: wip_reconciliation: conflict (catalyst/wip/ENG-4103/remediate/7@a7acc3ff); observed head 21b365fa. Hand-apply the saved fix or delete the WIP ref, then release the park."
+              },
+              {
+                "at": "2030-03-14T04:23:00Z",
+                "author": "Catalyst Cloud",
+                "body": "⏸️ Holding — 6 repair rounds counted against a limit of 6 (0 more stopped on a platform problem and are not counted)."
+              }
+            ]
+          }
+        ],
+        "snapshot": {
+          "capturedAtMs": 1899692760000,
+          "subjects": [
+            {
+              "identifier": "ENG-4103",
+              "title": "Reserved sandbox attempts should keep their provider identity",
+              "state": "Validate",
+              "labels": [
+                "catalyst-local-lane"
+              ],
+              "fenced": false,
+              "eligibility": {
+                "eligible": false,
+                "reason": "round_threshold_hold"
+              },
+              "ledger": {
+                "relayPhaseState": {
+                  "phase": "validate",
+                  "attempt": 4,
+                  "status": "held"
+                },
+                "relayPhaseFailures": [
+                  {
+                    "phase": "validate",
+                    "attempt": 3,
+                    "failureClass": "review_helper_unavailable",
+                    "failedAt": "2030-03-12T00:24:00Z",
+                    "headSha": "21b365fa"
+                  },
+                  {
+                    "phase": "validate",
+                    "attempt": 4,
+                    "failureClass": "gate_not_run_budget",
+                    "failedAt": "2030-03-12T02:48:00Z",
+                    "headSha": "21b365fa"
+                  },
+                  {
+                    "phase": "remediate",
+                    "attempt": 4,
+                    "failureClass": "wip_reconciliation",
+                    "failedAt": "2030-03-14T03:42:00Z",
+                    "headSha": "21b365fa"
+                  },
+                  {
+                    "phase": "remediate",
+                    "attempt": 5,
+                    "failureClass": "wip_reconciliation",
+                    "failedAt": "2030-03-14T04:06:00Z",
+                    "headSha": "21b365fa"
+                  }
+                ],
+                "relayParkLedger": [
+                  {
+                    "phase": "remediate",
+                    "reason": "parked:repeated_failure",
+                    "at": "2030-03-14T04:06:00Z"
+                  }
+                ],
+                "branchHeadEvidence": {
+                  "hold": {
+                    "headSha": "21b365fa",
+                    "headAgreement": "agrees"
+                  }
+                }
+              },
+              "leases": [],
+              "pullRequests": [
+                {
+                  "repoId": "repo_main",
+                  "number": 7103,
+                  "state": "open",
+                  "draft": true,
+                  "headSha": "21b365fa",
+                  "mergeableState": "dirty"
+                }
+              ]
+            }
+          ],
+          "priorDeterminations": []
+        },
+        "checkout": {
+          "behind_main": 161,
+          "merge_tree": {
+            "conflicts": [
+              "packages/protocol/src/round-record.ts: main deleted isRoundRecord; the branch edits it (modify/delete)"
+            ]
+          },
+          "refs": [
+            "catalyst/wip/ENG-4103/remediate/7 at a7acc3ff: its change is already in 21b365fa"
+          ],
+          "note": "Two tests on the branch still call isRoundRecord."
+        }
+      },
+      "expected": {
+        "classification": [
+          "mechanical"
+        ],
+        "steps_all": [
+          [
+            "merge-main"
+          ]
+        ],
+        "steps_none": [
+          "re-plan",
+          "accept",
+          "human-step"
+        ],
+        "option": [
+          "B"
+        ],
+        "reaches_human": false,
+        "detail_any": [
+          [
+            "wip"
+          ]
+        ],
+        "stale": [
+          [
+            "ask.description",
+            "still fails",
+            "checks"
+          ]
+        ],
+        "stale_note": "The ask says the ticket still fails its checks; the check failed only on the runner's budget, and the session's own check passed."
+      }
+    },
+    {
+      "id": "cap-fixed-defect-accept-review",
+      "source": "seed table and the owner's recorded answer",
+      "answer_confidence": "high",
+      "summary": "Second revision of a cap ask. The defect the ledger names was fixed in round 1 and validate passed since. The conflict was resolved by hand. Only a review at the new head is missing.",
+      "inputs": {
+        "ask": {
+          "identifier": "ENG-9104",
+          "title": "ENG-4104: 7 repair rounds and still failing — re-plan, fix by hand, or accept?",
+          "state": "Todo",
+          "labels": [
+            "catalyst-ask",
+            "ask/decision"
+          ],
+          "description": "**Ask:** ENG-4104: 7 repair rounds and still failing — re-plan, fix by hand, or accept?\n\nENG-4104 (\"An agent in a phase container should run a repository's browser end-to-end tests\") has spent 7 repair rounds and still fails its checks. No more repair rounds will run on their own, so a person picks the next step: re-plan it, fix it by hand, or accept it.\n\n7 repair rounds counted against a limit of 7 (0 more stopped on a platform problem and are not counted).\n\nAny answer, or a new commit pushed to the branch, allows one more repair round. The count never resets, so if that round also fails, this question comes back.\n\nAssigned to the workspace owner because no eligible work assignee or project lead was found.\n\n**Options:**\n\n* **A** — A — re-plan the ticket (rewind to plan)\n* **B** — B — a human fixes it by hand on the branch\n* **C** — C — accept as-is; file what remains as follow-up work\n\n**Default if silent:** B — a human fixes it by hand on the branch\n\n**How to answer:** reply in this thread with the option letter on its own (`A`), `(A)`, `option A`, or the option's own text pasted back. For an answer that is not on the list, reply `DECIDED: <your answer>`.",
+          "comments": [],
+          "relations": [
+            {
+              "type": "related",
+              "to": "ENG-4104"
+            }
+          ]
+        },
+        "subjects": [
+          {
+            "identifier": "ENG-4104",
+            "title": "An agent in a phase container should run a repository's browser end-to-end tests",
+            "state": "Validate",
+            "comments": [
+              {
+                "at": "2030-03-02T11:20:00Z",
+                "author": "Catalyst Cloud",
+                "body": "🛑 Phase FAILED. Phase: validate. Attempt: 1. Finding F1 (real defect): the e2e runner ignores the declared port."
+              },
+              {
+                "at": "2030-03-02T13:05:00Z",
+                "author": "Catalyst Cloud",
+                "body": "🔧 Remediate attempt 1 — succeeded. Pushed 7b1d0e22: honour the declared port; regression test added."
+              },
+              {
+                "at": "2030-03-08T06:21:00Z",
+                "author": "Catalyst Cloud",
+                "body": "✅ Phase complete. Phase: validate. Attempt: 3. Both scenarios met at a2d9b5c0; `bun run check` exited 0; the other-family review returned PASS."
+              },
+              {
+                "at": "2030-03-12T06:46:00Z",
+                "author": "Catalyst Cloud",
+                "body": "🛑 Phase FAILED. Phase: pr. > PR #7104 became conflicted with its base (dirty)."
+              },
+              {
+                "at": "2030-03-12T08:07:00Z",
+                "author": "Catalyst Cloud",
+                "body": "🔧 Remediate attempt 7 — FAILED. wip_reconciliation: conflict (catalyst/wip/ENG-4104/remediate/7@7204f57d); observed head a2d9b5c0. Parked."
+              },
+              {
+                "at": "2030-03-14T00:02:00Z",
+                "author": "seat-merge",
+                "body": "[bookkeeping] Merged main into ENG-4104 and resolved the conflict: pushed cf5ee8ed. The WIP ref's change is already in the branch."
+              },
+              {
+                "at": "2030-03-14T02:00:00Z",
+                "author": "Catalyst Cloud",
+                "body": "PR #7104 at cf5ee8ed: every check green except Review Evidence (no review recorded at this head)."
+              }
+            ]
+          }
+        ],
+        "snapshot": {
+          "capturedAtMs": 1899683700000,
+          "subjects": [
+            {
+              "identifier": "ENG-4104",
+              "title": "An agent in a phase container should run a repository's browser end-to-end tests",
+              "state": "Validate",
+              "labels": [],
+              "fenced": false,
+              "eligibility": {
+                "eligible": false,
+                "reason": "phase_parked",
+                "detail": "parked:repeated_failure",
+                "failureClass": "real_defect"
+              },
+              "ledger": {
+                "relayPhaseState": {
+                  "phase": "remediate",
+                  "attempt": 7,
+                  "status": "parked"
+                },
+                "relayPhaseFailures": [
+                  {
+                    "phase": "remediate",
+                    "attempt": 7,
+                    "failureClass": "wip_reconciliation",
+                    "failedAt": "2030-03-12T08:07:00Z",
+                    "headSha": "a2d9b5c0"
+                  }
+                ],
+                "relayFailureLedger": [
+                  {
+                    "phase": "validate",
+                    "mode": "review",
+                    "class": "real_defect",
+                    "summary": "F1: the e2e runner ignores the declared port",
+                    "failedAt": "2030-03-02T11:20:00Z"
+                  },
+                  {
+                    "phase": "pr",
+                    "mode": "mergeability",
+                    "class": "conflict",
+                    "summary": "PR #7104 became conflicted with its base (dirty)",
+                    "failedAt": "2030-03-12T06:46:00Z"
+                  }
+                ],
+                "relayParkLedger": [
+                  {
+                    "phase": "remediate",
+                    "reason": "parked:repeated_failure",
+                    "at": "2030-03-12T08:07:00Z"
+                  }
+                ],
+                "branchHeadEvidence": {
+                  "hold": {
+                    "headSha": "a2d9b5c0",
+                    "headAgreement": "disagrees",
+                    "headEvidence": "last push seen 2030-03-08T06:21Z"
+                  }
+                }
+              },
+              "leases": [],
+              "pullRequests": [
+                {
+                  "repoId": "repo_main",
+                  "number": 7104,
+                  "state": "open",
+                  "draft": false,
+                  "headSha": "cf5ee8ed",
+                  "mergeableState": "blocked"
+                }
+              ]
+            }
+          ],
+          "priorDeterminations": [
+            {
+              "version": "79d1f282",
+              "class": "decidable",
+              "pattern": "default-already-safe",
+              "recordedAtMs": 1899533460000
+            }
+          ]
+        }
+      },
+      "expected": {
+        "classification": [
+          "decidable",
+          "mechanical"
+        ],
+        "steps_all": [
+          [
+            "accept"
+          ],
+          [
+            "review-at-head"
+          ]
+        ],
+        "steps_none": [
+          "re-plan",
+          "fix-on-branch",
+          "merge-main",
+          "human-step"
+        ],
+        "option": [
+          "C"
+        ],
+        "reaches_human": false,
+        "stale": [
+          [
+            "relayfailureledger",
+            "failureclass",
+            "real_defect"
+          ],
+          [
+            "hold",
+            "branchheadevidence",
+            "headsha"
+          ]
+        ],
+        "stale_note": "The real_defect class is from round 1 and was fixed in 7b1d0e22; the hold head a2d9b5c0 is older than the PR head cf5ee8ed."
+      }
+    },
+    {
+      "id": "cap-conflict-wip-before-fix",
+      "source": "first revision of case 4, a seat's bookkeeping and the seed table",
+      "answer_confidence": "medium",
+      "summary": "First revision of the same ask: the PR is conflicted and a saved WIP fix cannot replay. The ledger still calls it a real defect, but that defect was fixed in round 1.",
+      "inputs": {
+        "ask": {
+          "identifier": "ENG-9105",
+          "title": "ENG-4104: 7 repair rounds and still failing — re-plan, fix by hand, or accept?",
+          "state": "Todo",
+          "labels": [
+            "catalyst-ask",
+            "ask/decision"
+          ],
+          "description": "**Ask:** ENG-4104: 7 repair rounds and still failing — re-plan, fix by hand, or accept?\n\nENG-4104 (\"An agent in a phase container should run a repository's browser end-to-end tests\") has spent 7 repair rounds and still fails its checks. No more repair rounds will run on their own, so a person picks the next step: re-plan it, fix it by hand, or accept it.\n\n7 repair rounds counted against a limit of 7 (0 more stopped on a platform problem and are not counted).\n\nAny answer, or a new commit pushed to the branch, allows one more repair round. The count never resets, so if that round also fails, this question comes back.\n\nAssigned to the workspace owner because no eligible work assignee or project lead was found.\n\n**Options:**\n\n* **A** — A — re-plan the ticket (rewind to plan)\n* **B** — B — a human fixes it by hand on the branch\n* **C** — C — accept as-is; file what remains as follow-up work\n\n**Default if silent:** B — a human fixes it by hand on the branch\n\n**How to answer:** reply in this thread with the option letter on its own (`A`), `(A)`, `option A`, or the option's own text pasted back. For an answer that is not on the list, reply `DECIDED: <your answer>`.",
+          "comments": [],
+          "relations": [
+            {
+              "type": "related",
+              "to": "ENG-4104"
+            }
+          ]
+        },
+        "subjects": [
+          {
+            "identifier": "ENG-4104",
+            "title": "An agent in a phase container should run a repository's browser end-to-end tests",
+            "state": "Validate",
+            "comments": [
+              {
+                "at": "2030-03-02T11:20:00Z",
+                "author": "Catalyst Cloud",
+                "body": "🛑 Phase FAILED. Phase: validate. Attempt: 1. Finding F1 (real defect): the e2e runner ignores the declared port."
+              },
+              {
+                "at": "2030-03-02T13:05:00Z",
+                "author": "Catalyst Cloud",
+                "body": "🔧 Remediate attempt 1 — succeeded. Pushed 7b1d0e22: honour the declared port; regression test added."
+              },
+              {
+                "at": "2030-03-08T06:21:00Z",
+                "author": "Catalyst Cloud",
+                "body": "✅ Phase complete. Phase: validate. Attempt: 3. Both scenarios met at a2d9b5c0; `bun run check` exited 0; the other-family review returned PASS."
+              },
+              {
+                "at": "2030-03-12T06:46:00Z",
+                "author": "Catalyst Cloud",
+                "body": "🛑 Phase FAILED. Phase: pr. > PR #7104 became conflicted with its base (dirty)."
+              },
+              {
+                "at": "2030-03-12T07:40:00Z",
+                "author": "Catalyst Cloud",
+                "body": "🔧 Remediate attempt 6 — FAILED. gate: one test:guards hook timed out at 36 s with no test named; 3414 passed."
+              },
+              {
+                "at": "2030-03-12T08:07:00Z",
+                "author": "Catalyst Cloud",
+                "body": "🔧 Remediate attempt 7 — FAILED. wip_reconciliation: conflict (catalyst/wip/ENG-4104/remediate/7@7204f57d); observed head a2d9b5c0. Hand-apply the saved fix or delete the WIP ref, then release the park. Parked."
+              }
+            ]
+          }
+        ],
+        "snapshot": {
+          "capturedAtMs": 1899533460000,
+          "subjects": [
+            {
+              "identifier": "ENG-4104",
+              "title": "An agent in a phase container should run a repository's browser end-to-end tests",
+              "state": "Validate",
+              "labels": [],
+              "fenced": false,
+              "eligibility": {
+                "eligible": false,
+                "reason": "phase_parked",
+                "detail": "parked:repeated_failure",
+                "failureClass": "real_defect"
+              },
+              "ledger": {
+                "relayPhaseState": {
+                  "phase": "remediate",
+                  "attempt": 7,
+                  "status": "parked"
+                },
+                "relayPhaseFailures": [
+                  {
+                    "phase": "remediate",
+                    "attempt": 5,
+                    "failureClass": "wip_reconciliation",
+                    "failedAt": "2030-03-12T07:10:00Z",
+                    "headSha": "a2d9b5c0"
+                  },
+                  {
+                    "phase": "remediate",
+                    "attempt": 6,
+                    "failureClass": "gate_red_at_handover",
+                    "failedAt": "2030-03-12T07:40:00Z",
+                    "headSha": "a2d9b5c0"
+                  },
+                  {
+                    "phase": "remediate",
+                    "attempt": 7,
+                    "failureClass": "wip_reconciliation",
+                    "failedAt": "2030-03-12T08:07:00Z",
+                    "headSha": "a2d9b5c0"
+                  }
+                ],
+                "relayFailureLedger": [
+                  {
+                    "phase": "validate",
+                    "mode": "review",
+                    "class": "real_defect",
+                    "summary": "F1: the e2e runner ignores the declared port",
+                    "failedAt": "2030-03-02T11:20:00Z"
+                  },
+                  {
+                    "phase": "pr",
+                    "mode": "mergeability",
+                    "class": "conflict",
+                    "summary": "PR #7104 became conflicted with its base (dirty)",
+                    "failedAt": "2030-03-12T06:46:00Z"
+                  }
+                ],
+                "relayParkLedger": [
+                  {
+                    "phase": "remediate",
+                    "reason": "parked:repeated_failure",
+                    "at": "2030-03-12T08:07:00Z"
+                  }
+                ],
+                "branchHeadEvidence": {
+                  "hold": {
+                    "headSha": "a2d9b5c0",
+                    "headAgreement": "agrees"
+                  }
+                }
+              },
+              "leases": [],
+              "pullRequests": [
+                {
+                  "repoId": "repo_main",
+                  "number": 7104,
+                  "state": "open",
+                  "draft": false,
+                  "headSha": "a2d9b5c0",
+                  "mergeableState": "dirty"
+                }
+              ]
+            }
+          ],
+          "priorDeterminations": []
+        }
+      },
+      "expected": {
+        "classification": [
+          "mechanical",
+          "decidable"
+        ],
+        "steps_all": [
+          [
+            "merge-main"
+          ]
+        ],
+        "steps_none": [
+          "re-plan",
+          "accept",
+          "human-step"
+        ],
+        "option": [
+          "B"
+        ],
+        "reaches_human": false,
+        "detail_any": [
+          [
+            "wip"
+          ]
+        ],
+        "stale": [
+          [
+            "relayfailureledger",
+            "failureclass",
+            "real_defect"
+          ]
+        ],
+        "stale_note": "The real_defect class is the round-1 finding fixed in 7b1d0e22; validate passed after it."
+      }
+    },
+    {
+      "id": "cap-review-skipped-no-validate-record",
+      "source": "the owner's recorded answer",
+      "answer_confidence": "high",
+      "summary": "Validate passed at the head. The pr-stage review skipped plan conformance because it had no validate record, and refused the head. No code is owed.",
+      "inputs": {
+        "ask": {
+          "identifier": "ENG-9106",
+          "title": "ENG-4106: 6 repair rounds and still failing — re-plan, fix by hand, or accept?",
+          "state": "Todo",
+          "labels": [
+            "catalyst-ask",
+            "ask/decision"
+          ],
+          "description": "**Ask:** ENG-4106: 6 repair rounds and still failing — re-plan, fix by hand, or accept?\n\nENG-4106 (\"Rounds should report their repair class on the ticket\") has spent 6 repair rounds and still fails its checks. No more repair rounds will run on their own, so a person picks the next step: re-plan it, fix it by hand, or accept it.\n\n6 repair rounds counted against a limit of 6 (0 more stopped on a platform problem and are not counted).\n\nAny answer, or a new commit pushed to the branch, allows one more repair round. The count never resets, so if that round also fails, this question comes back.\n\nAssigned to the workspace owner because no eligible work assignee or project lead was found.\n\n**Options:**\n\n* **A** — A — re-plan the ticket (rewind to plan)\n* **B** — B — a human fixes it by hand on the branch\n* **C** — C — accept as-is; file what remains as follow-up work\n\n**Default if silent:** B — a human fixes it by hand on the branch\n\n**How to answer:** reply in this thread with the option letter on its own (`A`), `(A)`, `option A`, or the option's own text pasted back. For an answer that is not on the list, reply `DECIDED: <your answer>`.",
+          "comments": [],
+          "relations": [
+            {
+              "type": "related",
+              "to": "ENG-4106"
+            }
+          ]
+        },
+        "subjects": [
+          {
+            "identifier": "ENG-4106",
+            "title": "Rounds should report their repair class on the ticket",
+            "state": "PR",
+            "comments": [
+              {
+                "at": "2030-03-13T18:02:00Z",
+                "author": "Catalyst Cloud",
+                "body": "✅ Phase complete. Phase: validate. Attempt: 5. validate accepted at dec51abd."
+              },
+              {
+                "at": "2030-03-13T19:30:00Z",
+                "author": "Catalyst Cloud",
+                "body": "🛑 Phase FAILED. Phase: pr. > supervised_pr_review_missing: no passing review from another model family at dec51abd (plan_conformance_not_run: the review had no validate record for this attempt)."
+              },
+              {
+                "at": "2030-03-13T20:40:00Z",
+                "author": "Catalyst Cloud",
+                "body": "🔧 Remediate attempt 10 — succeeded. What was done: no code change; nothing in the branch can supply the missing validate record."
+              },
+              {
+                "at": "2030-03-13T22:15:00Z",
+                "author": "Catalyst Cloud",
+                "body": "🔧 Remediate attempt 11 — FAILED. What was done: no code change; the same pr refusal."
+              },
+              {
+                "at": "2030-03-13T23:41:00Z",
+                "author": "Catalyst Cloud",
+                "body": "⏸️ Holding — 6 repair rounds counted against a limit of 6 (0 more stopped on a platform problem and are not counted)."
+              }
+            ]
+          }
+        ],
+        "snapshot": {
+          "capturedAtMs": 1899675840000,
+          "subjects": [
+            {
+              "identifier": "ENG-4106",
+              "title": "Rounds should report their repair class on the ticket",
+              "state": "PR",
+              "labels": [],
+              "fenced": false,
+              "eligibility": {
+                "eligible": false,
+                "reason": "phase_parked",
+                "detail": "parked:repeated_failure"
+              },
+              "ledger": {
+                "relayPhaseState": {
+                  "phase": "remediate",
+                  "attempt": 11,
+                  "status": "parked"
+                },
+                "relayPhaseFailures": [
+                  {
+                    "phase": "pr",
+                    "attempt": 4,
+                    "failureClass": "supervised_pr_review_missing",
+                    "failedAt": "2030-03-13T19:30:00Z",
+                    "headSha": "dec51abd"
+                  },
+                  {
+                    "phase": "remediate",
+                    "attempt": 11,
+                    "failureClass": "no_change_possible",
+                    "failedAt": "2030-03-13T22:15:00Z",
+                    "headSha": "dec51abd"
+                  }
+                ],
+                "relayFailureLedger": [
+                  {
+                    "phase": "pr",
+                    "mode": "verifier",
+                    "class": "supervised_pr_review_missing",
+                    "summary": "plan conformance not run: no validate record",
+                    "failedAt": "2030-03-13T19:30:00Z"
+                  }
+                ],
+                "branchHeadEvidence": {
+                  "hold": {
+                    "headSha": "dec51abd",
+                    "headAgreement": "agrees"
+                  }
+                }
+              },
+              "leases": [],
+              "pullRequests": [
+                {
+                  "repoId": "repo_main",
+                  "number": 7106,
+                  "state": "open",
+                  "draft": true,
+                  "headSha": "dec51abd",
+                  "mergeableState": "blocked"
+                }
+              ]
+            }
+          ],
+          "priorDeterminations": []
+        }
+      },
+      "expected": {
+        "classification": [
+          "mechanical",
+          "decidable"
+        ],
+        "steps_all": [
+          [
+            "rerun-validate",
+            "review-at-head"
+          ]
+        ],
+        "steps_none": [
+          "re-plan",
+          "fix-on-branch",
+          "accept",
+          "human-step"
+        ],
+        "option": [
+          null
+        ],
+        "reaches_human": false,
+        "no_code_rounds": true,
+        "stale": []
+      }
+    },
+    {
+      "id": "cap-fix-pushed-validate-running",
+      "source": "a triage seat's moot close, confirmed by the validate result",
+      "answer_confidence": "high",
+      "summary": "The hold fired after the round that fixed the finding. The fix is pushed and validate is running on it.",
+      "inputs": {
+        "ask": {
+          "identifier": "ENG-9107",
+          "title": "ENG-4107: 6 repair rounds and still failing — re-plan, fix by hand, or accept?",
+          "state": "Todo",
+          "labels": [
+            "catalyst-ask",
+            "ask/decision"
+          ],
+          "description": "**Ask:** ENG-4107: 6 repair rounds and still failing — re-plan, fix by hand, or accept?\n\nENG-4107 (\"Transcript checkpoints should survive a restart\") has spent 6 repair rounds and still fails its checks. No more repair rounds will run on their own, so a person picks the next step: re-plan it, fix it by hand, or accept it.\n\n6 repair rounds counted against a limit of 6 (0 more stopped on a platform problem and are not counted).\n\nAny answer, or a new commit pushed to the branch, allows one more repair round. The count never resets, so if that round also fails, this question comes back.\n\nAssigned to the workspace owner because no eligible work assignee or project lead was found.\n\n**Options:**\n\n* **A** — A — re-plan the ticket (rewind to plan)\n* **B** — B — a human fixes it by hand on the branch\n* **C** — C — accept as-is; file what remains as follow-up work\n\n**Default if silent:** B — a human fixes it by hand on the branch\n\n**How to answer:** reply in this thread with the option letter on its own (`A`), `(A)`, `option A`, or the option's own text pasted back. For an answer that is not on the list, reply `DECIDED: <your answer>`.",
+          "comments": [],
+          "relations": [
+            {
+              "type": "related",
+              "to": "ENG-4107"
+            }
+          ]
+        },
+        "subjects": [
+          {
+            "identifier": "ENG-4107",
+            "title": "Transcript checkpoints should survive a restart",
+            "state": "Validate",
+            "comments": [
+              {
+                "at": "2030-03-03T02:40:00Z",
+                "author": "Catalyst Cloud",
+                "body": "🛑 Phase FAILED. Phase: validate. Attempt: 3. Only type-safety failed: a `!` without a runtime guard at packages/protocol/test/transcript-checkpoint.test.ts:347. Plan, code review and both security gates passed."
+              },
+              {
+                "at": "2030-03-03T03:22:00Z",
+                "author": "Catalyst Cloud",
+                "body": "🔧 Remediate attempt 13 — succeeded. Pushed d69dc3df (+2/-1, one file): the non-null assertion becomes a null check that throws. `bun run check` exit 0; reward-hacking scan PASS."
+              },
+              {
+                "at": "2030-03-03T03:22:00Z",
+                "author": "Catalyst Cloud",
+                "body": "⏸️ Holding — 6 repair rounds counted against a limit of 6 (0 more stopped on a platform problem and are not counted)."
+              },
+              {
+                "at": "2030-03-03T03:23:00Z",
+                "author": "Catalyst Cloud",
+                "body": "Validate attempt 4 started at d69dc3df."
+              }
+            ]
+          }
+        ],
+        "snapshot": {
+          "capturedAtMs": 1898738580000,
+          "subjects": [
+            {
+              "identifier": "ENG-4107",
+              "title": "Transcript checkpoints should survive a restart",
+              "state": "Validate",
+              "labels": [],
+              "fenced": false,
+              "eligibility": {
+                "eligible": false,
+                "reason": "leased",
+                "detail": "validate attempt 4 running"
+              },
+              "ledger": {
+                "relayPhaseState": {
+                  "phase": "validate",
+                  "attempt": 4,
+                  "status": "running"
+                },
+                "relayPhaseFailures": [
+                  {
+                    "phase": "validate",
+                    "attempt": 3,
+                    "failureClass": "type_safety",
+                    "failedAt": "2030-03-03T02:40:00Z",
+                    "headSha": "9f023e49"
+                  }
+                ],
+                "relayFailureLedger": [
+                  {
+                    "phase": "validate",
+                    "mode": "review",
+                    "class": "type_safety",
+                    "summary": "non-null assertion without a runtime guard",
+                    "failedAt": "2030-03-03T02:40:00Z"
+                  }
+                ],
+                "branchHeadEvidence": {
+                  "hold": {
+                    "headSha": "9f023e49",
+                    "headAgreement": "disagrees",
+                    "headEvidence": "push d69dc3df at 03:22Z"
+                  }
+                }
+              },
+              "leases": [
+                {
+                  "phase": "validate",
+                  "holder": "worker:host_3c",
+                  "deadlineMs": 1898741100000
+                }
+              ],
+              "pullRequests": [
+                {
+                  "repoId": "repo_main",
+                  "number": 7107,
+                  "state": "open",
+                  "draft": true,
+                  "headSha": "d69dc3df",
+                  "mergeableState": "clean"
+                }
+              ]
+            }
+          ],
+          "priorDeterminations": []
+        }
+      },
+      "expected": {
+        "classification": [
+          "mechanical"
+        ],
+        "steps_all": [
+          [
+            "wait",
+            "rerun-validate",
+            "close-moot"
+          ]
+        ],
+        "steps_none": [
+          "re-plan",
+          "fix-on-branch",
+          "accept",
+          "human-step"
+        ],
+        "option": [
+          null,
+          "B"
+        ],
+        "reaches_human": false,
+        "stale": [
+          [
+            "hold",
+            "branchheadevidence",
+            "headsha",
+            "relayfailureledger"
+          ]
+        ],
+        "stale_note": "The hold head 9f023e49 predates the fix d69dc3df that validate is now checking."
+      }
+    },
+    {
+      "id": "cap-date-bomb-fixed-on-main",
+      "source": "a triage seat's close, confirmed by validate and merge",
+      "answer_confidence": "high",
+      "summary": "Every red round failed on one date-dependent test that main had already fixed. The branch never contained the fix.",
+      "inputs": {
+        "ask": {
+          "identifier": "ENG-9108",
+          "title": "ENG-4108: 6 repair rounds and still failing — re-plan, fix by hand, or accept?",
+          "state": "Todo",
+          "labels": [
+            "catalyst-ask",
+            "ask/decision"
+          ],
+          "description": "**Ask:** ENG-4108: 6 repair rounds and still failing — re-plan, fix by hand, or accept?\n\nENG-4108 (\"Eligibility should explain a parked ticket\") has spent 6 repair rounds and still fails its checks. No more repair rounds will run on their own, so a person picks the next step: re-plan it, fix it by hand, or accept it.\n\n6 repair rounds counted against a limit of 6 (0 more stopped on a platform problem and are not counted).\n\nAny answer, or a new commit pushed to the branch, allows one more repair round. The count never resets, so if that round also fails, this question comes back.\n\nAssigned to the workspace owner because no eligible work assignee or project lead was found.\n\nIf nobody answers by 2030-03-03T19:46:00Z, Catalyst performs this ask's default: **A — re-plan the ticket (rewind to plan)**.\n\n**Options:**\n\n* **A** — A — re-plan the ticket (rewind to plan)\n* **B** — B — a human fixes it by hand on the branch\n* **C** — C — accept as-is; file what remains as follow-up work\n\n**Default if silent:** A — re-plan the ticket (rewind to plan)\n**Auto-executes:** 2030-03-03T19:46:00Z\n\n**How to answer:** reply in this thread with the option letter on its own (`A`), `(A)`, `option A`, or the option's own text pasted back. For an answer that is not on the list, reply `DECIDED: <your answer>`.",
+          "comments": [],
+          "relations": [
+            {
+              "type": "related",
+              "to": "ENG-4108"
+            }
+          ]
+        },
+        "subjects": [
+          {
+            "identifier": "ENG-4108",
+            "title": "Eligibility should explain a parked ticket",
+            "state": "Validate",
+            "comments": [
+              {
+                "at": "2030-03-01T12:10:00Z",
+                "author": "Catalyst Cloud",
+                "body": "🛑 Phase FAILED. Phase: validate. Attempt: 2. gate: `bun run check` exited 1: apps/mirror/test/eligibility.test.ts:494 expected an expiry in the future (fixed date 2030-02-28)."
+              },
+              {
+                "at": "2030-03-01T14:05:00Z",
+                "author": "Catalyst Cloud",
+                "body": "🔧 Remediate attempt 12 — FAILED. Same failure at eligibility.test.ts:494; no change pushed."
+              },
+              {
+                "at": "2030-03-01T16:30:00Z",
+                "author": "Catalyst Cloud",
+                "body": "🔧 Remediate attempt 14 — FAILED. Same failure at eligibility.test.ts:494; no change pushed."
+              },
+              {
+                "at": "2030-03-01T17:10:00Z",
+                "author": "seat-ci",
+                "body": "[bookkeeping] The eligibility.test.ts:494 failure is a date bomb (a hard-coded expiry that passed on 03-01). Fixed on main by PR #6990 (merged 03-01 09:12Z). Any branch without that merge fails it."
+              },
+              {
+                "at": "2030-03-01T19:46:00Z",
+                "author": "Catalyst Cloud",
+                "body": "⏸️ Holding — 6 repair rounds counted against a limit of 6 (0 more stopped on a platform problem and are not counted)."
+              }
+            ]
+          }
+        ],
+        "snapshot": {
+          "capturedAtMs": 1898624940000,
+          "subjects": [
+            {
+              "identifier": "ENG-4108",
+              "title": "Eligibility should explain a parked ticket",
+              "state": "Validate",
+              "labels": [],
+              "fenced": false,
+              "eligibility": {
+                "eligible": false,
+                "reason": "round_threshold_hold"
+              },
+              "ledger": {
+                "relayPhaseState": {
+                  "phase": "validate",
+                  "attempt": 2,
+                  "status": "held"
+                },
+                "relayPhaseFailures": [
+                  {
+                    "phase": "validate",
+                    "attempt": 2,
+                    "failureClass": "gate_failed",
+                    "failedAt": "2030-03-01T12:10:00Z",
+                    "headSha": "e6de4456"
+                  },
+                  {
+                    "phase": "remediate",
+                    "attempt": 12,
+                    "failureClass": "gate_failed",
+                    "failedAt": "2030-03-01T14:05:00Z",
+                    "headSha": "e6de4456"
+                  },
+                  {
+                    "phase": "remediate",
+                    "attempt": 14,
+                    "failureClass": "gate_failed",
+                    "failedAt": "2030-03-01T16:30:00Z",
+                    "headSha": "e6de4456"
+                  }
+                ],
+                "relayFailureLedger": [
+                  {
+                    "phase": "validate",
+                    "mode": "gate",
+                    "class": "real_defect",
+                    "summary": "eligibility.test.ts:494 expected a future expiry",
+                    "failedAt": "2030-03-01T12:10:00Z"
+                  }
+                ],
+                "branchHeadEvidence": {
+                  "hold": {
+                    "headSha": "e6de4456",
+                    "headAgreement": "agrees"
+                  }
+                }
+              },
+              "leases": [],
+              "pullRequests": [
+                {
+                  "repoId": "repo_main",
+                  "number": 7108,
+                  "state": "open",
+                  "draft": true,
+                  "headSha": "e6de4456",
+                  "mergeableState": "clean"
+                }
+              ]
+            }
+          ],
+          "priorDeterminations": []
+        }
+      },
+      "expected": {
+        "classification": [
+          "mechanical"
+        ],
+        "steps_all": [
+          [
+            "merge-main"
+          ]
+        ],
+        "steps_none": [
+          "re-plan",
+          "accept",
+          "human-step"
+        ],
+        "option": [
+          "B",
+          null
+        ],
+        "reaches_human": false,
+        "stale": [
+          [
+            "relayfailureledger",
+            "failureclass",
+            "real_defect"
+          ]
+        ],
+        "stale_note": "The failure is classed real_defect, but it is a test outside the branch's diff that main already fixed."
+      }
+    },
+    {
+      "id": "cap-env-guard-outside-diff",
+      "source": "a delegated agent decision under the owner's standing authority",
+      "answer_confidence": "medium",
+      "summary": "Every red gate was one guard test outside the branch's diff, broken by the fleet container. Two rounds never started. The fixture fix is in the merge queue.",
+      "inputs": {
+        "ask": {
+          "identifier": "ENG-9109",
+          "title": "ENG-4109: 6 repair rounds and still failing — re-plan, fix by hand, or accept?",
+          "state": "Todo",
+          "labels": [
+            "catalyst-ask",
+            "ask/decision"
+          ],
+          "description": "**Ask:** ENG-4109: 6 repair rounds and still failing — re-plan, fix by hand, or accept?\n\nENG-4109 (\"Fleet faults should become one tracked item each\") has spent 6 repair rounds and still fails its checks. No more repair rounds will run on their own, so a person picks the next step: re-plan it, fix it by hand, or accept it.\n\n6 repair rounds counted against a limit of 6 (0 more stopped on a platform problem and are not counted).\n\nAny answer, or a new commit pushed to the branch, allows one more repair round. The count never resets, so if that round also fails, this question comes back.\n\nAssigned to the workspace owner because no eligible work assignee or project lead was found.\n\nIf nobody answers by 2030-03-24T06:21:00Z, Catalyst performs this ask's default: **A — re-plan the ticket (rewind to plan)**.\n\n**Options:**\n\n* **A** — A — re-plan the ticket (rewind to plan)\n* **B** — B — a human fixes it by hand on the branch\n* **C** — C — accept as-is; file what remains as follow-up work\n\n**Default if silent:** A — re-plan the ticket (rewind to plan)\n**Auto-executes:** 2030-03-24T06:21:00Z\n\n**How to answer:** reply in this thread with the option letter on its own (`A`), `(A)`, `option A`, or the option's own text pasted back. For an answer that is not on the list, reply `DECIDED: <your answer>`.",
+          "comments": [],
+          "relations": [
+            {
+              "type": "related",
+              "to": "ENG-4109"
+            }
+          ]
+        },
+        "subjects": [
+          {
+            "identifier": "ENG-4109",
+            "title": "Fleet faults should become one tracked item each",
+            "state": "Validate",
+            "comments": [
+              {
+                "at": "2030-03-22T01:10:00Z",
+                "author": "Catalyst Cloud",
+                "body": "🔧 Remediate attempt 1 — FAILED. gate: scripts/seat-cli-provider.test.ts \"CLI refreshes the legacy collector config\" exits 127."
+              },
+              {
+                "at": "2030-03-22T01:15:00Z",
+                "author": "Catalyst Cloud",
+                "body": "🔧 Remediate attempt 2 — FAILED before the model started: playbook_revision_unavailable."
+              },
+              {
+                "at": "2030-03-22T01:16:00Z",
+                "author": "Catalyst Cloud",
+                "body": "🔧 Remediate attempt 3 — FAILED before the model started: playbook_revision_unavailable."
+              },
+              {
+                "at": "2030-03-22T01:22:00Z",
+                "author": "Catalyst Cloud",
+                "body": "🔧 Remediate attempt 4 — succeeded. The one real finding (intake vocabulary) is already fixed in be90b5ca; all four vocabulary tests pass. No further branch change. Gate red only on scripts/seat-cli-provider.test.ts (exit 127)."
+              },
+              {
+                "at": "2030-03-22T05:40:00Z",
+                "author": "seat-flow",
+                "body": "[bookkeeping] scripts/seat-cli-provider.test.ts fails on every branch in the fleet container: the container ships /usr/local/bin/catalyst-telemetry, so the legacy branch exits 127. Draft #7109 touches no seat-cli file. The fixture fix is PR #7190, reviewed, in the merge queue now. The same guard holds two other tickets at their caps."
+              },
+              {
+                "at": "2030-03-22T06:21:00Z",
+                "author": "Catalyst Cloud",
+                "body": "⏸️ Holding — 6 repair rounds counted against a limit of 6."
+              }
+            ]
+          }
+        ],
+        "snapshot": {
+          "capturedAtMs": 1900391040000,
+          "subjects": [
+            {
+              "identifier": "ENG-4109",
+              "title": "Fleet faults should become one tracked item each",
+              "state": "Validate",
+              "labels": [],
+              "fenced": false,
+              "eligibility": {
+                "eligible": false,
+                "reason": "round_threshold_hold"
+              },
+              "ledger": {
+                "relayPhaseState": {
+                  "phase": "remediate",
+                  "attempt": 4,
+                  "status": "held"
+                },
+                "relayPhaseFailures": [
+                  {
+                    "phase": "remediate",
+                    "attempt": 1,
+                    "failureClass": "gate_red_at_handover",
+                    "failedAt": "2030-03-22T01:10:00Z"
+                  },
+                  {
+                    "phase": "remediate",
+                    "attempt": 2,
+                    "failureClass": "playbook_revision_unavailable",
+                    "failedAt": "2030-03-22T01:15:00Z"
+                  },
+                  {
+                    "phase": "remediate",
+                    "attempt": 3,
+                    "failureClass": "playbook_revision_unavailable",
+                    "failedAt": "2030-03-22T01:16:00Z"
+                  }
+                ],
+                "relayParkLedger": [
+                  {
+                    "phase": "remediate",
+                    "reason": "parked:repeated_failure",
+                    "at": "2030-03-22T01:30:00Z"
+                  }
+                ],
+                "branchHeadEvidence": {
+                  "hold": {
+                    "headSha": "be90b5ca",
+                    "headAgreement": "agrees"
+                  }
+                }
+              },
+              "leases": [],
+              "pullRequests": [
+                {
+                  "repoId": "repo_main",
+                  "number": 7109,
+                  "state": "open",
+                  "draft": true,
+                  "headSha": "be90b5ca",
+                  "mergeableState": "clean"
+                }
+              ]
+            }
+          ],
+          "priorDeterminations": []
+        }
+      },
+      "expected": {
+        "classification": [
+          "mechanical",
+          "decidable"
+        ],
+        "steps_all": [
+          [
+            "merge-main",
+            "wait"
+          ]
+        ],
+        "steps_none": [
+          "re-plan",
+          "accept",
+          "human-step"
+        ],
+        "option": [
+          "B",
+          null
+        ],
+        "reaches_human": false,
+        "stale": []
+      }
+    },
+    {
+      "id": "cap-noop-round-validate-queued",
+      "source": "a delegated agent decision (off the listed options)",
+      "answer_confidence": "high",
+      "summary": "The last counted round was a no-op that took a stale queue row. An operator already rewound to validate, which is ready at a head whose fixes passed review.",
+      "inputs": {
+        "ask": {
+          "identifier": "ENG-9110",
+          "title": "ENG-4110: 7 repair rounds and still failing — re-plan, fix by hand, or accept?",
+          "state": "Todo",
+          "labels": [
+            "catalyst-ask",
+            "ask/decision"
+          ],
+          "description": "**Ask:** ENG-4110: 7 repair rounds and still failing — re-plan, fix by hand, or accept?\n\nENG-4110 (\"Agent behaviour suites should report tools called\") has spent 7 repair rounds and still fails its checks. No more repair rounds will run on their own, so a person picks the next step: re-plan it, fix it by hand, or accept it.\n\n7 repair rounds counted against a limit of 7 (0 more stopped on a platform problem and are not counted).\n\nAny answer, or a new commit pushed to the branch, allows one more repair round. The count never resets, so if that round also fails, this question comes back.\n\nAssigned to the workspace owner because no eligible work assignee or project lead was found.\n\nIf nobody answers by 2030-03-21T05:22:00Z, Catalyst performs this ask's default: **A — re-plan the ticket (rewind to plan)**.\n\n**Options:**\n\n* **A** — A — re-plan the ticket (rewind to plan)\n* **B** — B — a human fixes it by hand on the branch\n* **C** — C — accept as-is; file what remains as follow-up work\n\n**Default if silent:** A — re-plan the ticket (rewind to plan)\n**Auto-executes:** 2030-03-21T05:22:00Z\n\n**How to answer:** reply in this thread with the option letter on its own (`A`), `(A)`, `option A`, or the option's own text pasted back. For an answer that is not on the list, reply `DECIDED: <your answer>`.",
+          "comments": [],
+          "relations": [
+            {
+              "type": "related",
+              "to": "ENG-4110"
+            }
+          ]
+        },
+        "subjects": [
+          {
+            "identifier": "ENG-4110",
+            "title": "Agent behaviour suites should report tools called",
+            "state": "Validate",
+            "comments": [
+              {
+                "at": "2030-03-19T02:10:00Z",
+                "author": "Catalyst Cloud",
+                "body": "🔧 Remediate attempt 16 — succeeded. Pushed dbd526b7: fixes review P1 (the version stamp) and P2 (the tools-called false zero); narrow fix check passed."
+              },
+              {
+                "at": "2030-03-19T04:31:00Z",
+                "author": "seat-flow",
+                "body": "[bookkeeping] Released the local-lane fence; rewinding to validate next."
+              },
+              {
+                "at": "2030-03-19T04:33:00Z",
+                "author": "Catalyst Cloud",
+                "body": "🔧 Remediate attempt 17 — succeeded. Took the old setup_failed queue row. What was done: the package.json and README conflicts are already fixed at HEAD 250953f6; test:agent-behavior 457 passing; no change; recommends validate."
+              },
+              {
+                "at": "2030-03-19T04:33:00Z",
+                "author": "Catalyst Cloud",
+                "body": "Rewind to validate refused (409): a remediate round holds the ticket."
+              },
+              {
+                "at": "2030-03-19T05:22:00Z",
+                "author": "Catalyst Cloud",
+                "body": "⏸️ Holding — 7 repair rounds counted against a limit of 7."
+              },
+              {
+                "at": "2030-03-19T05:23:00Z",
+                "author": "seat-flow",
+                "body": "[bookkeeping] Operator rewind to validate landed. Validate is ready (attempt 3) at 250953f6. The repair-round hold blocks only remediate."
+              }
+            ]
+          }
+        ],
+        "snapshot": {
+          "capturedAtMs": 1900128600000,
+          "subjects": [
+            {
+              "identifier": "ENG-4110",
+              "title": "Agent behaviour suites should report tools called",
+              "state": "Validate",
+              "labels": [],
+              "fenced": false,
+              "eligibility": {
+                "eligible": true,
+                "reason": "ready",
+                "detail": "validate attempt 3 ready"
+              },
+              "ledger": {
+                "relayPhaseState": {
+                  "phase": "validate",
+                  "attempt": 3,
+                  "status": "ready"
+                },
+                "relayPhaseFailures": [
+                  {
+                    "phase": "remediate",
+                    "attempt": 15,
+                    "failureClass": "setup_failed:install-dependencies",
+                    "failedAt": "2030-03-18T20:18:00Z"
+                  }
+                ],
+                "branchHeadEvidence": {
+                  "hold": {
+                    "headSha": "250953f6",
+                    "headAgreement": "agrees"
+                  }
+                }
+              },
+              "leases": [],
+              "pullRequests": [
+                {
+                  "repoId": "repo_main",
+                  "number": 7110,
+                  "state": "open",
+                  "draft": false,
+                  "headSha": "250953f6",
+                  "mergeableState": "clean"
+                }
+              ]
+            }
+          ],
+          "priorDeterminations": []
+        }
+      },
+      "expected": {
+        "classification": [
+          "mechanical",
+          "decidable"
+        ],
+        "steps_all": [
+          [
+            "rerun-validate",
+            "wait"
+          ]
+        ],
+        "steps_none": [
+          "re-plan",
+          "fix-on-branch",
+          "accept",
+          "human-step"
+        ],
+        "option": [
+          null
+        ],
+        "reaches_human": false,
+        "stale": []
+      }
+    },
+    {
+      "id": "cap-platform-fixture-grant-round",
+      "source": "an operator decision",
+      "answer_confidence": "high",
+      "summary": "The cap was consumed by the platform's own broken test fixture, fixed on main since. Validate then passed; an independent review left two ordinary findings the fleet's own repair round can take.",
+      "inputs": {
+        "ask": {
+          "identifier": "ENG-9111",
+          "title": "ENG-4111: 6 repair rounds and still failing — re-plan, fix by hand, or accept?",
+          "state": "Todo",
+          "labels": [
+            "catalyst-ask",
+            "ask/decision"
+          ],
+          "description": "**Ask:** ENG-4111: 6 repair rounds and still failing — re-plan, fix by hand, or accept?\n\nENG-4111 (\"Seat probes should not need a Python workaround\") has spent 6 repair rounds and still fails its checks. No more repair rounds will run on their own, so a person picks the next step: re-plan it, fix it by hand, or accept it.\n\n6 repair rounds counted against a limit of 6 (0 more stopped on a platform problem and are not counted).\n\nAny answer, or a new commit pushed to the branch, allows one more repair round. The count never resets, so if that round also fails, this question comes back.\n\nAssigned to the workspace owner because no eligible work assignee or project lead was found.\n\nIf nobody answers by 2030-03-24T07:56:00Z, Catalyst performs this ask's default: **A — re-plan the ticket (rewind to plan)**.\n\n**Options:**\n\n* **A** — A — re-plan the ticket (rewind to plan)\n* **B** — B — a human fixes it by hand on the branch\n* **C** — C — accept as-is; file what remains as follow-up work\n\n**Default if silent:** A — re-plan the ticket (rewind to plan)\n**Auto-executes:** 2030-03-24T07:56:00Z\n\n**How to answer:** reply in this thread with the option letter on its own (`A`), `(A)`, `option A`, or the option's own text pasted back. For an answer that is not on the list, reply `DECIDED: <your answer>`.",
+          "comments": [],
+          "relations": [
+            {
+              "type": "related",
+              "to": "ENG-4111"
+            }
+          ]
+        },
+        "subjects": [
+          {
+            "identifier": "ENG-4111",
+            "title": "Seat probes should not need a Python workaround",
+            "state": "PR",
+            "comments": [
+              {
+                "at": "2030-03-22T00:50:00Z",
+                "author": "Catalyst Cloud",
+                "body": "🔧 Remediate attempt 3 — FAILED. gate: scripts/seat-cli-provider.test.ts exits 127 (the fleet collector fixture)."
+              },
+              {
+                "at": "2030-03-22T01:45:00Z",
+                "author": "seat-flow",
+                "body": "[bookkeeping] PR #7190 merged: the collector fixture no longer runs the host's real telemetry binary. Every cap that guard consumed was a platform fault."
+              },
+              {
+                "at": "2030-03-22T07:56:00Z",
+                "author": "Catalyst Cloud",
+                "body": "⏸️ Holding — 6 repair rounds counted against a limit of 6."
+              },
+              {
+                "at": "2030-03-22T08:04:00Z",
+                "author": "Catalyst Cloud",
+                "body": "🔧 Remediate attempt 6 — succeeded. Removed the out-of-scope Python workaround at scripts/seat-cli-probes.test.ts and leftover conflict markers. Pushed 8deb917b."
+              },
+              {
+                "at": "2030-03-22T08:04:00Z",
+                "author": "Catalyst Cloud",
+                "body": "✅ Phase complete. Phase: validate. Attempt: 2 at 8deb917b."
+              },
+              {
+                "at": "2030-03-22T10:06:00Z",
+                "author": "seat-review",
+                "body": "[bookkeeping] Independent review at 8deb917b: F1 (P2) a retry counter is reset on reconnect; F2 (P3) a log line names the wrong phase. Posted as review threads on #7111."
+              }
+            ]
+          }
+        ],
+        "snapshot": {
+          "capturedAtMs": 1900405200000,
+          "subjects": [
+            {
+              "identifier": "ENG-4111",
+              "title": "Seat probes should not need a Python workaround",
+              "state": "PR",
+              "labels": [],
+              "fenced": false,
+              "eligibility": {
+                "eligible": false,
+                "reason": "round_threshold_hold"
+              },
+              "ledger": {
+                "relayPhaseState": {
+                  "phase": "pr",
+                  "attempt": 1,
+                  "status": "held"
+                },
+                "relayPhaseFailures": [
+                  {
+                    "phase": "remediate",
+                    "attempt": 1,
+                    "failureClass": "gate_red_at_handover",
+                    "failedAt": "2030-03-21T21:10:00Z"
+                  },
+                  {
+                    "phase": "remediate",
+                    "attempt": 2,
+                    "failureClass": "gate_red_at_handover",
+                    "failedAt": "2030-03-21T23:30:00Z"
+                  },
+                  {
+                    "phase": "remediate",
+                    "attempt": 3,
+                    "failureClass": "gate_red_at_handover",
+                    "failedAt": "2030-03-22T00:50:00Z"
+                  }
+                ],
+                "branchHeadEvidence": {
+                  "hold": {
+                    "headSha": "8deb917b",
+                    "headAgreement": "agrees"
+                  }
+                }
+              },
+              "leases": [],
+              "pullRequests": [
+                {
+                  "repoId": "repo_main",
+                  "number": 7111,
+                  "state": "open",
+                  "draft": false,
+                  "headSha": "8deb917b",
+                  "mergeableState": "blocked"
+                }
+              ]
+            }
+          ],
+          "priorDeterminations": []
+        }
+      },
+      "expected": {
+        "classification": [
+          "mechanical",
+          "decidable"
+        ],
+        "steps_all": [
+          [
+            "grant-round",
+            "fix-on-branch"
+          ]
+        ],
+        "steps_none": [
+          "re-plan",
+          "accept",
+          "human-step"
+        ],
+        "option": [
+          null,
+          "B"
+        ],
+        "reaches_human": false,
+        "stale": []
+      }
+    },
+    {
+      "id": "cap-setup-fails-conflict-markers",
+      "source": "a delegated agent decision",
+      "answer_confidence": "high",
+      "summary": "The last rounds never reached a model: each round merges main into its workspace, which leaves conflict markers in package.json, so install fails. The branch itself is clean and validated.",
+      "inputs": {
+        "ask": {
+          "identifier": "ENG-9112",
+          "title": "ENG-4110: 6 repair rounds and still failing — re-plan, fix by hand, or accept?",
+          "state": "Todo",
+          "labels": [
+            "catalyst-ask",
+            "ask/decision"
+          ],
+          "description": "**Ask:** ENG-4110: 6 repair rounds and still failing — re-plan, fix by hand, or accept?\n\nENG-4110 (\"Agent behaviour suites should report tools called\") has spent 6 repair rounds and still fails its checks. No more repair rounds will run on their own, so a person picks the next step: re-plan it, fix it by hand, or accept it.\n\n6 repair rounds counted against a limit of 6 (0 more stopped on a platform problem and are not counted).\n\nAny answer, or a new commit pushed to the branch, allows one more repair round. The count never resets, so if that round also fails, this question comes back.\n\nAssigned to the workspace owner because no eligible work assignee or project lead was found.\n\nIf nobody answers by 2030-03-20T20:18:00Z, Catalyst performs this ask's default: **A — re-plan the ticket (rewind to plan)**.\n\n**Options:**\n\n* **A** — A — re-plan the ticket (rewind to plan)\n* **B** — B — a human fixes it by hand on the branch\n* **C** — C — accept as-is; file what remains as follow-up work\n\n**Default if silent:** A — re-plan the ticket (rewind to plan)\n**Auto-executes:** 2030-03-20T20:18:00Z\n\n**How to answer:** reply in this thread with the option letter on its own (`A`), `(A)`, `option A`, or the option's own text pasted back. For an answer that is not on the list, reply `DECIDED: <your answer>`.",
+          "comments": [],
+          "relations": [
+            {
+              "type": "related",
+              "to": "ENG-4110"
+            }
+          ]
+        },
+        "subjects": [
+          {
+            "identifier": "ENG-4110",
+            "title": "Agent behaviour suites should report tools called",
+            "state": "PR",
+            "comments": [
+              {
+                "at": "2030-03-18T17:00:00Z",
+                "author": "Catalyst Cloud",
+                "body": "✅ Phase complete. Phase: validate. Attempt: 3."
+              },
+              {
+                "at": "2030-03-18T19:55:00Z",
+                "author": "Catalyst Cloud",
+                "body": "A sibling PR that edits the agent-behaviour scripts and root package.json scripts merged to main."
+              },
+              {
+                "at": "2030-03-18T20:08:00Z",
+                "author": "Catalyst Cloud",
+                "body": "🔧 Remediate attempt 6 — FAILED before the model started: setup_failed:install-dependencies. bun install: package.json:75 holds a \"<<<<<<< HEAD\" conflict marker after the workspace merged main."
+              },
+              {
+                "at": "2030-03-18T20:18:00Z",
+                "author": "Catalyst Cloud",
+                "body": "🔧 Remediate attempt 8 — FAILED before the model started: setup_failed:install-dependencies (same). Parked: repeated_failure."
+              },
+              {
+                "at": "2030-03-18T20:18:00Z",
+                "author": "Catalyst Cloud",
+                "body": "⏸️ Holding — 6 repair rounds counted against a limit of 6."
+              }
+            ]
+          }
+        ],
+        "snapshot": {
+          "capturedAtMs": 1900095600000,
+          "subjects": [
+            {
+              "identifier": "ENG-4110",
+              "title": "Agent behaviour suites should report tools called",
+              "state": "PR",
+              "labels": [],
+              "fenced": false,
+              "eligibility": {
+                "eligible": false,
+                "reason": "phase_parked",
+                "detail": "parked:repeated_failure"
+              },
+              "ledger": {
+                "relayPhaseState": {
+                  "phase": "remediate",
+                  "attempt": 8,
+                  "status": "parked"
+                },
+                "relayPhaseFailures": [
+                  {
+                    "phase": "remediate",
+                    "attempt": 6,
+                    "failureClass": "setup_failed:install-dependencies",
+                    "failedAt": "2030-03-18T20:08:00Z"
+                  },
+                  {
+                    "phase": "remediate",
+                    "attempt": 7,
+                    "failureClass": "setup_failed:install-dependencies",
+                    "failedAt": "2030-03-18T20:12:00Z"
+                  },
+                  {
+                    "phase": "remediate",
+                    "attempt": 8,
+                    "failureClass": "setup_failed:install-dependencies",
+                    "failedAt": "2030-03-18T20:18:00Z"
+                  }
+                ],
+                "relayParkLedger": [
+                  {
+                    "phase": "remediate",
+                    "reason": "parked:repeated_failure",
+                    "at": "2030-03-18T20:18:00Z"
+                  }
+                ],
+                "branchHeadEvidence": {
+                  "hold": {
+                    "headSha": "6a0c11d2",
+                    "headAgreement": "agrees"
+                  }
+                }
+              },
+              "leases": [],
+              "pullRequests": [
+                {
+                  "repoId": "repo_main",
+                  "number": 7110,
+                  "state": "open",
+                  "draft": false,
+                  "headSha": "6a0c11d2",
+                  "mergeableState": "dirty"
+                }
+              ]
+            }
+          ],
+          "priorDeterminations": []
+        },
+        "checkout": {
+          "merge_tree": {
+            "conflicts": [
+              "package.json (both sides add scripts)",
+              "scripts/agent-behavior/README.md (both sides add a section)"
+            ]
+          }
+        }
+      },
+      "expected": {
+        "classification": [
+          "mechanical"
+        ],
+        "steps_all": [
+          [
+            "merge-main"
+          ]
+        ],
+        "steps_none": [
+          "re-plan",
+          "accept",
+          "grant-round",
+          "human-step"
+        ],
+        "option": [
+          "B"
+        ],
+        "reaches_human": false,
+        "stale": []
+      }
+    },
+    {
+      "id": "cap-platform-constraint-accept",
+      "source": "a delegated agent decision, accepted by the platform",
+      "answer_confidence": "medium",
+      "summary": "One finding is left that no repair round can close: a provider constraint, measured and recorded. The ticket's intent is met.",
+      "inputs": {
+        "ask": {
+          "identifier": "ENG-9113",
+          "title": "ENG-4113: 6 repair rounds and still failing — re-plan, fix by hand, or accept?",
+          "state": "Todo",
+          "labels": [
+            "catalyst-ask",
+            "ask/decision"
+          ],
+          "description": "**Ask:** ENG-4113: 6 repair rounds and still failing — re-plan, fix by hand, or accept?\n\nENG-4113 (\"Sandboxes should start from the pinned runner image\") has spent 6 repair rounds and still fails its checks. No more repair rounds will run on their own, so a person picks the next step: re-plan it, fix it by hand, or accept it.\n\n6 repair rounds counted against a limit of 6 (0 more stopped on a platform problem and are not counted).\n\nAny answer, or a new commit pushed to the branch, allows one more repair round. The count never resets, so if that round also fails, this question comes back.\n\nAssigned to the workspace owner because no eligible work assignee or project lead was found.\n\nIf nobody answers by 2030-03-20T11:41:00Z, Catalyst performs this ask's default: **A — re-plan the ticket (rewind to plan)**.\n\n**Options:**\n\n* **A** — A — re-plan the ticket (rewind to plan)\n* **B** — B — a human fixes it by hand on the branch\n* **C** — C — accept as-is; file what remains as follow-up work\n\n**Default if silent:** A — re-plan the ticket (rewind to plan)\n**Auto-executes:** 2030-03-20T11:41:00Z\n\n**How to answer:** reply in this thread with the option letter on its own (`A`), `(A)`, `option A`, or the option's own text pasted back. For an answer that is not on the list, reply `DECIDED: <your answer>`.",
+          "comments": [],
+          "relations": [
+            {
+              "type": "related",
+              "to": "ENG-4113"
+            }
+          ]
+        },
+        "subjects": [
+          {
+            "identifier": "ENG-4113",
+            "title": "Sandboxes should start from the pinned runner image",
+            "state": "Validate",
+            "comments": [
+              {
+                "at": "2030-03-18T09:30:00Z",
+                "author": "Catalyst Cloud",
+                "body": "🛑 Phase FAILED. Phase: validate. Attempt: 5 at 60cfc62a. One finding: seat-image.Dockerfile:11 — the sandbox runs a template built on the pinned image, so its digest is not the pinned digest. No other defects. Focused suite 162/162."
+              },
+              {
+                "at": "2030-03-18T10:20:00Z",
+                "author": "Catalyst Cloud",
+                "body": "🔧 Remediate attempt 9 — succeeded. What was done: no change possible. The sandbox provider refuses a registry image at create, gives an archive-loaded template its own digest, and the runner image's entrypoint does not stay up without the thin layer. Recorded in the skill's notes."
+              },
+              {
+                "at": "2030-03-18T11:41:00Z",
+                "author": "Catalyst Cloud",
+                "body": "⏸️ Holding — 6 repair rounds counted against a limit of 6."
+              }
+            ]
+          }
+        ],
+        "snapshot": {
+          "capturedAtMs": 1900064700000,
+          "subjects": [
+            {
+              "identifier": "ENG-4113",
+              "title": "Sandboxes should start from the pinned runner image",
+              "state": "Validate",
+              "labels": [],
+              "fenced": false,
+              "eligibility": {
+                "eligible": false,
+                "reason": "round_threshold_hold"
+              },
+              "ledger": {
+                "relayPhaseState": {
+                  "phase": "validate",
+                  "attempt": 5,
+                  "status": "held"
+                },
+                "relayPhaseFailures": [
+                  {
+                    "phase": "validate",
+                    "attempt": 5,
+                    "failureClass": "review_finding",
+                    "failedAt": "2030-03-18T09:30:00Z",
+                    "headSha": "60cfc62a"
+                  }
+                ],
+                "relayFailureLedger": [
+                  {
+                    "phase": "validate",
+                    "mode": "review",
+                    "class": "real_defect",
+                    "summary": "sandbox digest is not the pinned digest",
+                    "failedAt": "2030-03-18T09:30:00Z"
+                  }
+                ],
+                "branchHeadEvidence": {
+                  "hold": {
+                    "headSha": "60cfc62a",
+                    "headAgreement": "agrees"
+                  }
+                }
+              },
+              "leases": [],
+              "pullRequests": [
+                {
+                  "repoId": "repo_main",
+                  "number": 7113,
+                  "state": "open",
+                  "draft": true,
+                  "headSha": "60cfc62a",
+                  "mergeableState": "clean"
+                }
+              ]
+            }
+          ],
+          "priorDeterminations": []
+        }
+      },
+      "expected": {
+        "classification": [
+          "decidable",
+          "mechanical"
+        ],
+        "steps_all": [
+          [
+            "accept"
+          ]
+        ],
+        "steps_none": [
+          "re-plan",
+          "fix-on-branch",
+          "grant-round"
+        ],
+        "option": [
+          "C"
+        ],
+        "reaches_human": false,
+        "stale": []
+      }
+    },
+    {
+      "id": "cap-missing-plan-parts-owner-b",
+      "source": "the owner's recorded answer (overruling an accept-and-split recommendation)",
+      "answer_confidence": "medium",
+      "summary": "Eleven rounds. Validate failed on three parts of the plan that were never built; each round built other slices. The owner chose a hand fix on the branch, not accept-and-split.",
+      "inputs": {
+        "ask": {
+          "identifier": "ENG-9114",
+          "title": "ENG-4109: 11 repair rounds and still failing — re-plan, fix by hand, or accept?",
+          "state": "Todo",
+          "labels": [
+            "catalyst-ask",
+            "ask/decision"
+          ],
+          "description": "**Ask:** ENG-4109: 11 repair rounds and still failing — re-plan, fix by hand, or accept?\n\nENG-4109 (\"Fleet faults should become one tracked item each\") has spent 11 repair rounds and still fails its checks. No more repair rounds will run on their own, so a person picks the next step: re-plan it, fix it by hand, or accept it.\n\n11 repair rounds counted against a limit of 11 (0 more stopped on a platform problem and are not counted).\n\nAny answer, or a new commit pushed to the branch, allows one more repair round. The count never resets, so if that round also fails, this question comes back.\n\nAssigned to the workspace owner because no eligible work assignee or project lead was found.\n\nIf nobody answers by 2030-03-25T19:36:00Z, Catalyst performs this ask's default: **A — re-plan the ticket (rewind to plan)**.\n\n**Options:**\n\n* **A** — A — re-plan the ticket (rewind to plan)\n* **B** — B — a human fixes it by hand on the branch\n* **C** — C — accept as-is; file what remains as follow-up work\n\n**Default if silent:** A — re-plan the ticket (rewind to plan)\n**Auto-executes:** 2030-03-25T19:36:00Z\n\n**How to answer:** reply in this thread with the option letter on its own (`A`), `(A)`, `option A`, or the option's own text pasted back. For an answer that is not on the list, reply `DECIDED: <your answer>`.",
+          "comments": [],
+          "relations": [
+            {
+              "type": "related",
+              "to": "ENG-4109"
+            }
+          ]
+        },
+        "subjects": [
+          {
+            "identifier": "ENG-4109",
+            "title": "Fleet faults should become one tracked item each",
+            "state": "Validate",
+            "comments": [
+              {
+                "at": "2030-03-22T18:40:00Z",
+                "author": "Catalyst Cloud",
+                "body": "🛑 Phase FAILED. Phase: validate. Attempt: 9. F1: two attempts that report the same fault still create duplicate items (correlation not built). F4: faults that go silent are not detected. F5: the correlation rollout and replay do not exist. Gate red: the new table has no step in account deletion or project deletion."
+              },
+              {
+                "at": "2030-03-22T19:30:00Z",
+                "author": "Catalyst Cloud",
+                "body": "🔧 Remediate attempt 11 — FAILED. Built the durable pending queue; did not build F1, F4 or F5; gate still red on the deletion-table list."
+              },
+              {
+                "at": "2030-03-22T19:36:00Z",
+                "author": "Catalyst Cloud",
+                "body": "⏸️ Holding — 11 repair rounds counted against a limit of 11. An extra round was already granted once."
+              }
+            ]
+          }
+        ],
+        "snapshot": {
+          "capturedAtMs": 1900438800000,
+          "subjects": [
+            {
+              "identifier": "ENG-4109",
+              "title": "Fleet faults should become one tracked item each",
+              "state": "Validate",
+              "labels": [],
+              "fenced": false,
+              "eligibility": {
+                "eligible": false,
+                "reason": "round_threshold_hold"
+              },
+              "ledger": {
+                "relayPhaseState": {
+                  "phase": "validate",
+                  "attempt": 9,
+                  "status": "held"
+                },
+                "relayPhaseFailures": [
+                  {
+                    "phase": "validate",
+                    "attempt": 9,
+                    "failureClass": "plan_conformance",
+                    "failedAt": "2030-03-22T18:40:00Z",
+                    "headSha": "41aa09c3"
+                  },
+                  {
+                    "phase": "remediate",
+                    "attempt": 11,
+                    "failureClass": "gate_red_at_handover",
+                    "failedAt": "2030-03-22T19:30:00Z",
+                    "headSha": "5d02b7e1"
+                  }
+                ],
+                "relayFailureLedger": [
+                  {
+                    "phase": "validate",
+                    "mode": "review",
+                    "class": "real_defect",
+                    "summary": "F1, F4, F5 not built; deletion steps missing",
+                    "failedAt": "2030-03-22T18:40:00Z"
+                  }
+                ],
+                "branchHeadEvidence": {
+                  "hold": {
+                    "headSha": "5d02b7e1",
+                    "headAgreement": "agrees"
+                  }
+                }
+              },
+              "leases": [],
+              "pullRequests": [
+                {
+                  "repoId": "repo_main",
+                  "number": 7109,
+                  "state": "open",
+                  "draft": true,
+                  "headSha": "5d02b7e1",
+                  "mergeableState": "clean"
+                }
+              ]
+            }
+          ],
+          "priorDeterminations": []
+        }
+      },
+      "expected": {
+        "classification": [
+          "decidable",
+          "mechanical",
+          "human"
+        ],
+        "steps_all": [
+          [
+            "fix-on-branch"
+          ]
+        ],
+        "steps_none": [
+          "accept",
+          "grant-round"
+        ],
+        "option": [
+          "B"
+        ],
+        "reaches_human": null,
+        "stale": []
+      }
+    },
+    {
+      "id": "cap-provider-crash-counted",
+      "source": "an operator decision",
+      "answer_confidence": "high",
+      "summary": "The granted round died on a model-provider crash before reaching validate, and was still counted. Its work was saved.",
+      "inputs": {
+        "ask": {
+          "identifier": "ENG-9115",
+          "title": "ENG-4109: 9 repair rounds and still failing — re-plan, fix by hand, or accept?",
+          "state": "Todo",
+          "labels": [
+            "catalyst-ask",
+            "ask/decision"
+          ],
+          "description": "**Ask:** ENG-4109: 9 repair rounds and still failing — re-plan, fix by hand, or accept?\n\nENG-4109 (\"Fleet faults should become one tracked item each\") has spent 9 repair rounds and still fails its checks. No more repair rounds will run on their own, so a person picks the next step: re-plan it, fix it by hand, or accept it.\n\n9 repair rounds counted against a limit of 9 (0 more stopped on a platform problem and are not counted).\n\nAny answer, or a new commit pushed to the branch, allows one more repair round. The count never resets, so if that round also fails, this question comes back.\n\nAssigned to the workspace owner because no eligible work assignee or project lead was found.\n\nIf nobody answers by 2030-03-25T14:31:00Z, Catalyst performs this ask's default: **A — re-plan the ticket (rewind to plan)**.\n\n**Options:**\n\n* **A** — A — re-plan the ticket (rewind to plan)\n* **B** — B — a human fixes it by hand on the branch\n* **C** — C — accept as-is; file what remains as follow-up work\n\n**Default if silent:** A — re-plan the ticket (rewind to plan)\n**Auto-executes:** 2030-03-25T14:31:00Z\n\n**How to answer:** reply in this thread with the option letter on its own (`A`), `(A)`, `option A`, or the option's own text pasted back. For an answer that is not on the list, reply `DECIDED: <your answer>`.",
+          "comments": [],
+          "relations": [
+            {
+              "type": "related",
+              "to": "ENG-4109"
+            }
+          ]
+        },
+        "subjects": [
+          {
+            "identifier": "ENG-4109",
+            "title": "Fleet faults should become one tracked item each",
+            "state": "Validate",
+            "comments": [
+              {
+                "at": "2030-03-22T13:20:00Z",
+                "author": "seat-flow",
+                "body": "[bookkeeping] One extra repair round granted: the earlier rounds were consumed by the fleet collector fixture (fixed) and a wiki-routing flake (fixed)."
+              },
+              {
+                "at": "2030-03-22T14:31:00Z",
+                "author": "Catalyst Cloud",
+                "body": "🔧 Remediate attempt 7 — FAILED. What was done: model exited 1: app-server turn failed. WIP saved at catalyst/wip/ENG-4109/remediate/7."
+              },
+              {
+                "at": "2030-03-22T14:31:00Z",
+                "author": "Catalyst Cloud",
+                "body": "⏸️ Holding — 9 repair rounds counted against a limit of 9."
+              }
+            ]
+          }
+        ],
+        "snapshot": {
+          "capturedAtMs": 1900420380000,
+          "subjects": [
+            {
+              "identifier": "ENG-4109",
+              "title": "Fleet faults should become one tracked item each",
+              "state": "Validate",
+              "labels": [],
+              "fenced": false,
+              "eligibility": {
+                "eligible": false,
+                "reason": "round_threshold_hold"
+              },
+              "ledger": {
+                "relayPhaseState": {
+                  "phase": "remediate",
+                  "attempt": 7,
+                  "status": "failed"
+                },
+                "relayPhaseFailures": [
+                  {
+                    "phase": "remediate",
+                    "attempt": 7,
+                    "failureClass": "executor_failed:provider_error",
+                    "failedAt": "2030-03-22T14:31:00Z"
+                  }
+                ],
+                "branchHeadEvidence": {
+                  "hold": {
+                    "headSha": "41aa09c3",
+                    "headAgreement": "agrees"
+                  }
+                }
+              },
+              "leases": [],
+              "pullRequests": [
+                {
+                  "repoId": "repo_main",
+                  "number": 7109,
+                  "state": "open",
+                  "draft": true,
+                  "headSha": "41aa09c3",
+                  "mergeableState": "clean"
+                }
+              ]
+            }
+          ],
+          "priorDeterminations": []
+        }
+      },
+      "expected": {
+        "classification": [
+          "mechanical",
+          "decidable"
+        ],
+        "steps_all": [
+          [
+            "grant-round"
+          ]
+        ],
+        "steps_none": [
+          "re-plan",
+          "accept",
+          "human-step"
+        ],
+        "option": [
+          null
+        ],
+        "reaches_human": false,
+        "stale": []
+      }
+    },
+    {
+      "id": "cap-pr-platform-fault-draft-conflict",
+      "source": "a delegated agent decision",
+      "answer_confidence": "high",
+      "summary": "Plan and code passed review. Every pr attempt failed on a stale platform image. The draft PR now conflicts with main.",
+      "inputs": {
+        "ask": {
+          "identifier": "ENG-9116",
+          "title": "ENG-4116: 6 repair rounds and still failing — re-plan, fix by hand, or accept?",
+          "state": "Todo",
+          "labels": [
+            "catalyst-ask",
+            "ask/decision"
+          ],
+          "description": "**Ask:** ENG-4116: 6 repair rounds and still failing — re-plan, fix by hand, or accept?\n\nENG-4116 (\"Explain should name the rule that excluded a ticket\") has spent 6 repair rounds and still fails its checks. No more repair rounds will run on their own, so a person picks the next step: re-plan it, fix it by hand, or accept it.\n\n6 repair rounds counted against a limit of 6 (0 more stopped on a platform problem and are not counted).\n\nAny answer, or a new commit pushed to the branch, allows one more repair round. The count never resets, so if that round also fails, this question comes back.\n\nAssigned to the workspace owner because no eligible work assignee or project lead was found.\n\nIf nobody answers by 2030-03-19T10:07:00Z, Catalyst performs this ask's default: **A — re-plan the ticket (rewind to plan)**.\n\n**Options:**\n\n* **A** — A — re-plan the ticket (rewind to plan)\n* **B** — B — a human fixes it by hand on the branch\n* **C** — C — accept as-is; file what remains as follow-up work\n\n**Default if silent:** A — re-plan the ticket (rewind to plan)\n**Auto-executes:** 2030-03-19T10:07:00Z\n\n**How to answer:** reply in this thread with the option letter on its own (`A`), `(A)`, `option A`, or the option's own text pasted back. For an answer that is not on the list, reply `DECIDED: <your answer>`.",
+          "comments": [],
+          "relations": [
+            {
+              "type": "related",
+              "to": "ENG-4116"
+            }
+          ]
+        },
+        "subjects": [
+          {
+            "identifier": "ENG-4116",
+            "title": "Explain should name the rule that excluded a ticket",
+            "state": "PR",
+            "comments": [
+              {
+                "at": "2030-03-16T20:10:00Z",
+                "author": "Catalyst Cloud",
+                "body": "✅ Phase complete. Phase: validate. Attempt: 1."
+              },
+              {
+                "at": "2030-03-16T23:30:00Z",
+                "author": "seat-review",
+                "body": "[bookkeeping] One full review of PR #7116 at 2e1bd422 from another model family: PASS, no findings (377 eligibility tests, 49 explain-route tests). Unprivileged check exit 0."
+              },
+              {
+                "at": "2030-03-17T02:10:00Z",
+                "author": "Catalyst Cloud",
+                "body": "🛑 Phase FAILED. Phase: pr. > merge-queue path exclusions are unverifiable (stale phase image)."
+              },
+              {
+                "at": "2030-03-17T06:40:00Z",
+                "author": "Catalyst Cloud",
+                "body": "🛑 Phase FAILED. Phase: pr. > merge-queue path exclusions are unverifiable (stale phase image)."
+              },
+              {
+                "at": "2030-03-17T10:07:00Z",
+                "author": "Catalyst Cloud",
+                "body": "⏸️ Holding — 6 repair rounds counted against a limit of 6."
+              }
+            ]
+          }
+        ],
+        "snapshot": {
+          "capturedAtMs": 1899972420000,
+          "subjects": [
+            {
+              "identifier": "ENG-4116",
+              "title": "Explain should name the rule that excluded a ticket",
+              "state": "PR",
+              "labels": [],
+              "fenced": false,
+              "eligibility": {
+                "eligible": false,
+                "reason": "round_threshold_hold"
+              },
+              "ledger": {
+                "relayPhaseState": {
+                  "phase": "pr",
+                  "attempt": 4,
+                  "status": "held"
+                },
+                "relayPhaseFailures": [
+                  {
+                    "phase": "pr",
+                    "attempt": 3,
+                    "failureClass": "stage_environment:queue_exclusions_unverifiable",
+                    "failedAt": "2030-03-17T02:10:00Z"
+                  },
+                  {
+                    "phase": "pr",
+                    "attempt": 4,
+                    "failureClass": "stage_environment:queue_exclusions_unverifiable",
+                    "failedAt": "2030-03-17T06:40:00Z"
+                  }
+                ],
+                "branchHeadEvidence": {
+                  "hold": {
+                    "headSha": "2e1bd422",
+                    "headAgreement": "agrees"
+                  }
+                }
+              },
+              "leases": [],
+              "pullRequests": [
+                {
+                  "repoId": "repo_main",
+                  "number": 7116,
+                  "state": "open",
+                  "draft": true,
+                  "headSha": "2e1bd422",
+                  "mergeableState": "dirty"
+                }
+              ]
+            }
+          ],
+          "priorDeterminations": []
+        }
+      },
+      "expected": {
+        "classification": [
+          "mechanical",
+          "decidable"
+        ],
+        "steps_all": [
+          [
+            "merge-main"
+          ]
+        ],
+        "steps_none": [
+          "re-plan",
+          "accept",
+          "human-step"
+        ],
+        "option": [
+          "B"
+        ],
+        "reaches_human": false,
+        "stale": []
+      }
+    },
+    {
+      "id": "cap-hand-fix-already-pushed",
+      "source": "a delegated agent decision",
+      "answer_confidence": "high",
+      "summary": "A seat pushed the hand fix after the ask was raised. The head moved, and validate is running on it.",
+      "inputs": {
+        "ask": {
+          "identifier": "ENG-9117",
+          "title": "ENG-4117: 6 repair rounds and still failing — re-plan, fix by hand, or accept?",
+          "state": "Todo",
+          "labels": [
+            "catalyst-ask",
+            "ask/decision"
+          ],
+          "description": "**Ask:** ENG-4117: 6 repair rounds and still failing — re-plan, fix by hand, or accept?\n\nENG-4117 (\"Attempt heads should match the reviewed PR head\") has spent 6 repair rounds and still fails its checks. No more repair rounds will run on their own, so a person picks the next step: re-plan it, fix it by hand, or accept it.\n\n6 repair rounds counted against a limit of 6 (0 more stopped on a platform problem and are not counted).\n\nAny answer, or a new commit pushed to the branch, allows one more repair round. The count never resets, so if that round also fails, this question comes back.\n\nAssigned to the workspace owner because no eligible work assignee or project lead was found.\n\nIf nobody answers by 2030-03-18T23:14:00Z, Catalyst performs this ask's default: **A — re-plan the ticket (rewind to plan)**.\n\n**Options:**\n\n* **A** — A — re-plan the ticket (rewind to plan)\n* **B** — B — a human fixes it by hand on the branch\n* **C** — C — accept as-is; file what remains as follow-up work\n\n**Default if silent:** A — re-plan the ticket (rewind to plan)\n**Auto-executes:** 2030-03-18T23:14:00Z\n\n**How to answer:** reply in this thread with the option letter on its own (`A`), `(A)`, `option A`, or the option's own text pasted back. For an answer that is not on the list, reply `DECIDED: <your answer>`.",
+          "comments": [],
+          "relations": [
+            {
+              "type": "related",
+              "to": "ENG-4117"
+            }
+          ]
+        },
+        "subjects": [
+          {
+            "identifier": "ENG-4117",
+            "title": "Attempt heads should match the reviewed PR head",
+            "state": "Validate",
+            "comments": [
+              {
+                "at": "2030-03-16T23:14:00Z",
+                "author": "Catalyst Cloud",
+                "body": "⏸️ Holding — 6 repair rounds counted against a limit of 6. Hold head 0e44b9a1."
+              },
+              {
+                "at": "2030-03-17T18:50:00Z",
+                "author": "seat-fixer",
+                "body": "[bookkeeping] Pushed cb761353 to ENG-4117 (PR #7117): the hand fix for the validate finding."
+              },
+              {
+                "at": "2030-03-17T21:29:00Z",
+                "author": "seat-flow",
+                "body": "[bookkeeping] Confirmed cb761353 on the PR and in the relay ledger; removed the local-lane fence; rewound to validate."
+              },
+              {
+                "at": "2030-03-17T21:40:00Z",
+                "author": "Catalyst Cloud",
+                "body": "Validate attempt 5 started at cb761353."
+              }
+            ]
+          }
+        ],
+        "snapshot": {
+          "capturedAtMs": 1900015200000,
+          "subjects": [
+            {
+              "identifier": "ENG-4117",
+              "title": "Attempt heads should match the reviewed PR head",
+              "state": "Validate",
+              "labels": [],
+              "fenced": false,
+              "eligibility": {
+                "eligible": false,
+                "reason": "leased",
+                "detail": "validate attempt 5 running"
+              },
+              "ledger": {
+                "relayPhaseState": {
+                  "phase": "validate",
+                  "attempt": 5,
+                  "status": "running"
+                },
+                "relayPhaseFailures": [
+                  {
+                    "phase": "validate",
+                    "attempt": 4,
+                    "failureClass": "review_finding",
+                    "failedAt": "2030-03-16T21:30:00Z",
+                    "headSha": "0e44b9a1"
+                  }
+                ],
+                "branchHeadEvidence": {
+                  "hold": {
+                    "headSha": "0e44b9a1",
+                    "headAgreement": "disagrees",
+                    "headEvidence": "push cb761353 at 2030-03-17T18:50Z"
+                  }
+                }
+              },
+              "leases": [
+                {
+                  "phase": "validate",
+                  "holder": "worker:host_7a",
+                  "deadlineMs": 1900017600000
+                }
+              ],
+              "pullRequests": [
+                {
+                  "repoId": "repo_main",
+                  "number": 7117,
+                  "state": "open",
+                  "draft": false,
+                  "headSha": "cb761353",
+                  "mergeableState": "clean"
+                }
+              ]
+            }
+          ],
+          "priorDeterminations": []
+        }
+      },
+      "expected": {
+        "classification": [
+          "mechanical"
+        ],
+        "steps_all": [
+          [
+            "wait",
+            "rerun-validate",
+            "close-moot"
+          ]
+        ],
+        "steps_none": [
+          "re-plan",
+          "accept",
+          "fix-on-branch",
+          "human-step"
+        ],
+        "option": [
+          "B",
+          null
+        ],
+        "reaches_human": false,
+        "stale": [
+          [
+            "hold",
+            "branchheadevidence",
+            "headsha"
+          ]
+        ],
+        "stale_note": "The hold head 0e44b9a1 predates the pushed fix cb761353."
+      }
+    },
+    {
+      "id": "cap-subject-merged",
+      "source": "a retraction: the subject merged",
+      "answer_confidence": "high",
+      "summary": "The subject's PR merged after the ask was raised.",
+      "inputs": {
+        "ask": {
+          "identifier": "ENG-9118",
+          "title": "ENG-4118: 6 repair rounds and still failing — re-plan, fix by hand, or accept?",
+          "state": "Todo",
+          "labels": [
+            "catalyst-ask",
+            "ask/decision"
+          ],
+          "description": "**Ask:** ENG-4118: 6 repair rounds and still failing — re-plan, fix by hand, or accept?\n\nENG-4118 (\"Mirror reads should retry a busy store\") has spent 6 repair rounds and still fails its checks. No more repair rounds will run on their own, so a person picks the next step: re-plan it, fix it by hand, or accept it.\n\n6 repair rounds counted against a limit of 6 (0 more stopped on a platform problem and are not counted).\n\nAny answer, or a new commit pushed to the branch, allows one more repair round. The count never resets, so if that round also fails, this question comes back.\n\nAssigned to the workspace owner because no eligible work assignee or project lead was found.\n\nIf nobody answers by 2030-03-18T16:59:00Z, Catalyst performs this ask's default: **A — re-plan the ticket (rewind to plan)**.\n\n**Options:**\n\n* **A** — A — re-plan the ticket (rewind to plan)\n* **B** — B — a human fixes it by hand on the branch\n* **C** — C — accept as-is; file what remains as follow-up work\n\n**Default if silent:** A — re-plan the ticket (rewind to plan)\n**Auto-executes:** 2030-03-18T16:59:00Z\n\n**How to answer:** reply in this thread with the option letter on its own (`A`), `(A)`, `option A`, or the option's own text pasted back. For an answer that is not on the list, reply `DECIDED: <your answer>`.",
+          "comments": [],
+          "relations": [
+            {
+              "type": "related",
+              "to": "ENG-4118"
+            }
+          ]
+        },
+        "subjects": [
+          {
+            "identifier": "ENG-4118",
+            "title": "Mirror reads should retry a busy store",
+            "state": "Done",
+            "comments": [
+              {
+                "at": "2030-03-17T21:05:00Z",
+                "author": "Catalyst Cloud",
+                "body": "PR #7118 merged by the merge queue at 4d1f0a77."
+              }
+            ]
+          }
+        ],
+        "snapshot": {
+          "capturedAtMs": 1900012020000,
+          "subjects": [
+            {
+              "identifier": "ENG-4118",
+              "title": "Mirror reads should retry a busy store",
+              "state": "Done",
+              "labels": [],
+              "fenced": false,
+              "eligibility": {
+                "eligible": false,
+                "reason": "terminal_state"
+              },
+              "ledger": {
+                "relayPhaseState": {
+                  "phase": "pr",
+                  "attempt": 2,
+                  "status": "completed"
+                }
+              },
+              "leases": [],
+              "pullRequests": []
+            }
+          ],
+          "priorDeterminations": []
+        }
+      },
+      "expected": {
+        "classification": [
+          "mechanical"
+        ],
+        "steps_all": [
+          [
+            "close-moot"
+          ]
+        ],
+        "steps_none": [
+          "re-plan",
+          "fix-on-branch",
+          "accept",
+          "merge-main",
+          "human-step"
+        ],
+        "option": [
+          null
+        ],
+        "reaches_human": false,
+        "stale": []
+      }
+    },
+    {
+      "id": "cap-rebase-conflict-parked",
+      "source": "what fixed it: a seat merged main and the PR merged within the hour",
+      "answer_confidence": "high",
+      "summary": "Parked on a rebase conflict with a dirty draft PR. Nothing else is wrong.",
+      "inputs": {
+        "ask": {
+          "identifier": "ENG-9119",
+          "title": "ENG-4119: 6 repair rounds and still failing — re-plan, fix by hand, or accept?",
+          "state": "Todo",
+          "labels": [
+            "catalyst-ask",
+            "ask/decision"
+          ],
+          "description": "**Ask:** ENG-4119: 6 repair rounds and still failing — re-plan, fix by hand, or accept?\n\nENG-4119 (\"The CLI should print the release line it was built from\") has spent 6 repair rounds and still fails its checks. No more repair rounds will run on their own, so a person picks the next step: re-plan it, fix it by hand, or accept it.\n\n6 repair rounds counted against a limit of 6 (0 more stopped on a platform problem and are not counted).\n\nAny answer, or a new commit pushed to the branch, allows one more repair round. The count never resets, so if that round also fails, this question comes back.\n\nAssigned to the workspace owner because no eligible work assignee or project lead was found.\n\n**Options:**\n\n* **A** — A — re-plan the ticket (rewind to plan)\n* **B** — B — a human fixes it by hand on the branch\n* **C** — C — accept as-is; file what remains as follow-up work\n\n**Default if silent:** B — a human fixes it by hand on the branch\n\n**How to answer:** reply in this thread with the option letter on its own (`A`), `(A)`, `option A`, or the option's own text pasted back. For an answer that is not on the list, reply `DECIDED: <your answer>`.",
+          "comments": [],
+          "relations": [
+            {
+              "type": "related",
+              "to": "ENG-4119"
+            }
+          ]
+        },
+        "subjects": [
+          {
+            "identifier": "ENG-4119",
+            "title": "The CLI should print the release line it was built from",
+            "state": "Validate",
+            "comments": [
+              {
+                "at": "2030-03-06T09:10:00Z",
+                "author": "Catalyst Cloud",
+                "body": "✅ Phase complete. Phase: validate. Attempt: 2."
+              },
+              {
+                "at": "2030-03-06T13:30:00Z",
+                "author": "Catalyst Cloud",
+                "body": "🔧 Remediate attempt 6 — FAILED. rebase_conflict: main touched src/version.ts and src/version.test.ts since the branch's base. Parked."
+              },
+              {
+                "at": "2030-03-06T15:41:00Z",
+                "author": "Catalyst Cloud",
+                "body": "⏸️ Holding — 6 repair rounds counted against a limit of 6."
+              }
+            ]
+          }
+        ],
+        "snapshot": {
+          "capturedAtMs": 1899042300000,
+          "subjects": [
+            {
+              "identifier": "ENG-4119",
+              "title": "The CLI should print the release line it was built from",
+              "state": "Validate",
+              "labels": [],
+              "fenced": false,
+              "eligibility": {
+                "eligible": false,
+                "reason": "phase_parked",
+                "detail": "parked:rebase_conflict"
+              },
+              "ledger": {
+                "relayPhaseState": {
+                  "phase": "remediate",
+                  "attempt": 6,
+                  "status": "parked"
+                },
+                "relayPhaseFailures": [
+                  {
+                    "phase": "remediate",
+                    "attempt": 4,
+                    "failureClass": "rebase_conflict",
+                    "failedAt": "2030-03-06T12:10:00Z"
+                  },
+                  {
+                    "phase": "remediate",
+                    "attempt": 5,
+                    "failureClass": "rebase_conflict",
+                    "failedAt": "2030-03-06T12:50:00Z"
+                  },
+                  {
+                    "phase": "remediate",
+                    "attempt": 6,
+                    "failureClass": "rebase_conflict",
+                    "failedAt": "2030-03-06T13:30:00Z"
+                  }
+                ],
+                "relayParkLedger": [
+                  {
+                    "phase": "remediate",
+                    "reason": "parked:rebase_conflict",
+                    "at": "2030-03-06T13:30:00Z"
+                  }
+                ],
+                "branchHeadEvidence": {
+                  "hold": {
+                    "headSha": "7f30e2aa",
+                    "headAgreement": "agrees"
+                  }
+                }
+              },
+              "leases": [],
+              "pullRequests": [
+                {
+                  "repoId": "repo_main",
+                  "number": 7119,
+                  "state": "open",
+                  "draft": true,
+                  "headSha": "7f30e2aa",
+                  "mergeableState": "dirty"
+                }
+              ]
+            }
+          ],
+          "priorDeterminations": []
+        }
+      },
+      "expected": {
+        "classification": [
+          "mechanical"
+        ],
+        "steps_all": [
+          [
+            "merge-main"
+          ]
+        ],
+        "steps_none": [
+          "re-plan",
+          "accept",
+          "human-step"
+        ],
+        "option": [
+          "B",
+          null
+        ],
+        "reaches_human": false,
+        "stale": []
+      }
+    },
+    {
+      "id": "recording-needed-agent-records",
+      "source": "seed table: an agent with cloud-browser credentials records; the owner only watches the replay",
+      "answer_confidence": "medium",
+      "summary": "A recording ask. The phase session lacks the credential, but another agent that holds it can run the one command.",
+      "inputs": {
+        "ask": {
+          "identifier": "ENG-9120",
+          "title": "Recording needed: ENG-4120 and PR #7120, the Stages block on staging",
+          "state": "Todo",
+          "labels": [
+            "catalyst-ask",
+            "ask/decision"
+          ],
+          "description": "**Ask:** Recording needed: ENG-4120 and PR #7120, the Stages block on staging\n\nENG-4120 exists to record, on staging, the Stages block that an earlier ticket shipped. Its validate stage stopped because no recording exists and this session cannot make one: the phase container has no cloud-browser credential and no staging admin sign-in. PR #7120 adds a steps file whose 31 unit tests pass, so the recording is one command:\n`bun scripts/record-preview.ts --steps scripts/staging-stage-outcomes-steps.ts --publish`\nThe run posts the replay, GIF and step screenshots to the ticket and the PR.\n\n**Options:**\n\n* **A** — The recording or my own check is on the ticket, and this is what it showed\n* **B** — Accept without a recording\n\n**Default if silent:** none; an explicit answer is required.",
+          "comments": [],
+          "relations": [
+            {
+              "type": "blocks",
+              "to": "ENG-4120"
+            }
+          ]
+        },
+        "subjects": [
+          {
+            "identifier": "ENG-4120",
+            "title": "Record the Stages block on staging",
+            "state": "Validate",
+            "comments": [
+              {
+                "at": "2030-03-14T04:40:00Z",
+                "author": "Catalyst Cloud",
+                "body": "🛑 Phase FAILED. Phase: validate. > recording_missing: no recording on the ticket; this session has no cloud-browser credential."
+              }
+            ]
+          }
+        ],
+        "snapshot": {
+          "capturedAtMs": 1899694200000,
+          "subjects": [
+            {
+              "identifier": "ENG-4120",
+              "title": "Record the Stages block on staging",
+              "state": "Validate",
+              "labels": [],
+              "fenced": false,
+              "eligibility": {
+                "eligible": false,
+                "reason": "blocked_by_ask"
+              },
+              "ledger": {
+                "relayPhaseState": {
+                  "phase": "validate",
+                  "attempt": 1,
+                  "status": "failed"
+                },
+                "relayPhaseFailures": [
+                  {
+                    "phase": "validate",
+                    "attempt": 1,
+                    "failureClass": "recording_missing",
+                    "failedAt": "2030-03-14T04:40:00Z"
+                  }
+                ]
+              },
+              "leases": [],
+              "pullRequests": [
+                {
+                  "repoId": "repo_main",
+                  "number": 7120,
+                  "state": "open",
+                  "draft": true,
+                  "headSha": "8c2bba49",
+                  "mergeableState": "clean"
+                }
+              ]
+            }
+          ],
+          "priorDeterminations": []
+        }
+      },
+      "expected": {
+        "classification": [
+          "mechanical",
+          "decidable"
+        ],
+        "steps_all": [
+          [
+            "route-to-capable-agent"
+          ]
+        ],
+        "steps_none": [
+          "human-step",
+          "accept"
+        ],
+        "option": null,
+        "reaches_human": null,
+        "stale": []
+      }
+    },
+    {
+      "id": "recording-defer-or-hold",
+      "source": "an agent decision on an operator's instruction, and the seed table",
+      "answer_confidence": "medium",
+      "summary": "Seven review rounds went by on a ticket that needs a preview recording the fleet session cannot make. The ask asks whether to keep the requirement or defer it.",
+      "inputs": {
+        "ask": {
+          "identifier": "ENG-9121",
+          "title": "Keep ENG-4121 held for its preview recording, or explicitly defer that acceptance requirement?",
+          "state": "Todo",
+          "labels": [
+            "catalyst-ask",
+            "ask/decision"
+          ],
+          "description": "**Ask:** Keep ENG-4121 held for its preview recording, or explicitly defer that acceptance requirement?\n\nENG-4121 cannot pass its PR-stage independent review: plan conformance is PARTIAL because the required shipped-preview browser recording is missing. This session tried the recording CLI, which exited 2 because the cloud-browser credentials and the admin sign-in variables are absent. Agents can perform that recording from a verification-capable session, and the runner can obtain the review afterwards. The human decision is whether the explicitly required recording may be deferred if a suitable session cannot be provided.\n\n--- raised by ---\nENG-4121/remediate round 7\n\n**Options:**\n\n* **A** — Keep the preview recording required and leave ENG-4121 held until a verification-capable session produces it.\n* **B** — Defer the recording requirement to a follow-up ticket and let the review pass without it.\n\n**Default if silent:** A — Keep the preview recording required and leave ENG-4121 held until a verification-capable session produces it.",
+          "comments": [],
+          "relations": [
+            {
+              "type": "related",
+              "to": "ENG-4121"
+            }
+          ]
+        },
+        "subjects": [
+          {
+            "identifier": "ENG-4121",
+            "title": "The usage page should show 30-day and 7-day spend",
+            "state": "PR",
+            "comments": [
+              {
+                "at": "2030-03-07T06:40:00Z",
+                "author": "Catalyst Cloud",
+                "body": "🔧 Remediate attempt 7 — FAILED. plan conformance PARTIAL at 36b10afe: the shipped-preview recording is unread; no inline findings or failing checks."
+              }
+            ]
+          }
+        ],
+        "snapshot": {
+          "capturedAtMs": 1899100680000,
+          "subjects": [
+            {
+              "identifier": "ENG-4121",
+              "title": "The usage page should show 30-day and 7-day spend",
+              "state": "PR",
+              "labels": [],
+              "fenced": false,
+              "eligibility": {
+                "eligible": false,
+                "reason": "blocked_by_ask"
+              },
+              "ledger": {
+                "relayPhaseState": {
+                  "phase": "remediate",
+                  "attempt": 7,
+                  "status": "failed"
+                },
+                "relayPhaseFailures": [
+                  {
+                    "phase": "pr",
+                    "attempt": 6,
+                    "failureClass": "plan_conformance_partial",
+                    "failedAt": "2030-03-07T05:10:00Z"
+                  },
+                  {
+                    "phase": "remediate",
+                    "attempt": 7,
+                    "failureClass": "plan_conformance_partial",
+                    "failedAt": "2030-03-07T06:40:00Z"
+                  }
+                ]
+              },
+              "leases": [],
+              "pullRequests": [
+                {
+                  "repoId": "repo_main",
+                  "number": 7121,
+                  "state": "open",
+                  "draft": false,
+                  "headSha": "36b10afe",
+                  "mergeableState": "clean"
+                }
+              ]
+            }
+          ],
+          "priorDeterminations": []
+        }
+      },
+      "expected": {
+        "classification": [
+          "decidable",
+          "mechanical"
+        ],
+        "steps_all": [
+          [
+            "route-to-capable-agent"
+          ]
+        ],
+        "steps_none": [
+          "human-step",
+          "accept"
+        ],
+        "option": [
+          "A"
+        ],
+        "reaches_human": false,
+        "stale": []
+      }
+    }
+  ]
+}
