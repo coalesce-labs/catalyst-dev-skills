@@ -76,8 +76,10 @@ describe("the eval set is publishable", () => {
     expect(hits).toEqual([]);
   });
 
-  test("positive control: the same rules catch a real ticket id and a person", () => {
-    const sample = '{"body": "see CTC-4355, Ryan said so"}';
+  test("positive control: the same rules catch a ticket id and the owner's name", () => {
+    // CTC-0 never exists; the named-person rule matches only the owner's name, which the rule itself
+    // and tests/public-prose.test.mjs already carry.
+    const sample = '{"body": "see CTC-0, Ryan said so"}';
     const hits = banned.filter((r) => r.re.test(sample)).map((r) => r.id);
     expect(hits).toContain("ticket-id");
     expect(hits).toContain("named-person");
