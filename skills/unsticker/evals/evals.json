@@ -59,27 +59,27 @@
               {
                 "at": "2030-03-13T06:11:00Z",
                 "author": "Catalyst Cloud",
-                "body": "🔧 Remediate attempt 1 — succeeded. Class: validate-failure. Repairing: validate. What was done: no change to the branch; the failure was the runner's stage-marker drain, not the code. Head unchanged at e9e6ac40."
+                "body": "🔧 Remediate attempt 1 — succeeded. Class: validate-failure. Repairing: validate. What was done: no change to the branch; the failure was the runner's stage-marker drain, not the code. Head unchanged at 0001aaaa."
               },
               {
                 "at": "2030-03-13T07:30:00Z",
                 "author": "Catalyst Cloud",
-                "body": "✅ Phase complete. Phase: validate. Attempt: 2. validate accepted: AC1-AC9 met at e9e6ac40."
+                "body": "✅ Phase complete. Phase: validate. Attempt: 2. validate accepted: AC1-AC9 met at 0001aaaa."
               },
               {
                 "at": "2030-03-13T08:31:00Z",
                 "author": "Catalyst Cloud",
-                "body": "🛑 Phase FAILED. Phase: pr. Attempt: 1. > stage_verification_failed:pr:stage_phase_verifier_failed (supervised_pr_review_missing: no passing review from another model family at e9e6ac40 (plan_conformance_not_run: the review's plan-conformance gate reported SKIPPED))"
+                "body": "🛑 Phase FAILED. Phase: pr. Attempt: 1. > stage_verification_failed:pr:stage_phase_verifier_failed (supervised_pr_review_missing: no passing review from another model family at 0001aaaa (plan_conformance_not_run: the review's plan-conformance gate reported SKIPPED))"
               },
               {
                 "at": "2030-03-13T09:39:00Z",
                 "author": "Catalyst Cloud",
-                "body": "🔧 Remediate attempt 2 — succeeded. Repairing: pr. What was done: nothing in this branch can clear the pr failure; no code change. Head unchanged at e9e6ac40."
+                "body": "🔧 Remediate attempt 2 — succeeded. Repairing: pr. What was done: nothing in this branch can clear the pr failure; no code change. Head unchanged at 0001aaaa."
               },
               {
                 "at": "2030-03-13T10:39:00Z",
                 "author": "Catalyst Cloud",
-                "body": "✅ Phase complete. Phase: validate. Attempt: 3. validate accepted at e9e6ac40."
+                "body": "✅ Phase complete. Phase: validate. Attempt: 3. validate accepted at 0001aaaa."
               },
               {
                 "at": "2030-03-13T11:49:00Z",
@@ -145,35 +145,35 @@
                     "attempt": 1,
                     "failureClass": "stage_marker_drain_incomplete",
                     "failedAt": "2030-03-13T05:04:00Z",
-                    "headSha": "e9e6ac40"
+                    "headSha": "0001aaaa"
                   },
                   {
                     "phase": "pr",
                     "attempt": 1,
                     "failureClass": "supervised_pr_review_missing",
                     "failedAt": "2030-03-13T08:31:00Z",
-                    "headSha": "e9e6ac40"
+                    "headSha": "0001aaaa"
                   },
                   {
                     "phase": "remediate",
                     "attempt": 3,
                     "failureClass": "supervised_pr_review_missing",
                     "failedAt": "2030-03-13T11:49:00Z",
-                    "headSha": "e9e6ac40"
+                    "headSha": "0001aaaa"
                   },
                   {
                     "phase": "remediate",
                     "attempt": 4,
                     "failureClass": "no_change_possible",
                     "failedAt": "2030-03-13T20:15:00Z",
-                    "headSha": "e9e6ac40"
+                    "headSha": "0001aaaa"
                   },
                   {
                     "phase": "validate",
                     "attempt": 4,
                     "failureClass": "supervised_validate_scenarios",
                     "failedAt": "2030-03-14T00:36:00Z",
-                    "headSha": "e9e6ac40"
+                    "headSha": "0001aaaa"
                   }
                 ],
                 "relayFailureLedger": [
@@ -188,7 +188,7 @@
                 "relayParkLedger": [],
                 "branchHeadEvidence": {
                   "hold": {
-                    "headSha": "e9e6ac40",
+                    "headSha": "0001aaaa",
                     "headAgreement": "agrees",
                     "headEvidence": "push 2030-03-13T05:01Z"
                   }
@@ -202,7 +202,7 @@
                   "number": 7101,
                   "state": "open",
                   "draft": true,
-                  "headSha": "e9e6ac40",
+                  "headSha": "0001aaaa",
                   "mergeableState": "dirty"
                 }
               ]
@@ -214,7 +214,7 @@
           "behind_main": 74,
           "merge_tree": {
             "conflicts": [
-              "packages/types/src/registry-manifest.ts (both sides append one entry to the same list)"
+              "src/registry/manifest.ts (both sides append one entry to the same list)"
             ]
           },
           "ci": "No CI job has run on PR #7101: every job is skipped while the PR is a draft."
@@ -310,7 +310,7 @@
               {
                 "at": "2030-03-14T07:37:00Z",
                 "author": "Catalyst Cloud",
-                "body": "🔧 Remediate attempt 8 — succeeded. Class: review-findings. WIP resumed. Pushed c1445b94."
+                "body": "🔧 Remediate attempt 8 — succeeded. Class: review-findings. WIP resumed. Pushed 0002bbbb."
               },
               {
                 "at": "2030-03-14T09:38:00Z",
@@ -320,17 +320,17 @@
               {
                 "at": "2030-03-14T11:10:00Z",
                 "author": "Catalyst Cloud",
-                "body": "✅ Phase complete. Phase: validate. Attempt: 8. validate accepted: all 16 criteria and 3 scenarios met at c1445b94."
+                "body": "✅ Phase complete. Phase: validate. Attempt: 8. validate accepted: all 16 criteria and 3 scenarios met at 0002bbbb."
               },
               {
                 "at": "2030-03-14T11:12:00Z",
                 "author": "Catalyst Cloud",
-                "body": "PR #7102 head moved to bc55e949: \"ENG-4102: merge main\" (51 main commits, no change of the branch's own)."
+                "body": "PR #7102 head moved to 0003cccc: \"ENG-4102: merge main\" (51 main commits, no change of the branch's own)."
               },
               {
                 "at": "2030-03-14T11:17:00Z",
                 "author": "Catalyst Cloud",
-                "body": "🛑 Phase FAILED. Phase: pr. Attempt: 6. > supervised_pr_review_missing: no passing review from another model family at bc55e949 (plan_conformance_not_run: validate checked c1445b94, a different head)."
+                "body": "🛑 Phase FAILED. Phase: pr. Attempt: 6. > supervised_pr_review_missing: no passing review from another model family at 0003cccc (plan_conformance_not_run: validate checked 0002bbbb, a different head)."
               },
               {
                 "at": "2030-03-14T11:37:00Z",
@@ -340,7 +340,7 @@
               {
                 "at": "2030-03-14T12:10:00Z",
                 "author": "Catalyst Cloud",
-                "body": "🔧 Remediate attempt 10 — FAILED. What was done: gate_red_at_handover: `bun run check` exited 1: lint (unused exports): `CACHE_CHECKOUT_NAMES` re-exported at packages/protocol/src/index.ts:373 is unused."
+                "body": "🔧 Remediate attempt 10 — FAILED. What was done: gate_red_at_handover: the full check exited 1: lint (unused exports): `DEFAULT_NAMES` re-exported at src/index.ts:373 is unused."
               },
               {
                 "at": "2030-03-14T12:10:00Z",
@@ -399,7 +399,7 @@
                     "attempt": 6,
                     "failureClass": "supervised_pr_review_missing",
                     "failedAt": "2030-03-14T11:17:00Z",
-                    "headSha": "bc55e949"
+                    "headSha": "0003cccc"
                   },
                   {
                     "phase": "remediate",
@@ -412,7 +412,7 @@
                     "attempt": 10,
                     "failureClass": "gate_red_at_handover",
                     "failedAt": "2030-03-14T12:10:00Z",
-                    "headSha": "bc55e949"
+                    "headSha": "0003cccc"
                   }
                 ],
                 "relayFailureLedger": [
@@ -426,7 +426,7 @@
                 ],
                 "branchHeadEvidence": {
                   "hold": {
-                    "headSha": "bc55e949",
+                    "headSha": "0003cccc",
                     "headAgreement": "agrees"
                   }
                 }
@@ -444,7 +444,7 @@
                   "number": 7102,
                   "state": "open",
                   "draft": true,
-                  "headSha": "bc55e949",
+                  "headSha": "0003cccc",
                   "mergeableState": "blocked"
                 }
               ]
@@ -456,10 +456,10 @@
           "behind_main": 12,
           "merge_tree": {
             "conflicts": [
-              "apps/runner/test/phase-posture.test.ts (both sides append a case at the end of the same table)"
+              "test/posture.test.ts (both sides append a case at the end of the same table)"
             ]
           },
-          "lint": "knip: unused export CACHE_CHECKOUT_NAMES (packages/protocol/src/index.ts:373)"
+          "lint": "lint: unused export DEFAULT_NAMES (src/index.ts:373)"
         }
       },
       "expected": {
@@ -482,7 +482,7 @@
         "reaches_human": false,
         "detail_any": [
           [
-            "cache_checkout_names",
+            "default_names",
             "re-export",
             "unused export"
           ]
@@ -555,7 +555,7 @@
               {
                 "at": "2030-03-11T23:54:00Z",
                 "author": "Catalyst Cloud",
-                "body": "🔧 Remediate attempt 3 — succeeded. Repairing: pr. Pushed 21b365fa (fixes the review's finding in round-record parsing)."
+                "body": "🔧 Remediate attempt 3 — succeeded. Repairing: pr. Pushed 0004dddd (fixes the review's finding in record parsing)."
               },
               {
                 "at": "2030-03-12T00:24:00Z",
@@ -565,7 +565,7 @@
               {
                 "at": "2030-03-12T02:48:00Z",
                 "author": "Catalyst Cloud",
-                "body": "🛑 Phase FAILED. Phase: validate. Attempt: 4. > gate_not_run_budget: the runner's own full check could not run inside the session clock (10 min deadline). The session's own `bun run check` exited 0 and the other-family review passed at 21b365fa."
+                "body": "🛑 Phase FAILED. Phase: validate. Attempt: 4. > gate_not_run_budget: the runner's own full check could not run inside the session clock (10 min deadline). The session's own full check exited 0 and the other-family review passed at 0004dddd."
               },
               {
                 "at": "2030-03-14T03:06:00Z",
@@ -575,12 +575,12 @@
               {
                 "at": "2030-03-14T03:42:00Z",
                 "author": "Catalyst Cloud",
-                "body": "🔧 Remediate attempt 4 — FAILED. Class: validate-failure. What was done: wip_reconciliation: conflict (catalyst/wip/ENG-4103/remediate/7@a7acc3ff); observed head 21b365fa."
+                "body": "🔧 Remediate attempt 4 — FAILED. Class: validate-failure. What was done: wip_reconciliation: conflict (catalyst/wip/ENG-4103/remediate/7@0005eeee); observed head 0004dddd."
               },
               {
                 "at": "2030-03-14T04:06:00Z",
                 "author": "Catalyst Cloud",
-                "body": "🔧 Remediate attempt 5 — FAILED. What was done: wip_reconciliation: conflict (catalyst/wip/ENG-4103/remediate/7@a7acc3ff); observed head 21b365fa. Hand-apply the saved fix or delete the WIP ref, then release the park."
+                "body": "🔧 Remediate attempt 5 — FAILED. What was done: wip_reconciliation: conflict (catalyst/wip/ENG-4103/remediate/7@0005eeee); observed head 0004dddd. Hand-apply the saved fix or delete the WIP ref, then release the park."
               },
               {
                 "at": "2030-03-14T04:23:00Z",
@@ -617,28 +617,28 @@
                     "attempt": 3,
                     "failureClass": "review_helper_unavailable",
                     "failedAt": "2030-03-12T00:24:00Z",
-                    "headSha": "21b365fa"
+                    "headSha": "0004dddd"
                   },
                   {
                     "phase": "validate",
                     "attempt": 4,
                     "failureClass": "gate_not_run_budget",
                     "failedAt": "2030-03-12T02:48:00Z",
-                    "headSha": "21b365fa"
+                    "headSha": "0004dddd"
                   },
                   {
                     "phase": "remediate",
                     "attempt": 4,
                     "failureClass": "wip_reconciliation",
                     "failedAt": "2030-03-14T03:42:00Z",
-                    "headSha": "21b365fa"
+                    "headSha": "0004dddd"
                   },
                   {
                     "phase": "remediate",
                     "attempt": 5,
                     "failureClass": "wip_reconciliation",
                     "failedAt": "2030-03-14T04:06:00Z",
-                    "headSha": "21b365fa"
+                    "headSha": "0004dddd"
                   }
                 ],
                 "relayParkLedger": [
@@ -650,7 +650,7 @@
                 ],
                 "branchHeadEvidence": {
                   "hold": {
-                    "headSha": "21b365fa",
+                    "headSha": "0004dddd",
                     "headAgreement": "agrees"
                   }
                 }
@@ -662,7 +662,7 @@
                   "number": 7103,
                   "state": "open",
                   "draft": true,
-                  "headSha": "21b365fa",
+                  "headSha": "0004dddd",
                   "mergeableState": "dirty"
                 }
               ]
@@ -674,13 +674,13 @@
           "behind_main": 161,
           "merge_tree": {
             "conflicts": [
-              "packages/protocol/src/round-record.ts: main deleted isRoundRecord; the branch edits it (modify/delete)"
+              "src/record.ts: main deleted isRecord; the branch edits it (modify/delete)"
             ]
           },
           "refs": [
-            "catalyst/wip/ENG-4103/remediate/7 at a7acc3ff: its change is already in 21b365fa"
+            "catalyst/wip/ENG-4103/remediate/7 at 0005eeee: its change is already in 0004dddd"
           ],
-          "note": "Two tests on the branch still call isRoundRecord."
+          "note": "Two tests on the branch still call isRecord."
         }
       },
       "expected": {
@@ -753,12 +753,12 @@
               {
                 "at": "2030-03-02T13:05:00Z",
                 "author": "Catalyst Cloud",
-                "body": "🔧 Remediate attempt 1 — succeeded. Pushed 7b1d0e22: honour the declared port; regression test added."
+                "body": "🔧 Remediate attempt 1 — succeeded. Pushed 0006ffff: honour the declared port; regression test added."
               },
               {
                 "at": "2030-03-08T06:21:00Z",
                 "author": "Catalyst Cloud",
-                "body": "✅ Phase complete. Phase: validate. Attempt: 3. Both scenarios met at a2d9b5c0; `bun run check` exited 0; the other-family review returned PASS."
+                "body": "✅ Phase complete. Phase: validate. Attempt: 3. Both scenarios met at 0007aaaa; the full check exited 0; the other-family review returned PASS."
               },
               {
                 "at": "2030-03-12T06:46:00Z",
@@ -768,17 +768,17 @@
               {
                 "at": "2030-03-12T08:07:00Z",
                 "author": "Catalyst Cloud",
-                "body": "🔧 Remediate attempt 7 — FAILED. wip_reconciliation: conflict (catalyst/wip/ENG-4104/remediate/7@7204f57d); observed head a2d9b5c0. Parked."
+                "body": "🔧 Remediate attempt 7 — FAILED. wip_reconciliation: conflict (catalyst/wip/ENG-4104/remediate/7@0008bbbb); observed head 0007aaaa. Parked."
               },
               {
                 "at": "2030-03-14T00:02:00Z",
                 "author": "seat-merge",
-                "body": "[bookkeeping] Merged main into ENG-4104 and resolved the conflict: pushed cf5ee8ed. The WIP ref's change is already in the branch."
+                "body": "[bookkeeping] Merged main into ENG-4104 and resolved the conflict: pushed 0009cccc. The WIP ref's change is already in the branch."
               },
               {
                 "at": "2030-03-14T02:00:00Z",
                 "author": "Catalyst Cloud",
-                "body": "PR #7104 at cf5ee8ed: every check green except Review Evidence (no review recorded at this head)."
+                "body": "PR #7104 at 0009cccc: every check green except the review check (no review recorded at this head)."
               }
             ]
           }
@@ -810,7 +810,7 @@
                     "attempt": 7,
                     "failureClass": "wip_reconciliation",
                     "failedAt": "2030-03-12T08:07:00Z",
-                    "headSha": "a2d9b5c0"
+                    "headSha": "0007aaaa"
                   }
                 ],
                 "relayFailureLedger": [
@@ -838,7 +838,7 @@
                 ],
                 "branchHeadEvidence": {
                   "hold": {
-                    "headSha": "a2d9b5c0",
+                    "headSha": "0007aaaa",
                     "headAgreement": "disagrees",
                     "headEvidence": "last push seen 2030-03-08T06:21Z"
                   }
@@ -851,7 +851,7 @@
                   "number": 7104,
                   "state": "open",
                   "draft": false,
-                  "headSha": "cf5ee8ed",
+                  "headSha": "0009cccc",
                   "mergeableState": "blocked"
                 }
               ]
@@ -859,7 +859,7 @@
           ],
           "priorDeterminations": [
             {
-              "version": "79d1f282",
+              "version": "0010dddd",
               "class": "decidable",
               "pattern": "default-already-safe",
               "recordedAtMs": 1899533460000
@@ -902,7 +902,7 @@
             "headsha"
           ]
         ],
-        "stale_note": "The real_defect class is from round 1 and was fixed in 7b1d0e22; the hold head a2d9b5c0 is older than the PR head cf5ee8ed."
+        "stale_note": "The real_defect class is from round 1 and was fixed in 0006ffff; the hold head 0007aaaa is older than the PR head 0009cccc."
       }
     },
     {
@@ -942,12 +942,12 @@
               {
                 "at": "2030-03-02T13:05:00Z",
                 "author": "Catalyst Cloud",
-                "body": "🔧 Remediate attempt 1 — succeeded. Pushed 7b1d0e22: honour the declared port; regression test added."
+                "body": "🔧 Remediate attempt 1 — succeeded. Pushed 0006ffff: honour the declared port; regression test added."
               },
               {
                 "at": "2030-03-08T06:21:00Z",
                 "author": "Catalyst Cloud",
-                "body": "✅ Phase complete. Phase: validate. Attempt: 3. Both scenarios met at a2d9b5c0; `bun run check` exited 0; the other-family review returned PASS."
+                "body": "✅ Phase complete. Phase: validate. Attempt: 3. Both scenarios met at 0007aaaa; the full check exited 0; the other-family review returned PASS."
               },
               {
                 "at": "2030-03-12T06:46:00Z",
@@ -962,7 +962,7 @@
               {
                 "at": "2030-03-12T08:07:00Z",
                 "author": "Catalyst Cloud",
-                "body": "🔧 Remediate attempt 7 — FAILED. wip_reconciliation: conflict (catalyst/wip/ENG-4104/remediate/7@7204f57d); observed head a2d9b5c0. Hand-apply the saved fix or delete the WIP ref, then release the park. Parked."
+                "body": "🔧 Remediate attempt 7 — FAILED. wip_reconciliation: conflict (catalyst/wip/ENG-4104/remediate/7@0008bbbb); observed head 0007aaaa. Hand-apply the saved fix or delete the WIP ref, then release the park. Parked."
               }
             ]
           }
@@ -994,21 +994,21 @@
                     "attempt": 5,
                     "failureClass": "wip_reconciliation",
                     "failedAt": "2030-03-12T07:10:00Z",
-                    "headSha": "a2d9b5c0"
+                    "headSha": "0007aaaa"
                   },
                   {
                     "phase": "remediate",
                     "attempt": 6,
                     "failureClass": "gate_red_at_handover",
                     "failedAt": "2030-03-12T07:40:00Z",
-                    "headSha": "a2d9b5c0"
+                    "headSha": "0007aaaa"
                   },
                   {
                     "phase": "remediate",
                     "attempt": 7,
                     "failureClass": "wip_reconciliation",
                     "failedAt": "2030-03-12T08:07:00Z",
-                    "headSha": "a2d9b5c0"
+                    "headSha": "0007aaaa"
                   }
                 ],
                 "relayFailureLedger": [
@@ -1036,7 +1036,7 @@
                 ],
                 "branchHeadEvidence": {
                   "hold": {
-                    "headSha": "a2d9b5c0",
+                    "headSha": "0007aaaa",
                     "headAgreement": "agrees"
                   }
                 }
@@ -1048,7 +1048,7 @@
                   "number": 7104,
                   "state": "open",
                   "draft": false,
-                  "headSha": "a2d9b5c0",
+                  "headSha": "0007aaaa",
                   "mergeableState": "dirty"
                 }
               ]
@@ -1088,7 +1088,7 @@
             "real_defect"
           ]
         ],
-        "stale_note": "The real_defect class is the round-1 finding fixed in 7b1d0e22; validate passed after it."
+        "stale_note": "The real_defect class is the round-1 finding fixed in 0006ffff; validate passed after it."
       }
     },
     {
@@ -1123,12 +1123,12 @@
               {
                 "at": "2030-03-13T18:02:00Z",
                 "author": "Catalyst Cloud",
-                "body": "✅ Phase complete. Phase: validate. Attempt: 5. validate accepted at dec51abd."
+                "body": "✅ Phase complete. Phase: validate. Attempt: 5. validate accepted at 0011eeee."
               },
               {
                 "at": "2030-03-13T19:30:00Z",
                 "author": "Catalyst Cloud",
-                "body": "🛑 Phase FAILED. Phase: pr. > supervised_pr_review_missing: no passing review from another model family at dec51abd (plan_conformance_not_run: the review had no validate record for this attempt)."
+                "body": "🛑 Phase FAILED. Phase: pr. > supervised_pr_review_missing: no passing review from another model family at 0011eeee (plan_conformance_not_run: the review had no validate record for this attempt)."
               },
               {
                 "at": "2030-03-13T20:40:00Z",
@@ -1174,14 +1174,14 @@
                     "attempt": 4,
                     "failureClass": "supervised_pr_review_missing",
                     "failedAt": "2030-03-13T19:30:00Z",
-                    "headSha": "dec51abd"
+                    "headSha": "0011eeee"
                   },
                   {
                     "phase": "remediate",
                     "attempt": 11,
                     "failureClass": "no_change_possible",
                     "failedAt": "2030-03-13T22:15:00Z",
-                    "headSha": "dec51abd"
+                    "headSha": "0011eeee"
                   }
                 ],
                 "relayFailureLedger": [
@@ -1195,7 +1195,7 @@
                 ],
                 "branchHeadEvidence": {
                   "hold": {
-                    "headSha": "dec51abd",
+                    "headSha": "0011eeee",
                     "headAgreement": "agrees"
                   }
                 }
@@ -1207,7 +1207,7 @@
                   "number": 7106,
                   "state": "open",
                   "draft": true,
-                  "headSha": "dec51abd",
+                  "headSha": "0011eeee",
                   "mergeableState": "blocked"
                 }
               ]
@@ -1273,12 +1273,12 @@
               {
                 "at": "2030-03-03T02:40:00Z",
                 "author": "Catalyst Cloud",
-                "body": "🛑 Phase FAILED. Phase: validate. Attempt: 3. Only type-safety failed: a `!` without a runtime guard at packages/protocol/test/transcript-checkpoint.test.ts:347. Plan, code review and both security gates passed."
+                "body": "🛑 Phase FAILED. Phase: validate. Attempt: 3. Only type-safety failed: a `!` without a runtime guard at test/checkpoint.test.ts:347. Plan, code review and both security gates passed."
               },
               {
                 "at": "2030-03-03T03:22:00Z",
                 "author": "Catalyst Cloud",
-                "body": "🔧 Remediate attempt 13 — succeeded. Pushed d69dc3df (+2/-1, one file): the non-null assertion becomes a null check that throws. `bun run check` exit 0; reward-hacking scan PASS."
+                "body": "🔧 Remediate attempt 13 — succeeded. Pushed 0012ffff (+2/-1, one file): the non-null assertion becomes a null check that throws. The full check exited 0; reward-hacking scan PASS."
               },
               {
                 "at": "2030-03-03T03:22:00Z",
@@ -1288,7 +1288,7 @@
               {
                 "at": "2030-03-03T03:23:00Z",
                 "author": "Catalyst Cloud",
-                "body": "Validate attempt 4 started at d69dc3df."
+                "body": "Validate attempt 4 started at 0012ffff."
               }
             ]
           }
@@ -1319,7 +1319,7 @@
                     "attempt": 3,
                     "failureClass": "type_safety",
                     "failedAt": "2030-03-03T02:40:00Z",
-                    "headSha": "9f023e49"
+                    "headSha": "0013aaaa"
                   }
                 ],
                 "relayFailureLedger": [
@@ -1333,9 +1333,9 @@
                 ],
                 "branchHeadEvidence": {
                   "hold": {
-                    "headSha": "9f023e49",
+                    "headSha": "0013aaaa",
                     "headAgreement": "disagrees",
-                    "headEvidence": "push d69dc3df at 03:22Z"
+                    "headEvidence": "push 0012ffff at 03:22Z"
                   }
                 }
               },
@@ -1352,7 +1352,7 @@
                   "number": 7107,
                   "state": "open",
                   "draft": true,
-                  "headSha": "d69dc3df",
+                  "headSha": "0012ffff",
                   "mergeableState": "clean"
                 }
               ]
@@ -1391,7 +1391,7 @@
             "relayfailureledger"
           ]
         ],
-        "stale_note": "The hold head 9f023e49 predates the fix d69dc3df that validate is now checking."
+        "stale_note": "The hold head 0013aaaa predates the fix 0012ffff that validate is now checking."
       }
     },
     {
@@ -1426,7 +1426,7 @@
               {
                 "at": "2030-03-01T12:10:00Z",
                 "author": "Catalyst Cloud",
-                "body": "🛑 Phase FAILED. Phase: validate. Attempt: 2. gate: `bun run check` exited 1: apps/mirror/test/eligibility.test.ts:494 expected an expiry in the future (fixed date 2030-02-28)."
+                "body": "🛑 Phase FAILED. Phase: validate. Attempt: 2. gate: the full check exited 1: test/eligibility.test.ts:494 expected an expiry in the future (fixed date 2030-02-28)."
               },
               {
                 "at": "2030-03-01T14:05:00Z",
@@ -1441,7 +1441,7 @@
               {
                 "at": "2030-03-01T17:10:00Z",
                 "author": "seat-ci",
-                "body": "[bookkeeping] The eligibility.test.ts:494 failure is a date bomb (a hard-coded expiry that passed on 03-01). Fixed on main by PR #6990 (merged 03-01 09:12Z). Any branch without that merge fails it."
+                "body": "[bookkeeping] The eligibility.test.ts:494 failure is a date bomb (a hard-coded expiry that has since passed). Fixed on main by PR #7150. Any branch without that merge fails it."
               },
               {
                 "at": "2030-03-01T19:46:00Z",
@@ -1476,21 +1476,21 @@
                     "attempt": 2,
                     "failureClass": "gate_failed",
                     "failedAt": "2030-03-01T12:10:00Z",
-                    "headSha": "e6de4456"
+                    "headSha": "0014bbbb"
                   },
                   {
                     "phase": "remediate",
                     "attempt": 12,
                     "failureClass": "gate_failed",
                     "failedAt": "2030-03-01T14:05:00Z",
-                    "headSha": "e6de4456"
+                    "headSha": "0014bbbb"
                   },
                   {
                     "phase": "remediate",
                     "attempt": 14,
                     "failureClass": "gate_failed",
                     "failedAt": "2030-03-01T16:30:00Z",
-                    "headSha": "e6de4456"
+                    "headSha": "0014bbbb"
                   }
                 ],
                 "relayFailureLedger": [
@@ -1504,7 +1504,7 @@
                 ],
                 "branchHeadEvidence": {
                   "hold": {
-                    "headSha": "e6de4456",
+                    "headSha": "0014bbbb",
                     "headAgreement": "agrees"
                   }
                 }
@@ -1516,7 +1516,7 @@
                   "number": 7108,
                   "state": "open",
                   "draft": true,
-                  "headSha": "e6de4456",
+                  "headSha": "0014bbbb",
                   "mergeableState": "clean"
                 }
               ]
@@ -1586,7 +1586,7 @@
               {
                 "at": "2030-03-22T01:10:00Z",
                 "author": "Catalyst Cloud",
-                "body": "🔧 Remediate attempt 1 — FAILED. gate: scripts/seat-cli-provider.test.ts \"CLI refreshes the legacy collector config\" exits 127."
+                "body": "🔧 Remediate attempt 1 — FAILED. gate: test/provider.test.ts \"CLI refreshes the legacy collector config\" exits 127."
               },
               {
                 "at": "2030-03-22T01:15:00Z",
@@ -1601,12 +1601,12 @@
               {
                 "at": "2030-03-22T01:22:00Z",
                 "author": "Catalyst Cloud",
-                "body": "🔧 Remediate attempt 4 — succeeded. The one real finding (intake vocabulary) is already fixed in be90b5ca; all four vocabulary tests pass. No further branch change. Gate red only on scripts/seat-cli-provider.test.ts (exit 127)."
+                "body": "🔧 Remediate attempt 4 — succeeded. The one real finding (intake vocabulary) is already fixed in 0015cccc; all four vocabulary tests pass. No further branch change. Gate red only on test/provider.test.ts (exit 127)."
               },
               {
                 "at": "2030-03-22T05:40:00Z",
                 "author": "seat-flow",
-                "body": "[bookkeeping] scripts/seat-cli-provider.test.ts fails on every branch in the fleet container: the container ships /usr/local/bin/catalyst-telemetry, so the legacy branch exits 127. Draft #7109 touches no seat-cli file. The fixture fix is PR #7190, reviewed, in the merge queue now. The same guard holds two other tickets at their caps."
+                "body": "[bookkeeping] test/provider.test.ts fails on every branch in the fleet container: the container ships /usr/local/bin/telemetry-agent, so the legacy branch exits 127. Draft #7109 touches no provider test file. The fixture fix is PR #7190, reviewed, in the merge queue now. The same guard holds two other tickets at their caps."
               },
               {
                 "at": "2030-03-22T06:21:00Z",
@@ -1664,7 +1664,7 @@
                 ],
                 "branchHeadEvidence": {
                   "hold": {
-                    "headSha": "be90b5ca",
+                    "headSha": "0015cccc",
                     "headAgreement": "agrees"
                   }
                 }
@@ -1676,7 +1676,7 @@
                   "number": 7109,
                   "state": "open",
                   "draft": true,
-                  "headSha": "be90b5ca",
+                  "headSha": "0015cccc",
                   "mergeableState": "clean"
                 }
               ]
@@ -1741,7 +1741,7 @@
               {
                 "at": "2030-03-19T02:10:00Z",
                 "author": "Catalyst Cloud",
-                "body": "🔧 Remediate attempt 16 — succeeded. Pushed dbd526b7: fixes review P1 (the version stamp) and P2 (the tools-called false zero); narrow fix check passed."
+                "body": "🔧 Remediate attempt 16 — succeeded. Pushed 0016dddd: fixes review P1 (the version stamp) and P2 (the tools-called false zero); narrow fix check passed."
               },
               {
                 "at": "2030-03-19T04:31:00Z",
@@ -1751,7 +1751,7 @@
               {
                 "at": "2030-03-19T04:33:00Z",
                 "author": "Catalyst Cloud",
-                "body": "🔧 Remediate attempt 17 — succeeded. Took the old setup_failed queue row. What was done: the package.json and README conflicts are already fixed at HEAD 250953f6; test:agent-behavior 457 passing; no change; recommends validate."
+                "body": "🔧 Remediate attempt 17 — succeeded. Took the old setup_failed queue row. What was done: the package.json and README conflicts are already fixed at HEAD 0017eeee; the behavior suite 457 passing; no change; recommends validate."
               },
               {
                 "at": "2030-03-19T04:33:00Z",
@@ -1766,7 +1766,7 @@
               {
                 "at": "2030-03-19T05:23:00Z",
                 "author": "seat-flow",
-                "body": "[bookkeeping] Operator rewind to validate landed. Validate is ready (attempt 3) at 250953f6. The repair-round hold blocks only remediate."
+                "body": "[bookkeeping] Operator rewind to validate landed. Validate is ready (attempt 3) at 0017eeee. The repair-round hold blocks only remediate."
               }
             ]
           }
@@ -1801,7 +1801,7 @@
                 ],
                 "branchHeadEvidence": {
                   "hold": {
-                    "headSha": "250953f6",
+                    "headSha": "0017eeee",
                     "headAgreement": "agrees"
                   }
                 }
@@ -1813,7 +1813,7 @@
                   "number": 7110,
                   "state": "open",
                   "draft": false,
-                  "headSha": "250953f6",
+                  "headSha": "0017eeee",
                   "mergeableState": "clean"
                 }
               ]
@@ -1878,7 +1878,7 @@
               {
                 "at": "2030-03-22T00:50:00Z",
                 "author": "Catalyst Cloud",
-                "body": "🔧 Remediate attempt 3 — FAILED. gate: scripts/seat-cli-provider.test.ts exits 127 (the fleet collector fixture)."
+                "body": "🔧 Remediate attempt 3 — FAILED. gate: test/provider.test.ts exits 127 (the fleet collector fixture)."
               },
               {
                 "at": "2030-03-22T01:45:00Z",
@@ -1893,17 +1893,17 @@
               {
                 "at": "2030-03-22T08:04:00Z",
                 "author": "Catalyst Cloud",
-                "body": "🔧 Remediate attempt 6 — succeeded. Removed the out-of-scope Python workaround at scripts/seat-cli-probes.test.ts and leftover conflict markers. Pushed 8deb917b."
+                "body": "🔧 Remediate attempt 6 — succeeded. Removed the out-of-scope Python workaround at test/probes.test.ts and leftover conflict markers. Pushed 0018ffff."
               },
               {
                 "at": "2030-03-22T08:04:00Z",
                 "author": "Catalyst Cloud",
-                "body": "✅ Phase complete. Phase: validate. Attempt: 2 at 8deb917b."
+                "body": "✅ Phase complete. Phase: validate. Attempt: 2 at 0018ffff."
               },
               {
                 "at": "2030-03-22T10:06:00Z",
                 "author": "seat-review",
-                "body": "[bookkeeping] Independent review at 8deb917b: F1 (P2) a retry counter is reset on reconnect; F2 (P3) a log line names the wrong phase. Posted as review threads on #7111."
+                "body": "[bookkeeping] Independent review at 0018ffff: F1 (P2) a retry counter is reset on reconnect; F2 (P3) a log line names the wrong phase. Posted as review threads on #7111."
               }
             ]
           }
@@ -1949,7 +1949,7 @@
                 ],
                 "branchHeadEvidence": {
                   "hold": {
-                    "headSha": "8deb917b",
+                    "headSha": "0018ffff",
                     "headAgreement": "agrees"
                   }
                 }
@@ -1961,7 +1961,7 @@
                   "number": 7111,
                   "state": "open",
                   "draft": false,
-                  "headSha": "8deb917b",
+                  "headSha": "0018ffff",
                   "mergeableState": "blocked"
                 }
               ]
@@ -2100,7 +2100,7 @@
                 ],
                 "branchHeadEvidence": {
                   "hold": {
-                    "headSha": "6a0c11d2",
+                    "headSha": "0019aaaa",
                     "headAgreement": "agrees"
                   }
                 }
@@ -2112,7 +2112,7 @@
                   "number": 7110,
                   "state": "open",
                   "draft": false,
-                  "headSha": "6a0c11d2",
+                  "headSha": "0019aaaa",
                   "mergeableState": "dirty"
                 }
               ]
@@ -2124,7 +2124,7 @@
           "merge_tree": {
             "conflicts": [
               "package.json (both sides add scripts)",
-              "scripts/agent-behavior/README.md (both sides add a section)"
+              "docs/behavior/README.md (both sides add a section)"
             ]
           }
         }
@@ -2183,7 +2183,7 @@
               {
                 "at": "2030-03-18T09:30:00Z",
                 "author": "Catalyst Cloud",
-                "body": "🛑 Phase FAILED. Phase: validate. Attempt: 5 at 60cfc62a. One finding: seat-image.Dockerfile:11 — the sandbox runs a template built on the pinned image, so its digest is not the pinned digest. No other defects. Focused suite 162/162."
+                "body": "🛑 Phase FAILED. Phase: validate. Attempt: 5 at 0020bbbb. One finding: image.Dockerfile:11 — the sandbox runs a template built on the pinned image, so its digest is not the pinned digest. No other defects. Focused suite 162/162."
               },
               {
                 "at": "2030-03-18T10:20:00Z",
@@ -2223,7 +2223,7 @@
                     "attempt": 5,
                     "failureClass": "review_finding",
                     "failedAt": "2030-03-18T09:30:00Z",
-                    "headSha": "60cfc62a"
+                    "headSha": "0020bbbb"
                   }
                 ],
                 "relayFailureLedger": [
@@ -2237,7 +2237,7 @@
                 ],
                 "branchHeadEvidence": {
                   "hold": {
-                    "headSha": "60cfc62a",
+                    "headSha": "0020bbbb",
                     "headAgreement": "agrees"
                   }
                 }
@@ -2249,7 +2249,7 @@
                   "number": 7113,
                   "state": "open",
                   "draft": true,
-                  "headSha": "60cfc62a",
+                  "headSha": "0020bbbb",
                   "mergeableState": "clean"
                 }
               ]
@@ -2352,14 +2352,14 @@
                     "attempt": 9,
                     "failureClass": "plan_conformance",
                     "failedAt": "2030-03-22T18:40:00Z",
-                    "headSha": "41aa09c3"
+                    "headSha": "0021cccc"
                   },
                   {
                     "phase": "remediate",
                     "attempt": 11,
                     "failureClass": "gate_red_at_handover",
                     "failedAt": "2030-03-22T19:30:00Z",
-                    "headSha": "5d02b7e1"
+                    "headSha": "0022dddd"
                   }
                 ],
                 "relayFailureLedger": [
@@ -2373,7 +2373,7 @@
                 ],
                 "branchHeadEvidence": {
                   "hold": {
-                    "headSha": "5d02b7e1",
+                    "headSha": "0022dddd",
                     "headAgreement": "agrees"
                   }
                 }
@@ -2385,7 +2385,7 @@
                   "number": 7109,
                   "state": "open",
                   "draft": true,
-                  "headSha": "5d02b7e1",
+                  "headSha": "0022dddd",
                   "mergeableState": "clean"
                 }
               ]
@@ -2448,7 +2448,7 @@
               {
                 "at": "2030-03-22T13:20:00Z",
                 "author": "seat-flow",
-                "body": "[bookkeeping] One extra repair round granted: the earlier rounds were consumed by the fleet collector fixture (fixed) and a wiki-routing flake (fixed)."
+                "body": "[bookkeeping] One extra repair round granted: the earlier rounds were consumed by the fleet collector fixture (fixed) and a routing flake (fixed)."
               },
               {
                 "at": "2030-03-22T14:31:00Z",
@@ -2492,7 +2492,7 @@
                 ],
                 "branchHeadEvidence": {
                   "hold": {
-                    "headSha": "41aa09c3",
+                    "headSha": "0021cccc",
                     "headAgreement": "agrees"
                   }
                 }
@@ -2504,7 +2504,7 @@
                   "number": 7109,
                   "state": "open",
                   "draft": true,
-                  "headSha": "41aa09c3",
+                  "headSha": "0021cccc",
                   "mergeableState": "clean"
                 }
               ]
@@ -2572,7 +2572,7 @@
               {
                 "at": "2030-03-16T23:30:00Z",
                 "author": "seat-review",
-                "body": "[bookkeeping] One full review of PR #7116 at 2e1bd422 from another model family: PASS, no findings (377 eligibility tests, 49 explain-route tests). Unprivileged check exit 0."
+                "body": "[bookkeeping] One full review of PR #7116 at 0023eeee from another model family: PASS, no findings (377 eligibility tests, 49 route tests). Unprivileged check exit 0."
               },
               {
                 "at": "2030-03-17T02:10:00Z",
@@ -2627,7 +2627,7 @@
                 ],
                 "branchHeadEvidence": {
                   "hold": {
-                    "headSha": "2e1bd422",
+                    "headSha": "0023eeee",
                     "headAgreement": "agrees"
                   }
                 }
@@ -2639,7 +2639,7 @@
                   "number": 7116,
                   "state": "open",
                   "draft": true,
-                  "headSha": "2e1bd422",
+                  "headSha": "0023eeee",
                   "mergeableState": "dirty"
                 }
               ]
@@ -2702,22 +2702,22 @@
               {
                 "at": "2030-03-16T23:14:00Z",
                 "author": "Catalyst Cloud",
-                "body": "⏸️ Holding — 6 repair rounds counted against a limit of 6. Hold head 0e44b9a1."
+                "body": "⏸️ Holding — 6 repair rounds counted against a limit of 6. Hold head 0024ffff."
               },
               {
                 "at": "2030-03-17T18:50:00Z",
                 "author": "seat-fixer",
-                "body": "[bookkeeping] Pushed cb761353 to ENG-4117 (PR #7117): the hand fix for the validate finding."
+                "body": "[bookkeeping] Pushed 0025aaaa to ENG-4117 (PR #7117): the hand fix for the validate finding."
               },
               {
                 "at": "2030-03-17T21:29:00Z",
                 "author": "seat-flow",
-                "body": "[bookkeeping] Confirmed cb761353 on the PR and in the relay ledger; removed the local-lane fence; rewound to validate."
+                "body": "[bookkeeping] Confirmed 0025aaaa on the PR and in the relay ledger; removed the local-lane fence; rewound to validate."
               },
               {
                 "at": "2030-03-17T21:40:00Z",
                 "author": "Catalyst Cloud",
-                "body": "Validate attempt 5 started at cb761353."
+                "body": "Validate attempt 5 started at 0025aaaa."
               }
             ]
           }
@@ -2748,14 +2748,14 @@
                     "attempt": 4,
                     "failureClass": "review_finding",
                     "failedAt": "2030-03-16T21:30:00Z",
-                    "headSha": "0e44b9a1"
+                    "headSha": "0024ffff"
                   }
                 ],
                 "branchHeadEvidence": {
                   "hold": {
-                    "headSha": "0e44b9a1",
+                    "headSha": "0024ffff",
                     "headAgreement": "disagrees",
-                    "headEvidence": "push cb761353 at 2030-03-17T18:50Z"
+                    "headEvidence": "push 0025aaaa at 2030-03-17T18:50Z"
                   }
                 }
               },
@@ -2772,7 +2772,7 @@
                   "number": 7117,
                   "state": "open",
                   "draft": false,
-                  "headSha": "cb761353",
+                  "headSha": "0025aaaa",
                   "mergeableState": "clean"
                 }
               ]
@@ -2810,7 +2810,7 @@
             "headsha"
           ]
         ],
-        "stale_note": "The hold head 0e44b9a1 predates the pushed fix cb761353."
+        "stale_note": "The hold head 0024ffff predates the pushed fix 0025aaaa."
       }
     },
     {
@@ -2845,7 +2845,7 @@
               {
                 "at": "2030-03-17T21:05:00Z",
                 "author": "Catalyst Cloud",
-                "body": "PR #7118 merged by the merge queue at 4d1f0a77."
+                "body": "PR #7118 merged by the merge queue at 0026bbbb."
               }
             ]
           }
@@ -2996,7 +2996,7 @@
                 ],
                 "branchHeadEvidence": {
                   "hold": {
-                    "headSha": "7f30e2aa",
+                    "headSha": "0027cccc",
                     "headAgreement": "agrees"
                   }
                 }
@@ -3008,7 +3008,7 @@
                   "number": 7119,
                   "state": "open",
                   "draft": true,
-                  "headSha": "7f30e2aa",
+                  "headSha": "0027cccc",
                   "mergeableState": "dirty"
                 }
               ]
@@ -3047,13 +3047,13 @@
       "inputs": {
         "ask": {
           "identifier": "ENG-9120",
-          "title": "Recording needed: ENG-4120 and PR #7120, the Stages block on staging",
+          "title": "Recording needed: ENG-4120 and PR #7120, the Stages block on the preview",
           "state": "Todo",
           "labels": [
             "catalyst-ask",
             "ask/decision"
           ],
-          "description": "**Ask:** Recording needed: ENG-4120 and PR #7120, the Stages block on staging\n\nENG-4120 exists to record, on staging, the Stages block that an earlier ticket shipped. Its validate stage stopped because no recording exists and this session cannot make one: the phase container has no cloud-browser credential and no staging admin sign-in. PR #7120 adds a steps file whose 31 unit tests pass, so the recording is one command:\n`bun scripts/record-preview.ts --steps scripts/staging-stage-outcomes-steps.ts --publish`\nThe run posts the replay, GIF and step screenshots to the ticket and the PR.\n\n**Options:**\n\n* **A** — The recording or my own check is on the ticket, and this is what it showed\n* **B** — Accept without a recording\n\n**Default if silent:** none; an explicit answer is required.",
+          "description": "**Ask:** Recording needed: ENG-4120 and PR #7120, the Stages block on the preview\n\nENG-4120 exists to record, on the preview, the Stages block that an earlier ticket shipped. Its validate stage stopped because no recording exists and this session cannot make one: the phase container has no cloud-browser credential and no admin sign-in. PR #7120 adds a steps file whose 31 unit tests pass, so the recording is one command that runs those steps and posts the replay, GIF and step screenshots to the ticket and the PR.\n\n**Options:**\n\n* **A** — The recording or my own check is on the ticket, and this is what it showed\n* **B** — Accept without a recording\n\n**Default if silent:** none; an explicit answer is required.",
           "comments": [],
           "relations": [
             {
@@ -3065,7 +3065,7 @@
         "subjects": [
           {
             "identifier": "ENG-4120",
-            "title": "Record the Stages block on staging",
+            "title": "Record the Stages block on the preview",
             "state": "Validate",
             "comments": [
               {
@@ -3081,7 +3081,7 @@
           "subjects": [
             {
               "identifier": "ENG-4120",
-              "title": "Record the Stages block on staging",
+              "title": "Record the Stages block on the preview",
               "state": "Validate",
               "labels": [],
               "fenced": false,
@@ -3111,7 +3111,7 @@
                   "number": 7120,
                   "state": "open",
                   "draft": true,
-                  "headSha": "8c2bba49",
+                  "headSha": "0028dddd",
                   "mergeableState": "clean"
                 }
               ]
@@ -3171,7 +3171,7 @@
               {
                 "at": "2030-03-07T06:40:00Z",
                 "author": "Catalyst Cloud",
-                "body": "🔧 Remediate attempt 7 — FAILED. plan conformance PARTIAL at 36b10afe: the shipped-preview recording is unread; no inline findings or failing checks."
+                "body": "🔧 Remediate attempt 7 — FAILED. plan conformance PARTIAL at 0029eeee: the shipped-preview recording is unread; no inline findings or failing checks."
               }
             ]
           }
@@ -3217,7 +3217,7 @@
                   "number": 7121,
                   "state": "open",
                   "draft": false,
-                  "headSha": "36b10afe",
+                  "headSha": "0029eeee",
                   "mergeableState": "clean"
                 }
               ]

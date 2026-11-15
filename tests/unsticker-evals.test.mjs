@@ -84,6 +84,64 @@ describe("the eval set is publishable", () => {
   });
 });
 
+// The cases once carried 8-hex commit ids and repository paths from a private repository. These
+// rules keep them out: a commit-id-like token must be in the synthetic scheme (00NN then one hex
+// letter four times, such as 0001aaaa), and no text names an apps/, packages/ or scripts/ path or
+// the word "staging". Epoch-millisecond numbers (13 digits) are not commit ids.
+const SYNTHETIC_SHA = /^00\d\d([a-f])\1{3}$/;
+
+/** Everything in `text` the public repository must not carry, by rule. */
+function privateLeaks(text) {
+  const hex = (text.match(/\b[0-9a-f]{7,40}\b/g) ?? []).filter((t) => !SYNTHETIC_SHA.test(t) && !/^\d{13}$/.test(t));
+  const paths = text.match(/(?<![\w.-])(?:apps|packages|scripts)\/[\w./@-]*/g) ?? [];
+  const staging = text.match(/\bstaging\b/gi) ?? [];
+  return { hex, paths, staging };
+}
+
+describe("the eval set carries no private repository detail", () => {
+  const files = [
+    "skills/unsticker/evals/evals.json",
+    "skills/unsticker/evals/run.mjs",
+    "skills/unsticker/evals/grade.mjs",
+    "skills/unsticker/evals/README.md",
+  ];
+
+  test("no commit-id-like token outside the synthetic scheme, no apps/ packages/ scripts/ path, no staging", () => {
+    for (const file of files) {
+      expect({ file, ...privateLeaks(read(file)) }).toEqual({ file, hex: [], paths: [], staging: [] });
+    }
+  });
+
+  test("the cases do use the synthetic commit ids", () => {
+    const ids = read("skills/unsticker/evals/evals.json").match(/\b00\d\d[a-f]{4}\b/g) ?? [];
+    expect(ids.length).toBeGreaterThan(20);
+    for (const id of ids) expect(id).toMatch(SYNTHETIC_SHA);
+  });
+
+  test("positive control: a real-looking commit id is flagged", () => {
+    expect(privateLeaks("pushed 9f3a7c1e to the branch").hex).toEqual(["9f3a7c1e"]);
+    expect(privateLeaks("head 3f786850e387550fdab836ed7e6dc881de23001b").hex).toHaveLength(1);
+  });
+
+  test("positive control: an apps/, packages/ or scripts/ path is flagged", () => {
+    for (const root of ["apps", "packages", "scripts"]) expect(privateLeaks(`failed at ${root}/core/src/index.ts:12`).paths).toHaveLength(1);
+  });
+
+  test("positive control: the word staging is flagged, in any case", () => {
+    expect(privateLeaks("recorded on staging").staging).toEqual(["staging"]);
+    expect(privateLeaks("Staging admin sign-in").staging).toEqual(["Staging"]);
+  });
+
+  test("a fixture with all three is flagged by every rule, and a clean string passes", () => {
+    const dirty = privateLeaks("pushed 9f3a7c1e, see apps/web/test/a.test.ts, recorded on staging");
+    expect(dirty.hex.length).toBe(1);
+    expect(dirty.paths.length).toBe(1);
+    expect(dirty.staging.length).toBe(1);
+    const clean = privateLeaks("pushed 0001aaaa, see src/index.ts and test/posture.test.ts at 1899533460000, recorded on the preview");
+    expect(clean).toEqual({ hex: [], paths: [], staging: [] });
+  });
+});
+
 describe("the grader", () => {
   test("a record that meets each case's expectation passes it", () => {
     for (const c of evals.cases) {
