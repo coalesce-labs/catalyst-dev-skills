@@ -27,7 +27,7 @@ Before any deeper investigation, check whether the ask still needs an answer. It
 For a repair-cap, validate-hold or remediate-raised ask, follow [`references/repair-cap.md`](references/repair-cap.md) first: its early steps are cheap and usually decide the case. For every other shape, follow [`references/investigate.md`](references/investigate.md). At minimum check:
 
 - the subject's state, owner seat, fence labels and newest comments;
-- its pull requests: open or merged, conflicts, failing checks and whether each is real, review threads at head, queue and hold labels;
+- its pull requests: open or merged, conflicts, failing checks and whether each is real, review threads at head, queue and hold labels (a container reads none of the checks or threads: its snapshot holds open PR rows only, see [`references/container.md`](references/container.md));
 - the relay ledger for the subject (phase, park, hold, head sha agreement);
 - a duplicate ask, or a decision already recorded in an ADR or a plan.
 

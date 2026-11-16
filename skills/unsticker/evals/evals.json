@@ -243,6 +243,26 @@
         ],
         "reaches_human": false,
         "no_code_rounds": true,
+        "platform_causes": [
+          [
+            "stage_marker_drain",
+            "marker drain",
+            "drain"
+          ],
+          [
+            "supervised_pr_review_missing",
+            "review-skip",
+            "review skip",
+            "review_missing",
+            "plan_conformance"
+          ],
+          [
+            "supervised_validate_scenarios",
+            "validate_scenarios",
+            "cli command",
+            "sibling repo"
+          ]
+        ],
         "stale": [
           [
             "ask.description",
@@ -1238,6 +1258,15 @@
         ],
         "reaches_human": false,
         "no_code_rounds": true,
+        "platform_causes": [
+          [
+            "supervised_pr_review_missing",
+            "review_missing",
+            "review skipped",
+            "plan_conformance",
+            "no validate record"
+          ]
+        ],
         "stale": []
       }
     },
@@ -3135,7 +3164,7 @@
           "accept"
         ],
         "option": null,
-        "reaches_human": null,
+        "reaches_human": false,
         "stale": []
       }
     },

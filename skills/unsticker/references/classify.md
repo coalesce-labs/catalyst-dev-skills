@@ -80,5 +80,5 @@ Check this list before anything else, because it decides the class on its own. T
 | `other` | nothing above fits; explain in `notes` | — |
 
 Two checks every run makes:
-- **Confirm the owner live.** Check the session list, a live worktree, or a push or comment in the last 24 h. In a container, use the snapshot's lease heartbeats. Don't infer the owner from a handoff document's author.
+- **Confirm the owner live.** Check the session list, a live worktree, or a push or comment in the last 24 h. In a container, use the snapshot's lease deadlines and the subject's newest outcome comment. Don't infer the owner from a handoff document's author.
 - **Check where a "fixed" fix lives before calling a fence releasable.** Repository scripts reach a ticket when its branch contains the fix. Runner-image code reaches it when the active runner pin contains it (`git merge-base --is-ancestor <fix> <pin>`). In a container with no checkout, say the fix's reach is unverified unless the snapshot states it.

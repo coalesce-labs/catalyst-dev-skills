@@ -58,7 +58,7 @@ One JSON object per run, printed last. It is the unit of evaluation: the verdict
   - `close-moot`: close the ask because its premise is gone;
   - `wait`: nothing to do yet: work already in flight decides it;
   - `human-step`: a step only a person can take.
-- `ask_option` is the letter of the ask's listed option the steps amount to, or null when none fits (the answer is then a `DECIDED:` line naming the steps). [`repair-cap.md`](repair-cap.md) step 5 maps steps to letters.
+- `ask_option` is the letter of the ask's listed option the steps amount to, or null when none fits (the answer is then a `DECIDED:` line naming the steps). [`repair-cap.md`](repair-cap.md) steps 1 and 4 map steps to letters.
 - `reaches_human` is true only when a step needs something no agent holds; false when an agent or the platform can carry every step.
 - `stale_evidence` lists each input a newer input contradicts, as `{ field, said, newer, source }`, and is `[]` when none is. Every record checks for it ([`repair-cap.md`](repair-cap.md) step 6).
 - `round_table` is one `{ round, changed_code, cause, evidence }` per counted repair round, `cause` one of `platform`, `base`, `code`, `unknown`; `[]` for an ask that is not about repair rounds.

@@ -10,7 +10,7 @@ Read the subject's state, its newest outcome comments, the ledger's `relayPhaseS
 
 | you see | next step | option |
 | -- | -- | -- |
-| the subject is Done or its PR merged | `close-moot` | none |
+| the subject is Done, or it has no open PR and a comment records the merge | `close-moot` | none |
 | a push landed after the hold (PR head differs from the hold head), and validate is running or queued on it | `wait`, then close the ask when it passes | none, or B when the push was a hand fix |
 | validate is `ready` or running after an operator rewind, with nothing left to fix | `rerun-validate` (let it run) | none: answer with `DECIDED:` |
 

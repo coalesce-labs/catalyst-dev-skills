@@ -11,13 +11,19 @@
 // UNSTICKER_EVAL_CMD to another command that reads the prompt on stdin, takes the system prompt
 // file as its last argument and prints the reply. Grade the output with grade.mjs.
 //
-// Writes <out>/<case-id>.json (the parsed record) and <out>/<case-id>.raw.json (the reply and its
-// cost). Prints the total cost reported by the model command.
+// Writes <out>/<case-id>.json (the parsed record), <out>/<case-id>.raw.json (the reply and its
+// cost) and <out>/run.json (the model, the skill directory, a hash of the skill's files, the number
+// of calls and failures, and the cost), so a quoted score can be traced to what produced it.
+// A call whose model command fails (the command reports is_error, exits non-zero or cannot start)
+// writes no record and prints `error <case-id>: <message>`; a record an earlier run left in <out>
+// for that case is removed. The run exits 0 when every call worked, 1 when some failed and 3 when
+// all did, so a model that never answered cannot be read as a score of zero.
 
-import { readFileSync, writeFileSync, mkdirSync, readdirSync, existsSync } from "node:fs";
-import { join, dirname } from "node:path";
+import { readFileSync, writeFileSync, mkdirSync, readdirSync, rmSync } from "node:fs";
+import { join, dirname, resolve as resolvePath } from "node:path";
 import { fileURLToPath } from "node:url";
 import { spawn } from "node:child_process";
+import { createHash } from "node:crypto";
 import { tmpdir } from "node:os";
 
 const here = dirname(fileURLToPath(import.meta.url));
@@ -104,7 +110,11 @@ function runModel({ prompt, systemFile, model }) {
     let err = "";
     child.stdout.on("data", (d) => (out += d));
     child.stderr.on("data", (d) => (err += d));
+    child.on("error", (e) => resolve({ code: -1, out, err: `${err}${e.message}` }));
     child.on("close", (code) => resolve({ code, out, err }));
+    child.stdin.on("error", () => {
+      /* the command exited before reading the prompt; its exit code says why */
+    });
     child.stdin.end(prompt);
   });
 }
@@ -129,6 +139,7 @@ async function main(argv) {
 
   let cost = 0;
   let calls = 0;
+  let errors = 0;
   const queue = [...cases];
   async function worker() {
     for (let c = queue.shift(); c; c = queue.shift()) {
@@ -136,23 +147,36 @@ async function main(argv) {
       calls++;
       let reply = res.out;
       let usd = null;
+      let reported = null;
       try {
         const j = JSON.parse(res.out);
         reply = j.result ?? res.out;
         usd = j.total_cost_usd ?? null;
+        if (j.is_error === true) reported = String(j.result ?? "the model command reported an error");
       } catch {
         /* a custom command printing plain text */
       }
       if (typeof usd === "number") cost += usd;
-      const record = extractRecord(reply);
+      // A failed call is an error, never a record: a model that did not answer has not been measured.
+      const failure = reported ?? (res.code === 0 ? null : res.err.trim() || String(res.out).trim() || `the model command exited ${res.code}`);
+      const record = failure === null ? extractRecord(reply) : null;
       writeFileSync(join(out, `${c.id}.raw.json`), JSON.stringify({ code: res.code, usd, reply, stderr: res.err.slice(0, 2000) }, null, 2));
+      rmSync(join(out, `${c.id}.json`), { force: true });
       if (record) writeFileSync(join(out, `${c.id}.json`), JSON.stringify(record, null, 2));
-      console.log(`${record ? "ok  " : "none"} ${c.id}${usd != null ? ` $${usd.toFixed(3)}` : ""}`);
+      if (failure !== null) {
+        errors++;
+        console.log(`error ${c.id}: ${failure.replace(/\s+/g, " ").slice(0, 200)}`);
+      } else {
+        console.log(`${record ? "ok  " : "none"} ${c.id}${usd != null ? ` $${usd.toFixed(3)}` : ""}`);
+      }
     }
   }
   await Promise.all(Array.from({ length: Math.max(1, jobs) }, worker));
-  console.log(`\n${calls} calls on ${model}, reported cost $${cost.toFixed(2)}`);
-  return 0;
+  const skillSha256 = createHash("sha256").update(skillText(skillDir)).digest("hex");
+  const meta = { model, skillDir: resolvePath(skillDir), skillSha256, cases: calls, errors, costUsd: Number(cost.toFixed(6)) };
+  writeFileSync(join(out, "run.json"), JSON.stringify(meta, null, 2));
+  console.log(`\n${calls} calls on ${model}, ${errors} failed, reported cost $${cost.toFixed(2)}`);
+  return errors === 0 ? 0 : errors === calls ? 3 : 1;
 }
 
 if (process.argv[1] && fileURLToPath(import.meta.url) === process.argv[1]) main(process.argv).then((code) => process.exit(code));

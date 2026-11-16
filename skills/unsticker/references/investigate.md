@@ -5,7 +5,7 @@ Investigate the subject, not the ask's wording. The ask was written by a generat
 ## Tools and budgets
 
 - Linear: the local replica by SQL, never a bare `issues read` the replica could serve. Tables that matter: `issues` (state name in `state`, full JSON in `raw`), `comments`, `relations` (lags up to 5 minutes; re-read one live if a decision depends on it), `issue_labels`/`labels`. Always filter `removed_at IS NULL`.
-- GitHub: `gh pr view <n> --json state,isDraft,mergeable,mergeStateStatus,headRefOid,labels,statusCheckRollup,comments,reviews`, and the review threads through `gh api graphql` (`reviewThreads { isResolved isOutdated path line comments { body author } }`). The GitHub quota is shared; make single reads, never a polling loop.
+- GitHub: `gh pr view <n> --json state,isDraft,mergeable,mergeStateStatus,headRefOid,labels,statusCheckRollup,comments,reviews`, and the review threads through `gh api graphql` (`reviewThreads { isResolved isOutdated path line comments { body author } }`). The GitHub quota is shared; make single reads, never a polling loop. A container makes none of these calls: its snapshot holds no checks or review threads ([`container.md`](container.md)).
 - Catalyst mirror (when an admin bearer is available): `GET /admin/relay-ledger?account=<tenant>&ticket=<id>` for phase, park, hold and head agreement; `GET /admin/board-health?account=<tenant>` for alive or stuck; `GET /admin/work-eligibility?account=<tenant>&team=<key>` only for why a ticket is excluded. A validate report is the `validation.md` artifact for the attempt the ledger names; its closing JSON block holds the verdicts.
 - Code: read the files the finding names, at the PR head, before trusting a summary of them.
 
@@ -16,7 +16,7 @@ Investigate the subject, not the ask's wording. The ask was written by a generat
 Filed when a human-owned ticket sits in a stage the relay cannot enter from (usually PR) while it blocks others. The generator recommends "resubmit to Todo", which throws away finished work whenever a PR exists.
 
 1. Find the subject's PRs by ticket id in title and branch (`gh pr list --search "ENG-123" --state all`).
-2. For each open PR: conflicts (merge main to see them), failing checks and whether each is real, a flake, or already fixed on main (compare against main's latest run of the same check), review state at head (an automated review requested but not answered at the current head is a common stall), unresolved threads, `hold` labels and who placed them (a hold may be a deliberate merge window owned by another seat).
+2. For each open PR: conflicts (merge main to see them), failing checks and whether each is real, a flake, or already fixed on main (compare against main's latest run of the same check), review state at head (an automated review requested but not answered at the current head is a common stall), unresolved threads, `hold` labels and who placed them (a hold may be a deliberate merge window owned by another seat). A container reads none of the checks or threads, only the open PR rows in its snapshot ([`container.md`](container.md)).
 3. Who is working it: the newest PR and ticket comments, seat names in them, and whether that seat is alive.
 4. Whether the tickets it holds are really blocked (stacked branches mean the edge is real).
 
