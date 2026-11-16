@@ -248,7 +248,6 @@ describe("this repository", () => {
     "scripts/briefing-followup/action-adr.sh",
     "scripts/briefing-followup/action-compound.sh",
     "scripts/briefing-followup/action-email.sh",
-    "scripts/briefing-followup/action-orchestrate.sh",
     "scripts/briefing-followup/action-schedule.sh",
     "scripts/briefing-followup/action-ticket.sh",
     "scripts/briefing-followup/parse-briefing.sh",
