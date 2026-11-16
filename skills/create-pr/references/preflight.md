@@ -48,9 +48,10 @@ If one exists, show it and ask: "[D] Describe/update this PR  [S] Skip  [A] Abor
 ## Step 6 — Extract ticket from branch name
 
 ```bash
-CONFIG_FILE=".catalyst/config.json"
-[[ ! -f "$CONFIG_FILE" ]] && CONFIG_FILE=".claude/config.json"
-TEAM_KEY=$(jq -r '.catalyst.linear.teamKey // "PROJ"' "$CONFIG_FILE")
+# The team key is `linear_team` under [project] in .catalyst/catalyst.toml; a checkout without the
+# file falls back to PROJ.
+TEAM_KEY=$(awk -F'"' '/^\[project\]/{p=1;next} /^\[/{p=0} p && /^linear_team/{print $2; exit}' .catalyst/catalyst.toml 2>/dev/null)
+TEAM_KEY=${TEAM_KEY:-PROJ}
 
 branch=$(git branch --show-current)
 [[ "$branch" =~ ($TEAM_KEY-[0-9]+) ]] && ticket="${BASH_REMATCH[1]}"

@@ -374,9 +374,9 @@ export function resolveLayer2Path(env = process.env) {
 }
 
 // resolveLegacyPerTeamConfigPath — CTL-1616 PR4. Mirrors linear-comment-post.sh's
-// _find_layer2_config VERBATIM: walk `cwd` upward looking for a `.catalyst/config.json`,
-// read its `.catalyst.projectKey` (nested) or bare top-level `.projectKey` (legacy layout),
-// and build the sibling per-team file name `config-<key>.json`. The ONE deliberate
+// _find_layer2_config: walk `cwd` upward looking for a `.catalyst/catalyst.toml` (CTC-10759: the
+// retired JSON settings file is not read), take the project key from it (the repository name
+// in `[project.repositories] default`), and build the sibling per-team file name `config-<key>.json`. The ONE deliberate
 // generalization (matching every other row's dirname(layer2)-relative-to-canonical-chain
 // convention, e.g. secretFileCandidates): the sibling file lives next to the CANONICAL
 // resolveLayer2Path(env) directory, not a hardcoded `${HOME}/.config/catalyst` literal — this
@@ -390,19 +390,39 @@ export function resolveLayer2Path(env = process.env) {
 // LOUD stderr warning the pre-fold script emits on that fallback is the CALLER's
 // responsibility (lib/catalyst-secret-contract.sh's mirror keeps it, since it is what
 // linear-comment-post.sh's test suite asserts against).
+// projectKeyFromToml — the repository name in `[project.repositories] default` ("owner/name" gives
+// "name"), read from catalyst.toml text without a TOML parser (this file is a zero-import leaf).
+// Mirrors lib/catalyst-toml.sh's catalyst_toml_project_key. undefined when there is none.
+function projectKeyFromToml(text) {
+  let inTable = false;
+  for (const line of text.split("\n")) {
+    const header = /^\s*\[\s*([^\]]*?)\s*\]\s*(?:#.*)?$/.exec(line);
+    if (header) {
+      inTable = header[1] === "project.repositories";
+      continue;
+    }
+    if (!inTable) continue;
+    const m = /^\s*default\s*=\s*(?:"([^"]*)"|'([^']*)')/.exec(line);
+    if (m) {
+      const name = (m[1] ?? m[2] ?? "").split("/").pop();
+      return name && name.length > 0 ? name : undefined;
+    }
+  }
+  return undefined;
+}
+
 export function resolveLegacyPerTeamConfigPath(env = process.env, cwd = process.cwd()) {
   let dir = cwd;
   for (;;) {
-    const cfg = join(dir, ".catalyst", "config.json");
+    const cfg = join(dir, ".catalyst", "catalyst.toml");
     if (existsSync(cfg)) {
       try {
-        const parsed = JSON.parse(readFileSync(cfg, "utf8"));
-        const key = parsed?.catalyst?.projectKey ?? parsed?.projectKey;
+        const key = projectKeyFromToml(readFileSync(cfg, "utf8"));
         if (typeof key === "string" && key.length > 0) {
           return join(dirname(resolveLayer2Path(env)), `config-${key}.json`);
         }
       } catch {
-        /* malformed ancestor config — keep walking, matches the script's `|| true` swallow */
+        /* unreadable ancestor catalyst.toml: keep walking, matches the script's `|| true` swallow */
       }
     }
     const parent = dirname(dir);

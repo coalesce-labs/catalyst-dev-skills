@@ -1,22 +1,13 @@
 # Commit configuration
 
-The skill reads `.catalyst/config.json`:
+The skill reads `.catalyst/catalyst.toml`:
 
-```json
-{
-  "catalyst": {
-    "commit": {
-      "useConventional": true,
-      "scopes": ["agents", "commands", "scripts", "docs", "config"],
-      "autoDetectType": true,
-      "autoDetectScope": true,
-      "requireBody": false
-    },
-    "project": {
-      "ticketPrefix": "PROJ"
-    }
-  }
-}
+```toml
+[project]
+linear_team = "PROJ"
+
+[pull_requests]
+commit_convention = "conventional"
 ```
 
-`scopes` lists the scopes to offer, `ticketPrefix` the ticket pattern to look for in the branch name, and `requireBody` whether every commit needs a body.
+`linear_team` is the ticket pattern to look for in the branch name. `commit_convention` is `conventional` unless the file says otherwise. A checkout with no `catalyst.toml` gets the defaults: Conventional Commits, no ticket prefix, scopes detected from the changed paths, no required body. Scopes and body rules have no settings key.

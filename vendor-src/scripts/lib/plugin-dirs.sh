@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
-# lib/plugin-dirs.sh — find the repository's `.catalyst/config.json` marker.
+# lib/plugin-dirs.sh — find the repository's `.catalyst/catalyst.toml` marker.
 #
-# The file keeps its historical name so the skills that source it (linearis, concierge, linear,
+# The function keeps its historical name (it now finds catalyst.toml, CTC-10759) so the skills that source it (linearis, concierge, linear,
 # steward) and tests/skill-dir-isolation.test.sh keep working. It used to resolve the per-host
 # catalyst-dev plugin checkout that phase-agent-dispatch turned into `--plugin-dir` flags for
 # worker sessions (CTL-940), and to health-check that checkout (CTL-992). That plugin is retired:
@@ -17,12 +17,12 @@
 _CATALYST_PLUGIN_DIRS_SH_LOADED=1
 
 # plugin_dirs_repo_config_path [START_DIR] — walk up from START_DIR (default
-# $PWD) looking for .catalyst/config.json; echoes its path or "".
+# $PWD) looking for .catalyst/catalyst.toml; echoes its path or "".
 plugin_dirs_repo_config_path() {
   local dir="${1:-$PWD}"
   while [[ "$dir" != "/" && -n "$dir" ]]; do
-    if [[ -f "${dir}/.catalyst/config.json" ]]; then
-      printf '%s' "${dir}/.catalyst/config.json"
+    if [[ -f "${dir}/.catalyst/catalyst.toml" ]]; then
+      printf '%s' "${dir}/.catalyst/catalyst.toml"
       return 0
     fi
     dir="$(dirname "$dir")"

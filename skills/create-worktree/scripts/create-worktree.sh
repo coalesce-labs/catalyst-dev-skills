@@ -156,19 +156,22 @@ else
 	GITHUB_REPO="$REPO_NAME"
 fi
 
-# Resolve Catalyst config file (.catalyst/ first, then .claude/)
+# Repository settings come from .catalyst/catalyst.toml (CTC-10759: the old JSON settings file is
+# not read, and a checkout without it works). TOML_FILE is empty when the repo has none. CONFIG_FILE
+# is the older .claude/config.json, kept only for the two settings catalyst.toml has no key for
+# (orchestration.worktreeDir, worktree.setup) and as a thoughts fallback.
+# shellcheck source=lib/catalyst-toml.sh
+source "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/lib/catalyst-toml.sh"
+TOML_FILE=""
+[ -f "${REPO_ROOT}/.catalyst/catalyst.toml" ] && TOML_FILE="${REPO_ROOT}/.catalyst/catalyst.toml"
 CONFIG_FILE=""
-for CFG in "${REPO_ROOT}/.catalyst/config.json" "${REPO_ROOT}/.claude/config.json"; do
-	if [ -f "$CFG" ]; then
-		CONFIG_FILE="$CFG"
-		break
-	fi
-done
+[ -f "${REPO_ROOT}/.claude/config.json" ] && CONFIG_FILE="${REPO_ROOT}/.claude/config.json"
 
 PROJECT_KEY=""
 WT_DIR_CONFIG=""
+PROJECT_KEY="$(catalyst_toml_project_key "$TOML_FILE" 2>/dev/null)" || PROJECT_KEY=""
 if [ -n "$CONFIG_FILE" ]; then
-	PROJECT_KEY=$(jq -r '.catalyst.projectKey // empty' "$CONFIG_FILE" 2>/dev/null)
+	[ -n "$PROJECT_KEY" ] || PROJECT_KEY=$(jq -r '.catalyst.projectKey // empty' "$CONFIG_FILE" 2>/dev/null)
 	WT_DIR_CONFIG=$(jq -r '.catalyst.orchestration.worktreeDir // empty' "$CONFIG_FILE" 2>/dev/null)
 fi
 
@@ -279,16 +282,11 @@ if [ -d "$WORKTREE_PATH" ]; then
 			# The reused tree's own config decides, exactly as catalyst-thoughts.sh reads it there (and
 			# nothing else, or the repair and this check would disagree): its branch may name another
 			# thoughts directory or profile than the main checkout.
-			_CW_TCFG=""
-			for _CW_CFG in "$WORKTREE_PATH/.catalyst/config.json" "$WORKTREE_PATH/.claude/config.json"; do
-				[ -n "$_CW_CFG" ] && [ -f "$_CW_CFG" ] && { _CW_TCFG="$_CW_CFG"; break; }
-			done
-			_CW_TDIR="$GITHUB_REPO" _CW_TPROFILE=""
-			if [ -n "$_CW_TCFG" ]; then
-				_CW_TDIR="$(jq -r '.catalyst.thoughts.directory // empty' "$_CW_TCFG" 2>/dev/null)"
-				_CW_TDIR="${_CW_TDIR:-$GITHUB_REPO}"
-				_CW_TPROFILE="$(jq -r '.catalyst.thoughts.profile // empty' "$_CW_TCFG" 2>/dev/null)"
-			fi
+			_CW_TTOML="$WORKTREE_PATH/.catalyst/catalyst.toml"
+			_CW_TCFG="$WORKTREE_PATH/.claude/config.json"
+			_CW_TDIR="$(catalyst_toml_or_claude_json "$_CW_TTOML" project.thoughts directory "$_CW_TCFG" '.catalyst.thoughts.directory')" || _CW_TDIR=""
+			_CW_TDIR="${_CW_TDIR:-$GITHUB_REPO}"
+			_CW_TPROFILE="$(catalyst_toml_or_claude_json "$_CW_TTOML" project.thoughts profile "$_CW_TCFG" '.catalyst.thoughts.profile')" || _CW_TPROFILE=""
 			_CW_TPROFILE="$(catalyst_thoughts_profile "$_CW_DECLARED" "$GITHUB_ORG" "$_CW_TPROFILE")" || exit 2
 			_CW_TARGET="$(catalyst_thoughts_shared_target "$_CW_DECLARED" "$_CW_TPROFILE" "$_CW_TDIR")"
 			# A healthy link is refreshed every time: the repair is idempotent and also rewrites the
@@ -302,7 +300,7 @@ if [ -d "$WORKTREE_PATH" ]; then
 			# thoughts profile in config, no HumanLayer) legitimately has no thoughts/shared and must still
 			# reuse — never block phases 2-9 for those. Resolve the profile exactly as the setup block does.
 			_CW_THOUGHTS_PROFILE=""
-			[ -n "$CONFIG_FILE" ] && _CW_THOUGHTS_PROFILE=$(jq -r '.catalyst.thoughts.profile // empty' "$CONFIG_FILE" 2>/dev/null)
+			_CW_THOUGHTS_PROFILE="$(catalyst_toml_or_claude_json "$TOML_FILE" project.thoughts profile "$CONFIG_FILE" '.catalyst.thoughts.profile')" || _CW_THOUGHTS_PROFILE=""
 			if [ -z "$_CW_THOUGHTS_PROFILE" ] && command -v humanlayer >/dev/null 2>&1; then
 				_CW_THOUGHTS_PROFILE=$(humanlayer thoughts status 2>/dev/null | grep -i "Profile:" | head -1 | awk '{print $2}')
 			fi
@@ -717,12 +715,10 @@ cd "$WORKTREE_PATH"
 # repo name, which is the checkout's own name for a normal clone (CTC-3792).
 THOUGHTS_PROFILE=""
 THOUGHTS_DIRECTORY="$GITHUB_REPO"
-if [ -n "$CONFIG_FILE" ]; then
-	THOUGHTS_PROFILE=$(jq -r '.catalyst.thoughts.profile // empty' "$CONFIG_FILE" 2>/dev/null)
-	THOUGHTS_DIR_CFG=$(jq -r '.catalyst.thoughts.directory // empty' "$CONFIG_FILE" 2>/dev/null)
-	if [ -n "$THOUGHTS_DIR_CFG" ]; then
-		THOUGHTS_DIRECTORY="$THOUGHTS_DIR_CFG"
-	fi
+THOUGHTS_PROFILE="$(catalyst_toml_or_claude_json "$TOML_FILE" project.thoughts profile "$CONFIG_FILE" '.catalyst.thoughts.profile')" || THOUGHTS_PROFILE=""
+THOUGHTS_DIR_CFG="$(catalyst_toml_or_claude_json "$TOML_FILE" project.thoughts directory "$CONFIG_FILE" '.catalyst.thoughts.directory')" || THOUGHTS_DIR_CFG=""
+if [ -n "$THOUGHTS_DIR_CFG" ]; then
+	THOUGHTS_DIRECTORY="$THOUGHTS_DIR_CFG"
 fi
 
 # CTC-3792: a thoughts repo declared by the paths contract (CATALYST_THOUGHTS_REPO, paths.json, or

@@ -14,7 +14,7 @@
 #                                   .github/workflows/ file (CTL-1119)
 #   draft_pr_ensure BASE TICKET   — ensure a draft PR exists; echoes NUM<TAB>URL<TAB>ISDRAFT
 #   draft_pr_promote              — promote current branch's PR from draft to ready
-#   draft_pr_enabled              — read .catalyst/config.json knob (default true)
+#   draft_pr_enabled              — read the catalyst.toml draft knob (default true)
 #
 # Reserved return codes:
 #   3 — draft_pr_push_verify: push rejected for missing 'workflow' OAuth scope and no
@@ -50,6 +50,19 @@ _DRAFT_PR_PERMISSION_RC=5
 _DRAFT_PR_STACK_RC=6
 _DRAFT_PR_REPLAY_CONFLICT_RC=7
 
+# catalyst.toml is the only repository settings file (CTC-10759); lib/catalyst-toml.sh reads it.
+# shellcheck source=catalyst-toml.sh
+_draft_pr_source_toml() {
+  local source_path
+  if [[ -n "${ZSH_VERSION:-}" ]]; then
+    eval 'source_path="${(%):-%x}"'
+  else
+    source_path="${BASH_SOURCE[0]:-$0}"
+  fi
+  # shellcheck source=/dev/null
+  source "$(cd "$(dirname "$source_path")" 2>/dev/null && pwd)/catalyst-toml.sh"
+}
+
 _draft_pr_config_str() {
   local file="$1" selector="$2" raw
   [[ -f "$file" ]] || return 1
@@ -65,7 +78,8 @@ _draft_pr_layer2_config_path() {
   [[ -n "$common" ]] || return 1
   root="$(cd "$(dirname "$common")" 2>/dev/null && pwd)" || root=""
   [[ -n "$root" ]] || return 1
-  project_key="$(_draft_pr_config_str "${root}/.catalyst/config.json" '.catalyst.projectKey // .projectKey')" || project_key=""
+  _draft_pr_source_toml 2>/dev/null || return 1
+  project_key="$(catalyst_toml_project_key "${root}/.catalyst/catalyst.toml")" || project_key=""
   [[ -n "$project_key" ]] || return 1
   local source_path
   if [[ -n "${ZSH_VERSION:-}" ]]; then
@@ -85,20 +99,12 @@ _draft_pr_layer2_config_path() {
 }
 
 _draft_pr_push_remote() {
-  local candidate="" l2 common root
+  local candidate="" l2
   [[ -n "${CATALYST_PUSH_REMOTE:-}" ]] && candidate="$CATALYST_PUSH_REMOTE"
   if [[ -z "$candidate" ]]; then
     l2="$(_draft_pr_layer2_config_path 2>/dev/null)" || l2=""
     [[ -z "$l2" ]] || candidate="$(_draft_pr_config_str "$l2" '.catalyst.pr.pushRemote')" || candidate=""
   fi
-  if [[ -z "$candidate" ]]; then
-    common="$(git rev-parse --git-common-dir 2>/dev/null)" || common=""
-    if [[ -n "$common" ]]; then
-      root="$(cd "$(dirname "$common")" 2>/dev/null && pwd)" || root=""
-      [[ -z "$root" ]] || candidate="$(_draft_pr_config_str "${root}/.catalyst/config.json" '.catalyst.pr.pushRemote')" || candidate=""
-    fi
-  fi
-  [[ -n "$candidate" ]] || candidate="$(_draft_pr_config_str "${CATALYST_CONFIG_PATH:-.catalyst/config.json}" '.catalyst.pr.pushRemote')" || candidate=""
   if [[ -z "$candidate" ]]; then
     local upstream
     upstream="$(git rev-parse --abbrev-ref --symbolic-full-name '@{u}' 2>/dev/null)" || upstream=""
@@ -554,20 +560,18 @@ draft_pr_head_oid() {
   return 1
 }
 
-# draft_pr_enabled — read .catalyst/config.json knob. Returns "true" (default) or "false".
-# Fail-open to "true" when jq or the config file are absent.
-# NOTE: cannot use jq's `// true` default — jq's alternative operator treats `false` as
-# falsy, so `false // true` → `true`. Read the raw string and test it directly.
+# draft_pr_enabled — the catalyst.toml draft knob, `[pull_requests] draft_until_validated`.
+# Prints "true" (default) or "false". An absent file, table or key is "true", so a checkout with
+# no catalyst.toml still opens drafts. CATALYST_TOML_PATH names the file to read instead of the
+# nearest `.catalyst/catalyst.toml` above the working directory.
 draft_pr_enabled() {
-  local config_path="${CATALYST_CONFIG_PATH:-.catalyst/config.json}"
-  local raw
-  raw="$(_draft_pr_config_str "$config_path" '.catalyst.orchestration.draftPr.enabled')" || raw=""
-  if [[ -n "$raw" ]]; then
-    if [[ "$raw" == "false" ]]; then
-      printf 'false\n'
-    else
-      printf 'true\n'
-    fi
+  local toml raw
+  _draft_pr_source_toml 2>/dev/null || { printf 'true\n'; return 0; }
+  toml="${CATALYST_TOML_PATH:-}"
+  [[ -n "$toml" ]] || toml="$(catalyst_toml_find 2>/dev/null)" || toml=""
+  raw="$(catalyst_toml_get "$toml" pull_requests draft_until_validated 2>/dev/null)" || raw=""
+  if [[ "$raw" == "false" ]]; then
+    printf 'false\n'
   else
     printf 'true\n'
   fi

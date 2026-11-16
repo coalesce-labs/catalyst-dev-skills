@@ -3,7 +3,7 @@
 # from the Catalyst Cloud replica instead of from hand-written host caches.
 #
 # ── WHY ──
-# Identity was stored in four places, none authoritative: `.catalyst/config.json`
+# Identity was stored in four places, none authoritative: the repository's JSON settings file
 # → `catalyst.linear.teamId` (21 files, 7 repoRoots × 3 hosts),
 # `~/.config/catalyst/linear-state-ids.json` (~248 workflow-state UUIDs, hosts
 # disagreeing), `filter-state.db`, and identifier-keyed marker dirs. A Linear-to-Linear
