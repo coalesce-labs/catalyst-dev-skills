@@ -4,6 +4,7 @@
 # and CI (`node scripts/vendor.mjs --check`) fails on drift.
 files:
   - scripts/lib/draft-pr.sh
+  - scripts/lib/catalyst-toml.sh
   - scripts/lib/catalyst-secret-contract.sh
   - scripts/lib/linear-pr-skip.sh
   - scripts/lib/linear-team-keys.sh

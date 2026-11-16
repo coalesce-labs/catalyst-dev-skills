@@ -201,7 +201,7 @@ describe("the checker sees each violation it exists to catch (positive controls)
     const dir = fixtureSkill("external-paths", {
       "SKILL.md": "---\nname: x\n---\nno commands\n",
       "scripts/a.sh":
-        '#!/usr/bin/env bash\nREPO_ROOT="$(git rev-parse --show-toplevel)"\ncfg="${REPO_ROOT}/.catalyst/config.json"\nhere="$(pwd)/.catalyst/config.json"\n',
+        '#!/usr/bin/env bash\nREPO_ROOT="$(git rev-parse --show-toplevel)"\ncfg="${REPO_ROOT}/.catalyst/catalyst.toml"\nhere="$(pwd)/.catalyst/catalyst.toml"\n',
     });
     expect(checkSkillSelfContainment(dir).violations).toEqual([]);
   });

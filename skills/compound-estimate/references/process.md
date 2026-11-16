@@ -6,7 +6,8 @@ If the user passed a ticket ID, use it. Otherwise:
 
 ```bash
 BRANCH=$(git branch --show-current)
-TICKET_PREFIX=$(jq -r '.catalyst.project.ticketPrefix // "PROJ"' .catalyst/config.json)
+TICKET_PREFIX=$(awk -F'"' '/^\[project\]/{p=1;next} /^\[/{p=0} p && /^linear_team/{print $2; exit}' .catalyst/catalyst.toml 2>/dev/null)
+TICKET_PREFIX=${TICKET_PREFIX:-PROJ}
 TICKET_ID=$(echo "$BRANCH" | grep -oE "${TICKET_PREFIX}-[0-9]+" | head -1)
 ```
 

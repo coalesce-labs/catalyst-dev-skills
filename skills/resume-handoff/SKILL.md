@@ -57,7 +57,7 @@ else
 fi
 ```
 
-Ticket ids look like `PROJ-123`: take the prefix from `.catalyst/config.json`, else write `TICKET-XXX`.
+Ticket ids look like `PROJ-123`: take the prefix from `linear_team` under `[project]` in `.catalyst/catalyst.toml`, else write `TICKET-XXX`.
 
 ## Invariants
 

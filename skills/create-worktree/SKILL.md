@@ -13,7 +13,7 @@ version: 1.0.0
 
 **Paths.** Commands below name files inside this skill's own directory as `${CLAUDE_SKILL_DIR}/…`. Claude Code fills that in. On any other harness, set CLAUDE_SKILL_DIR to the absolute directory that contains this SKILL.md before running them. If you cannot, stop and report `skill_dir_unresolved`.
 
-Ticket ids look like `PROJ-123`: take the prefix from `.catalyst/config.json`, else write `TICKET-XXX`.
+Ticket ids look like `PROJ-123`: take the prefix from `linear_team` under `[project]` in `.catalyst/catalyst.toml`, else write `TICKET-XXX`.
 
 ## Process
 

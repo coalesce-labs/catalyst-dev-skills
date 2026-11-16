@@ -88,16 +88,11 @@ Present findings as structured data:
 
 ## Configuration
 
-Team information comes from `.catalyst/config.json`:
+Team information comes from `linear_team` under `[project]` in `.catalyst/catalyst.toml`:
 
-```json
-{
-  "catalyst": {
-    "linear": {
-      "teamKey": "ENG"
-    }
-  }
-}
+```toml
+[project]
+linear_team = "ENG"
 ```
 
 ## Authentication

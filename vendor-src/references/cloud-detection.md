@@ -11,11 +11,11 @@ source "${CLAUDE_SKILL_DIR}/scripts/lib/linear-read-replica.sh"
 replica_fresh; rf=$?   # rc 0: writer heartbeat lock recent AND sync_meta has a cursor row. rc 1: stale/absent.
 ```
 
-**2. The `.catalyst` project-config marker.** Presence of a `.catalyst/config.json` walking up from the worktree says this host is configured to run against the Catalyst Cloud stack at all — reuse the existing resolver, do not hand-roll a second walk:
+**2. The `.catalyst` project-config marker.** Presence of a `.catalyst/catalyst.toml` walking up from the worktree says this host is configured to run against the Catalyst Cloud stack at all — reuse the existing resolver, do not hand-roll a second walk:
 
 ```bash
 source "${CLAUDE_SKILL_DIR}/scripts/lib/plugin-dirs.sh"
-marker="$(plugin_dirs_repo_config_path)"   # path to .catalyst/config.json, or "" if none found
+marker="$(plugin_dirs_repo_config_path)"   # path to .catalyst/catalyst.toml, or "" if none found
 ```
 
 **Cloud mode requires BOTH.** `rf` non-zero OR `marker` empty means "no cloud" for this session — treat the replica as **not** authoritative and take the fallback below.

@@ -549,7 +549,7 @@ export function readLayer2Merged() {
 }
 
 // The repo root that owns the committed cluster roster (.catalyst/hosts.json).
-// CATALYST_CONFIG_FILE points at <repoRoot>/.catalyst/config.json (mirrors the
+// CATALYST_CONFIG_FILE points at a file inside <repoRoot>/.catalyst (mirrors the
 // reaper-config resolution in daemon.mjs main()); otherwise fall back to the
 // daemon's cwd. Re-resolved per call so tests can redirect via the env var.
 // CTL-1093 (#1927) added a named import of this in daemon.mjs but landed without
@@ -558,7 +558,7 @@ export function readLayer2Merged() {
 export function getCatalystRepoDir() {
   const cfgFile = process.env.CATALYST_CONFIG_FILE;
   if (cfgFile) {
-    // <repoRoot>/.catalyst/config.json → <repoRoot>/.catalyst
+    // <repoRoot>/.catalyst/<file> → <repoRoot>/.catalyst
     return resolve(cfgFile, "..");
   }
   return resolve(process.cwd(), ".catalyst");
@@ -833,7 +833,7 @@ export function isInProcessDispatchMode(mode) {
 }
 
 // readExecutorLayer1 — pull catalyst.orchestration.executor out of a project's
-// Layer-1 .catalyst/config.json. Returns the raw value EXACTLY as written, or
+// Layer-1 config file. Returns the raw value EXACTLY as written, or
 // undefined when the key is absent or the file is missing/malformed/unreadable
 // (so callers fall back to env/node-class default). Never throws — mirrors
 // readFleetHealthConfigLayer1's ENOENT-tolerant shape. resolveExecutor — not this
@@ -948,7 +948,7 @@ export function getExecutor(configPath) {
 // mirrors readFleetHealthConfigLayer1's ENOENT-tolerant shape.
 //
 // CTL-1457 follow-up (Gap 1): the env override is the DURABLE, clobber-safe home for
-// a routing pin. On worker nodes the per-node Layer-1 .catalyst/config.json is
+// a routing pin. On worker nodes the per-node Layer-1 config file is
 // git-reset every few minutes, so a routing pin written to the file cannot persist;
 // CATALYST_EXECUTOR_BY_PHASE (set in the daemon launch env) survives that reset. When
 // set to a plain-object JSON map it REPLACES the file (env-over-Layer-1). When set but
@@ -1063,7 +1063,7 @@ export function hasInProcessExecutorRoute(executorByPhase) {
 }
 
 // readCodexConfigLayer1 — pull catalyst.orchestration.codex out of a project's
-// Layer-1 .catalyst/config.json. Returns {} for a null/missing/unparseable file
+// Layer-1 config file. Returns {} for a null/missing/unparseable file
 // or an absent/non-object key. Never throws — mirrors readFleetHealthConfigLayer1.
 export function readCodexConfigLayer1(configPath) {
   if (!configPath) return {};
@@ -1756,7 +1756,7 @@ export function readMemorySamplerConfig() {
 // CTL-1165 D5 — pre-exhaustion fleet-health guardrail config. Re-reads from
 // process.env on every call (mirrors readMemorySamplerConfig) so tests mutate
 // env freely. Three-layer precedence per knob: env > Layer-1
-// (catalyst.orchestration.fleetHealth in .catalyst/config.json) > code default.
+// (catalyst.orchestration.fleetHealth in the Layer-1 config file) > code default.
 // `selfHealEnabled` DEFAULTS OFF — the first ship is a pure alert; nothing is
 // reaped until an operator opts in via EXECUTION_CORE_FLEET_SELF_HEAL.
 //
@@ -1781,7 +1781,7 @@ const FLEET_HEALTH_DEFAULTS = Object.freeze({
 });
 
 // readFleetHealthConfigLayer1 — pull catalyst.orchestration.fleetHealth out of a
-// project's .catalyst/config.json. Returns {} for a null/missing/unparseable
+// project's Layer-1 config file. Returns {} for a null/missing/unparseable
 // file or absent key so callers fall back to env/defaults. Never throws.
 export function readFleetHealthConfigLayer1(configPath) {
   if (!configPath) return {};
@@ -2027,7 +2027,7 @@ const DAEMON_WATCHDOG_DEFAULTS = Object.freeze({
 });
 
 // readDaemonWatchdogConfigLayer1 — pull catalyst.orchestration.daemonWatchdog out
-// of a project's .catalyst/config.json. Returns {} for a null/missing/unparseable
+// of a project's Layer-1 config file. Returns {} for a null/missing/unparseable
 // file or absent key so callers fall back to env/defaults. Never throws (mirrors
 // readFleetHealthConfigLayer1).
 export function readDaemonWatchdogConfigLayer1(configPath) {

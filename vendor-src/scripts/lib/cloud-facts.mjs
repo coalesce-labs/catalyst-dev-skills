@@ -29,8 +29,8 @@
 //                                                   →  layer2 catalyst.cloud.hostDailyWriteBudget
 //                                                   →  DEFAULT_HOST_DAILY_WRITE_BUDGET
 //
-// Layer 1 is the committed, per-repo `.catalyst/config.json` (override:
-// `CATALYST_CONFIG_FILE`); Layer 2 is the per-machine `~/.config/catalyst/config.json`
+// Layer 1 is a repository config file named explicitly (`CATALYST_CONFIG_FILE`; the committed
+// JSON file that used to be searched for is retired, CTC-10759); Layer 2 is the per-machine `~/.config/catalyst/config.json`
 // (override: `CATALYST_LAYER2_CONFIG_FILE`). Same two layers, resolved the same way, as
 // lib/tenant-identity.mjs and lib/deployment-mode.mjs — an operator who has learned one
 // config ladder has learned all of them.
@@ -59,9 +59,9 @@
 // lib/deployment-mode.mjs state: `catalyst doctor` and the bare-Node agent tools import
 // this class of module without a `bun install`, so it may never pull a package.
 
-import { existsSync, readFileSync } from "node:fs";
+import { readFileSync } from "node:fs";
 import { homedir } from "node:os";
-import { dirname, join, resolve } from "node:path";
+import { resolve } from "node:path";
 
 /** The canonical Catalyst Cloud domain. `staging.` is the live host until the CTC-433 DNS cutover. */
 export const CANONICAL_CLOUD_HOST = "staging.catalystcloud.dev";
@@ -97,22 +97,13 @@ export const WRITE_BUDGET_CONFIG_PATH = "catalyst.cloud.hostDailyWriteBudget";
 // resolveLayer1Path / resolveLayer2Path — deliberate mirrors of lib/tenant-identity.mjs's
 // pair (which mirrors lib/deployment-mode.mjs's). Reads the INJECTED env, never
 // process.env directly, so resolution stays pure and a test can hand in a whole fixture
-// home. Layer 1 WALKS UP from cwd for the reason tenant-identity.mjs records: agent tools
-// run from wherever the agent happens to be, and a cwd-only check would refuse for a repo
-// that is plainly configured one directory down.
-function resolveLayer1Path(env, layer1ConfigPath, cwd = process.cwd()) {
+// home. Layer 1 is only a file named explicitly (CTC-10759: nothing walks up for a
+// repository JSON file any more).
+function resolveLayer1Path(env, layer1ConfigPath) {
   if (typeof layer1ConfigPath === "string" && layer1ConfigPath.length > 0) return layer1ConfigPath;
   const override = env?.CATALYST_CONFIG_FILE;
   if (typeof override === "string" && override.length > 0) return override;
-  let dir = resolve(cwd);
-  for (;;) {
-    const candidate = join(dir, ".catalyst", "config.json");
-    if (existsSync(candidate)) return candidate;
-    const parent = dirname(dir);
-    if (parent === dir) break; // reached the filesystem root
-    dir = parent;
-  }
-  return resolve(cwd, ".catalyst", "config.json");
+  return "";
 }
 
 function resolveLayer2Path(env, layer2ConfigPath) {
@@ -212,7 +203,7 @@ export function resolveCloudBaseUrl({ env = process.env, layer1ConfigPath, layer
         message:
           `the cloud base URL from ${source} points at the RETIRED host ${parsed.hostname}: ` +
           `${value}. The canonical host is ${CANONICAL_CLOUD_HOST}. Set ` +
-          `${BASE_URL_CONFIG_PATH} in ${layer1} or ${layer2}, or export ` +
+          `${BASE_URL_CONFIG_PATH} in ${layer1 ? `${layer1} or ` : ""}${layer2}, or export ` +
           "CATALYST_CLOUD_BASE_URL. Writes to the retired estate are not this tenant's.",
       };
     }
