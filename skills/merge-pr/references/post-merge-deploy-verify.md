@@ -25,9 +25,8 @@ verify_post_merge_deploy() {
   # 0. This reference maps CATALYST'S OWN two deploy surfaces (below). A repo that isn't
   #    catalyst has no website/** docs site or catalyst.coalescelabs.ai to check — assuming
   #    every non-website merge there is NOT_APPLICABLE would be silently wrong. Gate on repo
-  #    identity; a different repo needs its own equivalent mapping (see config-safety.md's
-  #    `.catalyst/config.json` as the natural place to declare one — not built here, since no
-  #    second repo's mapping exists yet to design against).
+  #    identity; a different repo needs its own equivalent mapping (a place to declare one is
+  #    not built here, since no second repo's mapping exists yet to design against).
   if [[ "$repo" != "coalesce-labs/catalyst" ]]; then
     echo "NO_DEPLOY_CONFIG"
     return 0

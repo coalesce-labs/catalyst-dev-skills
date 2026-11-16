@@ -21,7 +21,7 @@ ROOT="."
 TARGET_WORDS=""
 TONE=""
 DRY_RUN=0
-CONFIG=".catalyst/config.json"
+CONFIG="${CATALYST_CONFIG_DIR:-${XDG_CONFIG_HOME:-${HOME:-}/.config}/catalyst}/briefing.json"  # personal, per machine (CTC-10759)
 
 while [[ $# -gt 0 ]]; do
   case "$1" in

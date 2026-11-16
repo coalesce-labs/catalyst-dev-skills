@@ -82,7 +82,9 @@ then re-run the merge-pr skill.
 ## Step 5 — Run local tests
 
 ```bash
-test_cmd=$(jq -r '.catalyst.pr.testCommand // "make test"' .catalyst/config.json)
+# No catalyst.toml key names the test command: take it from the repository's AGENTS.md or README,
+# and fall back to `make test`. CATALYST_TEST_COMMAND overrides both for one run.
+test_cmd="${CATALYST_TEST_COMMAND:-make test}"
 echo "Running tests: $test_cmd"
 if ! $test_cmd; then
   echo "❌ Tests failed"

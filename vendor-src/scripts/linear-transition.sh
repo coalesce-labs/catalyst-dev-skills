@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # linear-transition - Single source of truth for transitioning Linear ticket
-# state. Reads stateMap from `.catalyst/config.json`, is idempotent, and emits
+# state. Reads the state names from `[project.linear] states` in `.catalyst/catalyst.toml`, is idempotent, and emits
 # JSON when requested. Used by the orchestrator's PR-merge safety net, by
 # workers at end of `/oneshot`, and by the bulk-close helper. CTL-69.
 #
@@ -14,7 +14,7 @@
 #                        inReview, done, canceled, duplicate). Required unless
 #                        --state given.
 #   --state <literal>    Literal state name (takes precedence over --transition)
-#   --config <path>      Path to .catalyst/config.json. Default: auto-discover
+#   --config <path>      Path to a catalyst.toml. Default: auto-discover
 #                        by walking up from CWD.
 #   --force              Skip idempotency check (always call update even if
 #                        ticket is already in target state)
@@ -139,27 +139,40 @@ if [ -z "$TRANSITION" ] && [ -z "$STATE" ]; then
 fi
 
 # ─── Resolve config path ───────────────────────────────────────────────────
+# CTC-10759: the settings file is .catalyst/catalyst.toml; the old JSON settings file is not read.
+# shellcheck source=lib/catalyst-toml.sh
+. "$(cd "$(dirname "${BASH_SOURCE[0]:-$0}")" && pwd)/lib/catalyst-toml.sh"
 resolve_config() {
   if [ -n "$CONFIG" ] && [ -f "$CONFIG" ]; then
     echo "$CONFIG"; return 0
   fi
-  local dir
-  dir="$(pwd)"
-  while [ "$dir" != "/" ]; do
-    if [ -f "${dir}/.catalyst/config.json" ]; then
-      echo "${dir}/.catalyst/config.json"; return 0
-    fi
-    dir="$(dirname "$dir")"
-  done
-  echo ""
+  catalyst_toml_find "$(pwd)" || echo ""
+}
+
+# stage_for_transition NAME — the catalyst.toml [project.linear] states key for a transition name.
+# backlog and duplicate have no stage there, so a tenant that declares states must pass --state.
+stage_for_transition() {
+  case "$1" in
+    todo) echo dispatch ;;
+    triage) echo intake ;;
+    research) echo research ;;
+    planning) echo plan ;;
+    inProgress) echo implement ;;
+    remediating) echo remediate ;;
+    verifying) echo verify ;;
+    reviewing) echo review ;;
+    inReview) echo pr ;;
+    done) echo done ;;
+    canceled) echo canceled ;;
+    *) echo "" ;;
+  esac
 }
 
 CONFIG_PATH="$(resolve_config)"
 
 # ─── Resolve target state ──────────────────────────────────────────────────
 # Precedence: explicit --state
-#           > per-project catalyst.projects[<ticket-prefix>].stateMap[transition]  (CTL-1153)
-#           > global catalyst.linear.stateMap[transition]
+#           > catalyst.toml [project.linear] states[stage for the transition]
 #           > built-in default.
 TARGET_STATE=""
 # Derive team prefix from ticket (e.g. "CTL-123" → "CTL"). Use tr for bash-3.2-safe
@@ -167,10 +180,8 @@ TARGET_STATE=""
 PROJECT_KEY="$(printf '%s' "${TEAM_ARG:-${TICKET%%-*}}" | tr '[:lower:]' '[:upper:]')"
 if [ -n "$STATE" ]; then
   TARGET_STATE="$STATE"
-elif [ -n "$CONFIG_PATH" ] && [ -f "$CONFIG_PATH" ] && command -v jq >/dev/null 2>&1; then
-  TARGET_STATE=$(jq -r --arg p "$PROJECT_KEY" --arg k "$TRANSITION" \
-    '(.catalyst.projects[]? | select(.key == $p) | .stateMap[$k]) // .catalyst.linear.stateMap[$k] // empty' \
-    "$CONFIG_PATH" 2>/dev/null)
+elif [ -n "$CONFIG_PATH" ] && [ -f "$CONFIG_PATH" ] && [ -n "$(stage_for_transition "$TRANSITION")" ]; then
+  TARGET_STATE=$(catalyst_toml_inline "$CONFIG_PATH" project.linear states "$(stage_for_transition "$TRANSITION")" 2>/dev/null) || TARGET_STATE=""
 fi
 # A "triage" transition's true target is whatever the project's registered
 # eligibleQuery.triageStatus says (resolveEligibleQuery in registry.mjs, same
@@ -193,22 +204,14 @@ fi
 # substitutes our workspace's stage name for theirs — the failure is silent at this layer
 # and surfaces later as a linearis update that could not find the state, or (worse) as a
 # card moved to a stage the tenant uses for something else. Refuse, and name the key.
-# ⚠️ Codex P1 (round 1): "declared" means EITHER map is non-empty, not "the first non-null
-# one is". A `//` chain reads `stateMap: {}` on a matching project as a declaration (an
-# empty object is not null), so a project with an empty map plus a populated GLOBAL map
-# concluded "nothing declared" and fell through to the guess — which is precisely the
-# tenant this guard exists for. The resolution query above falls back per KEY, so the guard
-# has to ask the same question the resolution does.
-if [ -z "$TARGET_STATE" ] && [ -n "$CONFIG_PATH" ] && [ -f "$CONFIG_PATH" ] && command -v jq >/dev/null 2>&1; then
-  HAS_STATE_MAP=$(jq -r --arg p "$PROJECT_KEY" \
-    'if (([.catalyst.projects[]? | select(.key == $p) | .stateMap // {}] | add // {} | length)
-         + ((.catalyst.linear.stateMap // {}) | length)) > 0 then "yes" else "" end' \
-    "$CONFIG_PATH" 2>/dev/null)
+# "Declared" means catalyst.toml has a `[project.linear] states` entry at all.
+if [ -z "$TARGET_STATE" ] && [ -n "$CONFIG_PATH" ] && [ -f "$CONFIG_PATH" ]; then
+  HAS_STATE_MAP=$(catalyst_toml_get "$CONFIG_PATH" project.linear states 2>/dev/null) || HAS_STATE_MAP=""
   if [ -n "$HAS_STATE_MAP" ]; then
     echo "ERROR: no stage is mapped to '${TRANSITION}' for ${PROJECT_KEY} in ${CONFIG_PATH}." >&2
-    echo "       This tenant declares a stateMap, so its stage names are its own — refusing to" >&2
-    echo "       substitute this workspace's '$(default_state_for "$TRANSITION")'. Add the" >&2
-    echo "       '${TRANSITION}' key to catalyst.linear.stateMap (or the project's own stateMap)," >&2
+    echo "       This tenant declares [project.linear] states, so its stage names are its own — refusing to" >&2
+    echo "       substitute this workspace's '$(default_state_for "$TRANSITION")'. Add" >&2
+    echo "       the stage for '${TRANSITION}' to [project.linear] states in catalyst.toml," >&2
     echo "       or pass --state with the literal stage name." >&2
     exit 1
   fi
@@ -227,7 +230,7 @@ fi
 # than typing the stage name.
 #
 # ⛔ Codex P1 (round 2) — WITHOUT jq THIS COMMAND HAS NO ANSWER, ONLY A GUESS. Every rung
-# that reads the tenant's config above is `command -v jq`-gated, INCLUDING the refusal. So
+# that reads the tenant's config above was `command -v jq`-gated, INCLUDING the refusal. So
 # on a jq-less host a repo mapping `inProgress` to "Building" reaches this line carrying
 # `default_state_for`'s "In Progress" and would print it with exit 0 — the caller then
 # queries a stage the board does not have, gets an EMPTY list rather than an error, and
@@ -255,8 +258,8 @@ fi
 # falls back to the state name, which linearis resolves correctly anyway.
 REGISTRY_PATH="${HOME}/.config/catalyst/linear-state-ids.json"
 TEAM_KEY=""
-if [ -n "$CONFIG_PATH" ] && [ -f "$CONFIG_PATH" ] && command -v jq >/dev/null 2>&1; then
-  TEAM_KEY=$(jq -r '.catalyst.linear.teamKey // empty' "$CONFIG_PATH" 2>/dev/null)
+if [ -n "$CONFIG_PATH" ] && [ -f "$CONFIG_PATH" ]; then
+  TEAM_KEY=$(catalyst_toml_get "$CONFIG_PATH" project linear_team 2>/dev/null) || TEAM_KEY=""
 fi
 
 lookup_state_id() {

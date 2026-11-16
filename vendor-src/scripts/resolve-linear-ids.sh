@@ -1,13 +1,13 @@
 #!/usr/bin/env bash
 # resolve-linear-ids — Resolve and cache Linear team UUID and workflow state
 # UUIDs. Uses a single GraphQL query to fetch all states for the configured
-# team, then writes `teamId` to `.catalyst/config.json` and caches `stateIds`
-# per team in the machine-level registry `~/.config/catalyst/linear-state-ids.json`
+# team, then caches `teamId` and `stateIds` per team in the machine-level registry
+# `~/.config/catalyst/linear-state-ids.json` (CTC-10759: nothing is written into the repository)
 # so downstream tools (linear-transition.sh) can pass UUIDs directly to
 # linearis, skipping per-call name resolution. CTL-207, CTL-577.
 #
 # Usage:
-#   resolve-linear-ids.sh [--config <path>] [--dry-run] [--json] [--force]
+#   resolve-linear-ids.sh [--config <catalyst.toml path>] [--dry-run] [--json] [--force]
 #
 # Exit codes:
 #   0  success (resolved and written, or dry-run)
@@ -32,6 +32,8 @@ while [[ $# -gt 0 ]]; do
   esac
 done
 
+# shellcheck source=lib/catalyst-toml.sh
+. "$(cd "$(dirname "${BASH_SOURCE[0]:-$0}")" && pwd)/lib/catalyst-toml.sh"
 resolve_config() {
   if [ -n "$CONFIG" ]; then
     if [ -f "$CONFIG" ]; then
@@ -40,20 +42,12 @@ resolve_config() {
       echo ""; return 0
     fi
   fi
-  local dir
-  dir="$(pwd)"
-  while [ "$dir" != "/" ]; do
-    if [ -f "${dir}/.catalyst/config.json" ]; then
-      echo "${dir}/.catalyst/config.json"; return 0
-    fi
-    dir="$(dirname "$dir")"
-  done
-  echo ""
+  catalyst_toml_find "$(pwd)" || echo ""
 }
 
 CONFIG_PATH="$(resolve_config)"
 if [ -z "$CONFIG_PATH" ] || [ ! -f "$CONFIG_PATH" ]; then
-  echo "ERROR: .catalyst/config.json not found" >&2
+  echo "ERROR: .catalyst/catalyst.toml not found" >&2
   exit 1
 fi
 
@@ -71,9 +65,9 @@ if ! command -v curl >/dev/null 2>&1; then
   exit 1
 fi
 
-TEAM_KEY=$(jq -r '.catalyst.linear.teamKey // empty' "$CONFIG_PATH" 2>/dev/null)
+TEAM_KEY=$(catalyst_toml_get "$CONFIG_PATH" project linear_team 2>/dev/null) || TEAM_KEY=""
 if [ -z "$TEAM_KEY" ]; then
-  echo "ERROR: catalyst.linear.teamKey not set in $CONFIG_PATH" >&2
+  echo "ERROR: [project] linear_team not set in $CONFIG_PATH" >&2
   exit 1
 fi
 
@@ -145,9 +139,9 @@ if [ "${CATALYST_RESOLVE_IDS_SOURCE:-auto}" != "api" ] && [ -r "$IDENTITY_LIB" ]
 fi
 
 if [ -z "$RESOLVE_SOURCE" ]; then
-PROJECT_KEY=$(jq -r '.catalyst.projectKey // empty' "$CONFIG_PATH" 2>/dev/null)
+PROJECT_KEY=$(catalyst_toml_project_key "$CONFIG_PATH" 2>/dev/null) || PROJECT_KEY=""
 if [ -z "$PROJECT_KEY" ]; then
-  echo "ERROR: catalyst.projectKey not set in $CONFIG_PATH — needed to locate secrets" >&2
+  echo "ERROR: [project.repositories] default not set in $CONFIG_PATH — needed to locate secrets" >&2
   exit 1
 fi
 
@@ -199,19 +193,14 @@ if [ "$DRY_RUN" -eq 1 ]; then
       '{action:"dry-run",teamId:$tid,stateIds:$sids,stateCount:$count,source:$src}
        + (if $fb == "" then {} else {replicaFallbackReason:$fb} end)'
   else
-    echo "Would write teamId to $CONFIG_PATH:"
-    echo "  teamId: $TEAM_ID"
-    echo "Would write stateIds to $REGISTRY_PATH (team $TEAM_KEY, $STATE_COUNT states):"
+    echo "Would write teamId $TEAM_ID and stateIds to $REGISTRY_PATH (team $TEAM_KEY, $STATE_COUNT states):"
     echo "$STATE_IDS" | jq -r 'to_entries[] | "    \(.key): \(.value)"'
   fi
   exit 0
 fi
 
-# teamId stays in committed config (stable; out of CTL-577 scope).
-jq --arg tid "$TEAM_ID" '.catalyst.linear.teamId = $tid' \
-  "$CONFIG_PATH" > "${CONFIG_PATH}.tmp" && mv "${CONFIG_PATH}.tmp" "$CONFIG_PATH"
-
-# stateIds → machine-level per-team registry (CTL-577). Atomic tmp+mv; the
+# teamId and stateIds → machine-level per-team registry (CTL-577; teamId moved here from the
+# repository's config file in CTC-10759). Atomic tmp+mv; the
 # `.[$t] = …` merge replaces only this team's entry, preserving sibling teams.
 RESOLVED_AT="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
 mkdir -p "$(dirname "$REGISTRY_PATH")"
@@ -220,8 +209,8 @@ mkdir -p "$(dirname "$REGISTRY_PATH")"
 if [ ! -f "$REGISTRY_PATH" ] || ! jq -e . "$REGISTRY_PATH" >/dev/null 2>&1; then
   echo '{}' > "$REGISTRY_PATH"
 fi
-if jq --arg t "$TEAM_KEY" --argjson sids "$STATE_IDS" --arg at "$RESOLVED_AT" \
-    '.[$t] = {resolvedAt: $at, stateIds: $sids}' \
+if jq --arg t "$TEAM_KEY" --arg tid "$TEAM_ID" --argjson sids "$STATE_IDS" --arg at "$RESOLVED_AT" \
+    '.[$t] = {resolvedAt: $at, teamId: $tid, stateIds: $sids}' \
     "$REGISTRY_PATH" > "${REGISTRY_PATH}.tmp" && mv "${REGISTRY_PATH}.tmp" "$REGISTRY_PATH"; then
   :
 else
@@ -237,6 +226,6 @@ if [ "$JSON_OUT" -eq 1 ]; then
      + (if $fb == "" then {} else {replicaFallbackReason:$fb} end)'
 else
   echo "Resolved and cached $STATE_COUNT workflow states for team $TEAM_KEY (source: $RESOLVE_SOURCE)"
-  echo "  teamId:   $TEAM_ID  ($CONFIG_PATH)"
-  echo "  stateIds: $REGISTRY_PATH"
+  echo "  teamId:   $TEAM_ID"
+  echo "  registry: $REGISTRY_PATH"
 fi

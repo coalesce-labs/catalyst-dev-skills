@@ -11,7 +11,8 @@
 #   notion  — same rules as channel
 #   loom    — same rules as channel (downstream loom-script renders prose)
 #
-# `--redact-list` overrides .catalyst/config.json's catalyst.briefing.sanitizationRedactList.
+# `--redact-list` overrides catalyst.briefing.sanitizationRedactList in the personal briefing.json
+# (CONFIG below; briefing settings are per person, not per repository, since CTC-10759).
 #
 # Writes the sanitized briefing to --out (or stdout if --out omitted).
 
@@ -21,7 +22,7 @@ PROFILE=""
 IN=""
 OUT=""
 REDACT_LIST=""
-CONFIG=".catalyst/config.json"
+CONFIG="${CATALYST_CONFIG_DIR:-${XDG_CONFIG_HOME:-${HOME:-}/.config}/catalyst}/briefing.json"  # personal, per machine (CTC-10759)
 REDACT_FLAG_SET=0
 
 while [[ $# -gt 0 ]]; do

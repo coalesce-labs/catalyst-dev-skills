@@ -156,15 +156,16 @@ function resolveLayer2Path(env, layer2ConfigPath) {
   return resolve(home, ".config", "catalyst", "config.json");
 }
 
-// resolveLayer1Path — explicit layer1ConfigPath wins; else env.CATALYST_CONFIG_FILE;
-// else cwd/.catalyst/config.json.
+// resolveLayer1Path — explicit layer1ConfigPath wins; else env.CATALYST_CONFIG_FILE; else none.
+// CTC-10759: the repository's JSON settings file is retired and is no longer searched for, so Layer 1
+// is only a file named explicitly (an argument, or CATALYST_CONFIG_FILE). Nothing is read otherwise.
 function resolveLayer1Path(env, layer1ConfigPath) {
   if (typeof layer1ConfigPath === "string" && layer1ConfigPath.length > 0) {
     return layer1ConfigPath;
   }
   const override = env?.CATALYST_CONFIG_FILE;
   if (typeof override === "string" && override.length > 0) return override;
-  return resolve(process.cwd(), ".catalyst", "config.json");
+  return "";
 }
 
 // hasLiveLoneHighSurrogateEscape / toWellFormedString — kept in lockstep with

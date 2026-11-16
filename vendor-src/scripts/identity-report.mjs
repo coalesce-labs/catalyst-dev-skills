@@ -6,7 +6,7 @@
 //
 // The setup checks that already ship test the HOST INSTALL — binaries on PATH, thoughts
 // symlinks, a replica that is fresh. None of them tests WHOSE workspace the tools are
-// about to write into. A customer with a perfect host install and no `.catalyst/config.json`
+// about to write into. A customer with a perfect host install and no `.catalyst/catalyst.toml`
 // got `tenant-0`, the fleet owner's Linear user id, team `PROJ` and a retired API host, and
 // nothing failed until a write landed in the wrong place or was refused by the tenant fence.
 //

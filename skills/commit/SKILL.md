@@ -17,7 +17,7 @@ Commit this session's changes in conventional commit format. Group related chang
 
 1. **See what changed.** Recall what the session accomplished, then run `git status`, `git diff --cached`, `git diff`, `git diff --name-only` and `git diff --cached --name-only`.
 
-2. **Detect the parts.** If `.catalyst/config.json` sets `catalyst.commit` or `catalyst.project.ticketPrefix`, read [`references/config.md`](references/config.md) first.
+2. **Detect the parts.** If `.catalyst/catalyst.toml` sets `[project] linear_team` or `[pull_requests] commit_convention`, read [`references/config.md`](references/config.md) first.
    - **Type.** Only `*.md` in `docs/` gives `docs`; only test files (`*test*`, `*spec*`) give `test`; `package.json` or `*.lock` gives `build`; `.github/workflows/` gives `ci`; a mix gives `feat` or `fix` from context. Otherwise ask the user to pick one of `feat`, `fix`, `refactor`, `chore`, `docs`, `style`, `perf`, `test`, `build`, `ci`.
    - **Scope.** `agents/*.md` gives `agents`, `commands/*.md` `commands`, `scripts/*` `scripts`, `docs/*.md` `docs`, `.claude/` `claude`. Several directories or root files give an empty scope.
    - **Ticket.** Match `{PREFIX}-{NUMBER}` (e.g. `ENG-123`) in `git branch --show-current`.

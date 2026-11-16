@@ -85,21 +85,86 @@ export const NOT_AN_ASK_ENV = "CATALYST_NOT_AN_ASK_LABEL";
 
 // resolveLayer1Path / resolveLayer2Path — deliberate mirrors of lib/tenant-identity.mjs's and
 // lib/cloud-facts.mjs's pairs. Reads the INJECTED env, never process.env directly, so resolution
-// stays pure and a test can hand in a whole fixture home. Layer 1 WALKS UP from cwd because agent
-// tools run from wherever the agent happens to be.
+// stays pure and a test can hand in a whole fixture home. Layer 1 WALKS UP from cwd, for the nearest
+// `.catalyst/catalyst.toml`, because agent tools run from wherever the agent happens to be (CTC-10759:
+// the JSON settings file this used to read is retired).
 function resolveLayer1Path(env, layer1ConfigPath, cwd = process.cwd()) {
   if (typeof layer1ConfigPath === "string" && layer1ConfigPath.length > 0) return layer1ConfigPath;
   const override = env?.CATALYST_CONFIG_FILE;
   if (typeof override === "string" && override.length > 0) return override;
   let dir = resolve(cwd);
   for (;;) {
-    const candidate = join(dir, ".catalyst", "config.json");
+    const candidate = join(dir, ".catalyst", "catalyst.toml");
     if (existsSync(candidate)) return candidate;
     const parent = dirname(dir);
     if (parent === dir) break; // reached the filesystem root
     dir = parent;
   }
-  return resolve(cwd, ".catalyst", "config.json");
+  return resolve(cwd, ".catalyst", "catalyst.toml");
+}
+
+// The catalyst.toml `[project.linear] states` stage that each pipeline slot reads (the slot names
+// are the old stateMap keys). backlog and duplicate have no stage there.
+const SLOT_STAGE = Object.freeze({
+  todo: "dispatch",
+  triage: "intake",
+  research: "research",
+  planning: "plan",
+  inProgress: "implement",
+  remediating: "remediate",
+  verifying: "verify",
+  reviewing: "review",
+  inReview: "pr",
+  done: "done",
+  canceled: "canceled",
+});
+
+// readTomlTable — the scalar and one-line inline-table values under `[table]` of a catalyst.toml, as
+// an object. No TOML parser (this module imports nothing outside node:): `[table]` headers,
+// `key = "string"` and `key = { a = "x", b = "y" }` only. {} when the table is absent.
+function readTomlTable(text, table) {
+  const out = {};
+  let inside = false;
+  for (const line of text.split("\n")) {
+    const header = /^\s*\[\s*([^\]]*?)\s*\]\s*(?:#.*)?$/.exec(line);
+    if (header) {
+      inside = header[1] === table;
+      continue;
+    }
+    if (!inside) continue;
+    const kv = /^\s*([A-Za-z0-9_-]+)\s*=\s*(.*)$/.exec(line);
+    if (!kv) continue;
+    const value = kv[2];
+    const str = /^(?:"([^"]*)"|'([^']*)')/.exec(value);
+    if (str) {
+      out[kv[1]] = str[1] ?? str[2];
+    } else if (value.trimStart().startsWith("{")) {
+      const inline = {};
+      for (const m of value.matchAll(/([A-Za-z0-9_-]+)\s*=\s*(?:"([^"]*)"|'([^']*)')/g)) inline[m[1]] = m[2] ?? m[3];
+      out[kv[1]] = inline;
+    }
+  }
+  return out;
+}
+
+// loadLayer1 — a Layer 1 (catalyst.toml) or Layer 2 (JSON) file as the object shape the readers below walk. A catalyst.toml becomes
+// { catalyst: { linear: { teamKey, stateMap, askLabels, notAnAskLabel } } } from [project]
+// linear_team and [project.linear] states / labels.ask / labels.release.
+function loadLayer1(path) {
+  const text = readFileSync(path, "utf8");
+  if (!path.endsWith(".toml")) return JSON.parse(text);
+  const project = readTomlTable(text, "project");
+  const linear = readTomlTable(text, "project.linear");
+  const states = linear.states && typeof linear.states === "object" ? linear.states : {};
+  const labels = linear.labels && typeof linear.labels === "object" ? linear.labels : {};
+  const stateMap = {};
+  for (const [slot, stage] of Object.entries(SLOT_STAGE)) if (states[stage]) stateMap[slot] = states[stage];
+  const linearOut = {};
+  if (project.linear_team) linearOut.teamKey = project.linear_team;
+  if (Object.keys(states).length > 0) linearOut.stateMap = stateMap;
+  if (labels.ask) linearOut.askLabels = [labels.ask];
+  if (labels.release) linearOut.notAnAskLabel = labels.release;
+  return { catalyst: { linear: linearOut } };
 }
 
 function resolveLayer2Path(env, layer2ConfigPath) {
@@ -115,7 +180,7 @@ function resolveLayer2Path(env, layer2ConfigPath) {
 function readConfigField(path, dotted) {
   let parsed;
   try {
-    parsed = JSON.parse(readFileSync(path, "utf8"));
+    parsed = loadLayer1(path);
   } catch {
     return undefined;
   }
