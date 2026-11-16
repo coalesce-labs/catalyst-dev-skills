@@ -215,6 +215,13 @@ const settleWaiterWaits = (result, n = 1) => waitFor(() => waiterWaits(callsNow(
 const writeWaiterState = (ref, pr, cursor) =>
   `printf '%s\\n' '${JSON.stringify({ [ref]: { pr, ticket: "ENG-123", cursor } })}' > .catalyst/branch-waiter.json`;
 
+test("CTC-10679: the inbox check, not the waiter, is how a seat receives and acknowledges mail", () => {
+  const text = referenceText();
+  for (const phrase of ["catalyst inbox check", "catalyst inbox ack", "at seat start and at every turn boundary"]) {
+    expect(text).toContain(phrase);
+  }
+});
+
 // ─── Phase 1: the reference and its lifecycle controls ───────────────────────────────────────
 
 test("the shared reference exists within the line budget and names every required fact", () => {
@@ -395,6 +402,7 @@ handle_waiter_wake "coalesce-labs/example" "fix-replica-m" ".catalyst/waiter.fix
     expect(result.status).toBe(0);
     expect(result.calls).toContain("catalyst messages read --ticket ENG-123 --since 995802");
     expect(result.stdout).toContain("touch pwned"); // printed as evidence…
+    expect(result.stdout).toContain("catalyst inbox check"); // CTC-10679: the seat acknowledges through its inbox
     expect(existsSync(join(result.cwd, "pwned"))).toBe(false); // …never executed
     expect(settleWaiterWaits(result)).toBe(true);
     expect(waiterWaits(callsNow(result))).toEqual([fullWait(995802)]);
