@@ -24,14 +24,15 @@
 //
 // ## The ladder
 //
-//   humanId:  env.ASK_HUMAN_ID  →  layer1 catalyst.human.linearUserId
+//   humanId:  env.ASK_HUMAN_ID  →  layer1 catalyst.human.linearUserId (a file named explicitly)
 //                               →  layer2 catalyst.human.linearUserId  →  named failure
 //   team:     explicit arg      →  env.ASK_TEAM
-//                               →  layer1 catalyst.linear.teamKey      →  named failure
+//                               →  catalyst.toml [project] linear_team →  named failure
 //   name:     env.ASK_HUMAN_NAME →  layer1/layer2 catalyst.human.name  →  null
 //
-// Layer 1 is the committed, per-repo `.catalyst/config.json` (override:
-// `CATALYST_CONFIG_FILE`); Layer 2 is the per-machine `~/.config/catalyst/config.json`
+// Layer 1 is a repository config file named explicitly (`CATALYST_CONFIG_FILE`; the committed JSON
+// file that used to be searched for is retired, CTC-10759: the team comes from catalyst.toml and the
+// human from Layer 2 or `catalyst identity linear status`); Layer 2 is the per-machine `~/.config/catalyst/config.json`
 // (override: `CATALYST_LAYER2_CONFIG_FILE`). Both path resolvers are deliberate
 // near-verbatim mirrors of lib/deployment-mode.mjs and lib/entitlement.mjs — the same two
 // layers, resolved the same way, so an operator who has learned one config ladder has
@@ -52,6 +53,7 @@
 // `catalyst doctor` and the bare-Node agent tools import this class of module without a
 // `bun install`, so it may never pull a package.
 
+import { spawnSync } from "node:child_process";
 import { existsSync, readFileSync } from "node:fs";
 import { homedir } from "node:os";
 import { dirname, join, resolve } from "node:path";
@@ -72,23 +74,49 @@ export const UNNAMED_HUMAN = "the human";
 // do: these identities are read by agent TOOLS, which run from wherever the agent happens
 // to be — a package subdirectory, a `__tests__` folder, a worktree's `plugins/dev/scripts`.
 // A cwd-only check would refuse for a repo that is plainly configured, one directory down.
-// The walk stops at the FIRST ancestor carrying a `.catalyst/config.json`, so a nested
-// checkout never reads its parent's tenant.
-function resolveLayer1Path(env, layer1ConfigPath, cwd = process.cwd()) {
+// The catalyst.toml walk (below) stops at the FIRST ancestor carrying a `.catalyst/catalyst.toml`,
+// so a nested checkout never reads its parent's tenant.
+function resolveLayer1Path(env, layer1ConfigPath) {
   if (typeof layer1ConfigPath === "string" && layer1ConfigPath.length > 0) return layer1ConfigPath;
   const override = env?.CATALYST_CONFIG_FILE;
   if (typeof override === "string" && override.length > 0) return override;
+  return "";
+}
+
+// teamFromTomlFile — `[project] linear_team` from one catalyst.toml, read without a TOML parser (this
+// module imports nothing outside node:). undefined when the file or key is absent. Mirrors
+// lib/catalyst-toml.sh's catalyst_toml_get.
+function teamFromTomlFile(file) {
+  let inProject = false;
+  let text;
+  try {
+    text = readFileSync(file, "utf8");
+  } catch {
+    return undefined;
+  }
+  for (const line of text.split("\n")) {
+    const header = /^\s*\[\s*([^\]]*?)\s*\]\s*(?:#.*)?$/.exec(line);
+    if (header) {
+      inProject = header[1] === "project";
+      continue;
+    }
+    if (!inProject) continue;
+    const m = /^\s*linear_team\s*=\s*(?:"([^"]*)"|'([^']*)')/.exec(line);
+    if (m) return m[1] ?? m[2];
+  }
+  return undefined;
+}
+
+// teamFromCatalystToml — the team from the nearest `.catalyst/catalyst.toml` at or above cwd.
+function teamFromCatalystToml(cwd = process.cwd()) {
   let dir = resolve(cwd);
   for (;;) {
-    const candidate = join(dir, ".catalyst", "config.json");
-    if (existsSync(candidate)) return candidate;
+    const candidate = join(dir, ".catalyst", "catalyst.toml");
+    if (existsSync(candidate)) return teamFromTomlFile(candidate);
     const parent = dirname(dir);
-    if (parent === dir) break; // reached the filesystem root
+    if (parent === dir) return undefined;
     dir = parent;
   }
-  // Nothing found: return the cwd-relative path anyway, so the refusal message names the
-  // file the operator would create rather than a path that only exists in this function.
-  return resolve(cwd, ".catalyst", "config.json");
 }
 
 function resolveLayer2Path(env, layer2ConfigPath) {
@@ -124,16 +152,39 @@ function declared(value) {
 }
 
 /**
+ * defaultLinearIdentityCli — `catalyst identity linear status --json`, the Linear user this account
+ * matched from the roster: `{ linearUserId }`, or undefined when the CLI is absent, fails, times out
+ * or reports no match. Runs only for the real process environment: a caller that injects its own
+ * `env` (a test, a fixture home) never reaches a real account through it. Never throws.
+ */
+function defaultLinearIdentityCli(env) {
+  if (env !== process.env) return undefined;
+  try {
+    const r = spawnSync("catalyst", ["identity", "linear", "status", "--json"], { encoding: "utf8", timeout: 15000 });
+    if (r.status !== 0) return undefined;
+    const parsed = JSON.parse(r.stdout);
+    return parsed?.identity?.resolution === "resolved" ? parsed.identity : undefined;
+  } catch {
+    return undefined;
+  }
+}
+
+/**
  * resolveAskHuman — the Linear user id an ask is assigned to and whose comments count as
  * "the human's" on this tenant.
  *
  * @param {{env?: Record<string, string|undefined>, layer1ConfigPath?: string,
  *          layer2ConfigPath?: string}} [opts]
  * @returns {{ok: true, humanId: string, name: string|null,
- *            source: "env"|"layer1"|"layer2"}
+ *            source: "env"|"layer1"|"layer2"|"matched"}
  *          | {ok: false, reason: "human-not-configured", message: string}}
  */
-export function resolveAskHuman({ env = process.env, layer1ConfigPath, layer2ConfigPath } = {}) {
+export function resolveAskHuman({
+  env = process.env,
+  layer1ConfigPath,
+  layer2ConfigPath,
+  linearIdentityCli = defaultLinearIdentityCli,
+} = {}) {
   const layer1 = resolveLayer1Path(env, layer1ConfigPath);
   const layer2 = resolveLayer2Path(env, layer2ConfigPath);
 
@@ -151,12 +202,17 @@ export function resolveAskHuman({ env = process.env, layer1ConfigPath, layer2Con
   const fromLayer2 = declared(readConfigField(layer2, HUMAN_CONFIG_PATH));
   if (fromLayer2) return { ok: true, humanId: fromLayer2, name, source: "layer2" };
 
+  // The last rung: the Linear user this account matched from the workspace roster. Asked only when
+  // nothing above named a human, so an override never costs a process.
+  const fromMatched = declared(linearIdentityCli(env)?.linearUserId);
+  if (fromMatched) return { ok: true, humanId: fromMatched, name, source: "matched" };
+
   return {
     ok: false,
     reason: "human-not-configured",
     message:
-      `no human is configured for this tenant. Set ${HUMAN_CONFIG_PATH} in ${layer1} ` +
-      `(committed, per-repo) or ${layer2} (per-machine), or export ASK_HUMAN_ID. ` +
+      `no human is configured for this tenant. Set ${HUMAN_CONFIG_PATH} in ${layer2} ` +
+      "(per-machine), export ASK_HUMAN_ID, or match your Linear identity with `catalyst identity linear status`. " +
       "This resolver will not guess a person on your behalf — an ask assigned to a user " +
       "who does not exist on your workspace fails silently.",
   };
@@ -179,14 +235,18 @@ export function resolveAskTeam({ team, env = process.env, layer1ConfigPath } = {
   if (fromEnv) return { ok: true, team: fromEnv, source: "env" };
 
   const layer1 = resolveLayer1Path(env, layer1ConfigPath);
-  const fromLayer1 = declared(readConfigField(layer1, "catalyst.linear.teamKey"));
+  // An explicitly named catalyst.toml (CATALYST_CONFIG_FILE or layer1ConfigPath) is read where it is;
+  // anything else is searched for upward from cwd.
+  const fromLayer1 = layer1.endsWith(".toml")
+    ? declared(teamFromTomlFile(layer1))
+    : (declared(readConfigField(layer1, "catalyst.linear.teamKey")) ?? declared(teamFromCatalystToml()));
   if (fromLayer1) return { ok: true, team: fromLayer1, source: "layer1" };
 
   return {
     ok: false,
     reason: "team-not-configured",
     message:
-      `no ask team resolved. Pass --team, or set catalyst.linear.teamKey in ${layer1}. ` +
+      `no ask team resolved. Pass --team, or set linear_team under [project] in .catalyst/catalyst.toml. ` +
       "Filing on a guessed team puts the ask on a board nobody is watching.",
   };
 }

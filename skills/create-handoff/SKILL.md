@@ -21,7 +21,7 @@ Compact your context into one document that another agent, in a new session, can
 [[ -e thoughts/shared ]] || echo "⚠️ thoughts/shared is missing in $(pwd) — run \`humanlayer thoughts init\` in the repo root, or create the worktree with the create-worktree skill, which does it; if the prompt names an output path, write there" >&2
 ```
 
-Ticket ids look like `PROJ-123`: take the prefix from `.catalyst/config.json`, else write `TICKET-XXX`.
+Ticket ids look like `PROJ-123`: take the prefix from `linear_team` under `[project]` in `.catalyst/catalyst.toml`, else write `TICKET-XXX`.
 
 ## 1. Resolve the path with the helper
 

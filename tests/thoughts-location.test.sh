@@ -85,7 +85,7 @@ check "create-worktree lays thoughts/shared into the declared repo under the rep
 check "create-worktree pointed HumanLayer at the declared repo with a profile and a repo mapping" \
   '[ "$(jq -r --arg k "$(cd "$WT" && pwd -P)" ".thoughts.repoMappings[\$k].repo" "$S/hl.json")" = catalyst ] && [ "$(jq -r --arg k "$(cd "$WT" && pwd -P)" ".thoughts.repoMappings[\$k].profile" "$S/hl.json")" = catalyst-coalesce-labs ]'
 
-# catalyst-thoughts init-or-repair in a fresh linked worktree, no .catalyst/config.json.
+# catalyst-thoughts init-or-repair in a fresh linked worktree, no repository settings file.
 g -C "$S/src/catalyst" worktree add -q -b CTC-8 "$S/wt8" main
 (cd "$S/wt8" && run CATALYST_THOUGHTS_REPO="$S/declared" -- "bash '$V/catalyst-thoughts.sh' init-or-repair") > "$S/ct.log" 2>&1
 check "catalyst-thoughts init-or-repair uses the declared repo and the origin's repo name, not the worktree's folder" \
@@ -206,7 +206,7 @@ rm -rf "$S/src/catalyst/.claude" "$WT/.claude"
 g -C "$S/src/catalyst" worktree add -q -b CTC-15 "$S/wt15" main
 mkdir -p "$S/declared/elsewhere/real-dir/shared" && ln -sfn "$S/declared/elsewhere/real-dir" "$S/declared/repos/catalyst-linked"
 (cd "$S/wt15" && run CATALYST_THOUGHTS_REPO="$S/declared" -- "bash '$V/worktree-thoughts-init.sh' --directory catalyst-linked") >/dev/null 2>&1
-mkdir -p "$S/wt15/.catalyst" && printf '{"catalyst":{"thoughts":{"directory":"catalyst-linked"}}}\n' > "$S/wt15/.catalyst/config.json"
+mkdir -p "$S/wt15/.catalyst" && printf '[project.thoughts]\ndirectory = "catalyst-linked"\n' > "$S/wt15/.catalyst/catalyst.toml"
 (cd "$S/wt15" && run CATALYST_THOUGHTS_REPO="$S/declared" -- "bash '$V/catalyst-thoughts.sh' check") > "$S/ck15.log" 2>&1
 rc=$?
 check "a symlinked project directory in the thoughts repo passes check" '[ "$rc" -eq 0 ]' "rc=$rc $(tail -2 "$S/ck15.log")"
@@ -227,7 +227,7 @@ check "init-or-repair re-points a stale global link when shared is already right
   '[ "$(readlink "$S/wt17/thoughts/global")" = "$S/declared/global" ]' "global -> $(readlink "$S/wt17/thoughts/global")"
 
 # Reuse judges the target by the reused tree's own config, not the main checkout's.
-mkdir -p "$WT/.catalyst" && printf '{"catalyst":{"thoughts":{"directory":"branch-dir"}}}\n' > "$WT/.catalyst/config.json"
+mkdir -p "$WT/.catalyst" && printf '[project.thoughts]\ndirectory = "branch-dir"\n' > "$WT/.catalyst/catalyst.toml"
 (cd "$WT" && run CATALYST_THOUGHTS_REPO="$S/declared" -- "bash '$V/worktree-thoughts-init.sh' --directory someone-else") >/dev/null 2>&1
 (cd "$S/src/catalyst" && run CATALYST_THOUGHTS_REPO="$S/declared" CATALYST_WORKTREES_DIR="$S/wt" -- \
   "bash '$V/create-worktree.sh' CTC-7 main --skip-fetch --reuse-existing") > "$S/cw-reuse5.log" 2>&1

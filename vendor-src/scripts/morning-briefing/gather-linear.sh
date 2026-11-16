@@ -43,9 +43,11 @@ if [[ -z "$YESTERDAY" ]]; then
   exit 0
 fi
 
-# Resolve team key from .catalyst/config.json if not provided.
-if [[ -z "$TEAM" ]] && [[ -f .catalyst/config.json ]]; then
-  TEAM=$(jq -r '.catalyst.linear.teamKey // empty' .catalyst/config.json 2>/dev/null || echo "")
+# Resolve the team key from `[project] linear_team` in .catalyst/catalyst.toml if not provided.
+if [[ -z "$TEAM" ]]; then
+  # shellcheck source=../lib/catalyst-toml.sh
+  source "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/../lib/catalyst-toml.sh"
+  TEAM=$(catalyst_toml_get "$(catalyst_toml_find)" project linear_team 2>/dev/null || echo "")
 fi
 if [[ -z "$TEAM" ]]; then
   echo '{}'

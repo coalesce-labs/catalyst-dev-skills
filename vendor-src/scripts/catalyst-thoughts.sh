@@ -4,7 +4,7 @@
 # Subcommands:
 #   init-or-repair   Ensure thoughts/ is a correct humanlayer layout (symlinks + subdirs).
 #                    Re-uses `humanlayer thoughts init --force` when humanlayer is configured
-#                    and .catalyst/config.json declares catalyst.thoughts.{profile,directory}.
+#                    and catalyst.toml declares [project.thoughts] profile and directory.
 #                    Fails loudly (non-zero) if thoughts/shared exists as a regular directory —
 #                    this is the bug state that silently masks a clobbered humanlayer symlink.
 #                    Falls back to bare `mkdir -p` with a loud warning only when humanlayer is
@@ -13,8 +13,8 @@
 #   check            Verify thoughts/ state. Prints findings to stderr and exits non-zero when:
 #                      - thoughts/shared or thoughts/global is a regular directory (bug state)
 #                      - either is a dangling symlink
-#                      - profile in .catalyst/config.json disagrees with humanlayer's mapping
-#                      - directory in .catalyst/config.json disagrees with humanlayer's mapping
+#                      - profile in catalyst.toml disagrees with humanlayer's mapping
+#                      - directory in catalyst.toml disagrees with humanlayer's mapping
 
 set -uo pipefail
 
@@ -60,9 +60,14 @@ esac
 CMD="${1:-}"
 shift || true
 
-# .catalyst/ first, then .claude/, the same order create-worktree.sh reads them (CTC-3792).
-CONFIG_FILE=".catalyst/config.json"
-[[ -f "$CONFIG_FILE" || ! -f ".claude/config.json" ]] || CONFIG_FILE=".claude/config.json"
+# Thoughts settings are [project.thoughts] in .catalyst/catalyst.toml (CTC-10759: the old
+# JSON settings file is not read). .claude/config.json stays a fallback, the same order
+# create-worktree.sh reads them (CTC-3792). Either file may be missing.
+# shellcheck source=lib/catalyst-toml.sh
+source "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/lib/catalyst-toml.sh"
+TOML_FILE=".catalyst/catalyst.toml"
+CONFIG_FILE=".claude/config.json"
+_has_thoughts_config() { [[ -f "$TOML_FILE" || -f "$CONFIG_FILE" ]]; }
 SUBDIRS=(research plans handoffs prs reports)
 
 # CTC-3792: thoughts-location.sh resolves a thoughts repo declared by the paths contract.
@@ -71,13 +76,11 @@ source "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/lib/thoughts-location.sh"
 
 # Sets CAT_PROFILE, CAT_DIR and CAT_DECLARED. A declared thoughts repo wins: CAT_PROFILE becomes the
 # HumanLayer profile that points at it (empty for the top-level config) and CAT_DIR defaults to the
-# origin's repo name. Without one, both come from .catalyst/config.json, as before.
+# origin's repo name. Without one, both come from catalyst.toml's [project.thoughts], as before.
 _read_thoughts_config() {
 	CAT_PROFILE="" CAT_DIR="" CAT_DECLARED=""
-	if [[ -f "$CONFIG_FILE" ]]; then
-		CAT_PROFILE=$(jq -r '.catalyst.thoughts.profile // empty' "$CONFIG_FILE" 2>/dev/null)
-		CAT_DIR=$(jq -r '.catalyst.thoughts.directory // empty' "$CONFIG_FILE" 2>/dev/null)
-	fi
+	CAT_PROFILE="$(catalyst_toml_or_claude_json "$TOML_FILE" project.thoughts profile "$CONFIG_FILE" '.catalyst.thoughts.profile')" || CAT_PROFILE=""
+	CAT_DIR="$(catalyst_toml_or_claude_json "$TOML_FILE" project.thoughts directory "$CONFIG_FILE" '.catalyst.thoughts.directory')" || CAT_DIR=""
 	local ident org repo
 	ident="$(catalyst_repo_identity 2>/dev/null || true)"
 	org="${ident%%$'\t'*}"
@@ -91,7 +94,7 @@ _read_thoughts_config() {
 		CAT_PROFILE="$(catalyst_thoughts_profile "$CAT_DECLARED" "$org" "$CAT_PROFILE" "${_CT_READONLY:-}")" || return 2
 		return 0
 	fi
-	[[ -f "$CONFIG_FILE" ]]
+	_has_thoughts_config
 }
 
 # Prints "<profile>\t<repo>" for the CWD, or empty string if no humanlayer or no mapping.
@@ -113,7 +116,7 @@ _mkdir_subdirs() {
 
 cmd_init_or_repair() {
 	# Case A: thoughts/shared is a valid symlink → check for profile/directory drift
-	# between .catalyst/config.json and humanlayer's mapping. If found, repair by
+	# between catalyst.toml and humanlayer's mapping. If found, repair by
 	# `humanlayer thoughts uninit --force` followed by re-`init` with the config's
 	# profile/directory. Safe because thoughts content lives in the canonical
 	# thoughts repo, not in the symlink target. Otherwise, just ensure subdirs.
@@ -157,7 +160,7 @@ cmd_init_or_repair() {
 				fi
 			fi
 			if [[ $needs_fix -eq 1 ]]; then
-				echo "  Drift detected between .catalyst/config.json and humanlayer mapping — repairing."
+				echo "  Drift detected between catalyst.toml and humanlayer mapping — repairing."
 				echo "  Running: humanlayer thoughts uninit --force"
 				if ! humanlayer thoughts uninit --force; then
 					echo "ERROR: humanlayer thoughts uninit failed" >&2
@@ -252,7 +255,7 @@ cmd_check() {
 		fi
 	done
 
-	# 2. Profile / directory drift between .catalyst/config.json and humanlayer's mapping.
+	# 2. Profile / directory drift between catalyst.toml and humanlayer's mapping.
 	local _ck_cfg=0 _CT_READONLY=1
 	_read_thoughts_config || _ck_cfg=$?
 	if [[ $_ck_cfg -eq 2 ]]; then
@@ -296,11 +299,11 @@ cmd_check() {
 			hl_profile="$(printf '%s' "$mapping" | cut -f1)"
 			hl_repo="$(printf '%s' "$mapping" | cut -f2)"
 			if [[ -n "${CAT_PROFILE:-}" && -n "$hl_profile" && "$CAT_PROFILE" != "$hl_profile" ]]; then
-				echo "ERROR: Profile drift — .catalyst/config.json has '${CAT_PROFILE}', humanlayer has '${hl_profile}' for this repo." >&2
+				echo "ERROR: Profile drift — catalyst.toml has '${CAT_PROFILE}', humanlayer has '${hl_profile}' for this repo." >&2
 				rc=3
 			fi
 			if [[ -n "${CAT_DIR:-}" && -n "$hl_repo" && "$CAT_DIR" != "$hl_repo" ]]; then
-				echo "ERROR: Directory drift — .catalyst/config.json has '${CAT_DIR}', humanlayer has '${hl_repo}' for this repo." >&2
+				echo "ERROR: Directory drift — catalyst.toml has '${CAT_DIR}', humanlayer has '${hl_repo}' for this repo." >&2
 				rc=3
 			fi
 		fi

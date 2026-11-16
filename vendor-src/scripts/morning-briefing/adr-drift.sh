@@ -44,14 +44,9 @@ if [[ -d "$ROOT" ]]; then
   ROOT="$(cd "$ROOT" && pwd)"
 fi
 
-# Resolve adrs-dir: flag wins, then .catalyst/config.json, then default.
-if [[ -z "$ADRS_DIR" ]]; then
-  if [[ -f "$ROOT/.catalyst/config.json" ]] && command -v jq >/dev/null 2>&1; then
-    ADRS_DIR=$(jq -r '.catalyst.adrs.directory // "docs/adrs"' "$ROOT/.catalyst/config.json" 2>/dev/null || echo "docs/adrs")
-  else
-    ADRS_DIR="docs/adrs"
-  fi
-fi
+# Resolve adrs-dir: the flag wins, then the default. catalyst.toml has no ADR directory key, and the
+# old JSON settings file is not read (CTC-10759).
+[[ -n "$ADRS_DIR" ]] || ADRS_DIR="docs/adrs"
 [[ "$ADRS_DIR" = /* ]] || ADRS_DIR="$ROOT/$ADRS_DIR"
 
 # Silent no-op when the configured directory doesn't exist. Single-file ADR layouts

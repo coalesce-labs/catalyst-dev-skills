@@ -554,30 +554,40 @@ _csc_resolve_env_file_presence() {
   _csc_set_result "" "none" "$_delivery"
 }
 
-# _csc_resolve_legacy_per_team_path — CTL-1616 PR4 (linear-worker-actor only). Mirrors
-# linear-comment-post.sh's _find_layer2_config VERBATIM, including its loud stderr warning
-# (that warning is exactly what __tests__/linear-comment-post.test.sh's CTL-1111 cells 13/14
-# assert on, so it stays here, not in secret-contract.mjs's zero-side-effect JS mirror): walk
-# $PWD upward for a .catalyst/config.json, read .catalyst.projectKey (nested) or a bare
-# top-level .projectKey (legacy layout), and build the sibling config-<key>.json NEXT TO the
-# canonical Layer-2 directory (dirname of catalyst_secret_resolve_layer2_path) — not a
-# hardcoded ${HOME}/.config/catalyst literal, consistent with this row's own primary tier
-# already reading through the canonical chain. Falls back to the canonical global path itself
-# when no projectKey is found anywhere in the ancestry.
+# _csc_resolve_legacy_per_team_path — CTL-1616 PR4 (linear-worker-actor only). Walk $PWD upward
+# for the nearest `.catalyst/catalyst.toml`, take the project key from it (the repository name in
+# `[project.repositories] default`, which `lib/catalyst-toml.sh` reads; CTC-10759 moved it there
+# from the retired JSON settings file), and build the sibling config-<key>.json NEXT TO the
+# canonical Layer-2 directory (dirname of catalyst_secret_resolve_layer2_path), not a hardcoded
+# ${HOME}/.config/catalyst literal. Stops at the nearest catalyst.toml. Falls back to the canonical global path itself, with a stderr
+# warning, when that file names no key (or there is none) or catalyst-toml.sh is not beside this file.
 _csc_resolve_legacy_per_team_path() {
-  local _dir="$PWD" _cfg _key
-  while [[ "$_dir" != "/" ]]; do
-    _cfg="$_dir/.catalyst/config.json"
-    if [[ -f "$_cfg" ]]; then
-      _key="$(jq -r '.catalyst.projectKey // .projectKey // empty' "$_cfg" 2>/dev/null)" || _key=""
-      if [[ -n "$_key" ]]; then
-        printf '%s/config-%s.json' "$(dirname "$(catalyst_secret_resolve_layer2_path)")" "$_key"
-        return 0
+  local _dir="$PWD" _cfg _key _src _here
+  if [[ -n "${ZSH_VERSION:-}" ]]; then
+    eval '_src="${(%):-%x}"'
+  else
+    _src="${BASH_SOURCE[0]:-$0}"
+  fi
+  _here="$(cd "$(dirname "$_src")" 2>/dev/null && pwd)"
+  # shellcheck source=/dev/null
+  [[ -r "$_here/catalyst-toml.sh" ]] && source "$_here/catalyst-toml.sh"
+  if command -v catalyst_toml_project_key >/dev/null 2>&1; then
+    while [[ "$_dir" != "/" ]]; do
+      _cfg="$_dir/.catalyst/catalyst.toml"
+      if [[ -f "$_cfg" ]]; then
+        _key="$(catalyst_toml_project_key "$_cfg")" || _key=""
+        if [[ -n "$_key" ]]; then
+          printf '%s/config-%s.json' "$(dirname "$(catalyst_secret_resolve_layer2_path)")" "$_key"
+          return 0
+        fi
+        # The nearest catalyst.toml owns this checkout. One that names no repository must not
+        # hand back an enclosing repository's key (that would load another project's secrets).
+        break
       fi
-    fi
-    _dir="$(dirname "$_dir")"
-  done
-  echo "catalyst-secret-contract: no projectKey in any .catalyst/config.json from $PWD upward — per-team config-<key>.json NOT resolved; falling back to global config.json" >&2
+      _dir="$(dirname "$_dir")"
+    done
+  fi
+  echo "catalyst-secret-contract: no project key in any .catalyst/catalyst.toml from $PWD upward — per-team config-<key>.json NOT resolved; falling back to global config.json" >&2
   catalyst_secret_resolve_layer2_path
 }
 

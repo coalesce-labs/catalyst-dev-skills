@@ -97,16 +97,18 @@ function resolveLayer2Path(env, layer2ConfigPath) {
 }
 
 // resolveLayer1Path — an explicit layer1ConfigPath wins; otherwise
-// env.CATALYST_CONFIG_FILE; otherwise cwd/.catalyst/config.json. Mirrors
+// env.CATALYST_CONFIG_FILE; otherwise none. Mirrors
 // execution-core/config.mjs getCatalystRepoDir()'s CATALYST_CONFIG_FILE
 // convention.
+// CTC-10759: the repository's JSON settings file is retired and is no longer searched for, so Layer 1
+// is only a file named explicitly (an argument, or CATALYST_CONFIG_FILE). Nothing is read otherwise.
 function resolveLayer1Path(env, layer1ConfigPath) {
   if (typeof layer1ConfigPath === "string" && layer1ConfigPath.length > 0) {
     return layer1ConfigPath;
   }
   const override = env?.CATALYST_CONFIG_FILE;
   if (typeof override === "string" && override.length > 0) return override;
-  return resolve(process.cwd(), ".catalyst", "config.json");
+  return "";
 }
 
 // readDeploymentModeField — pull catalyst.deployment.mode out of a config file

@@ -5,7 +5,7 @@
     "",
     "Every value below is a CANONICAL DEFAULT: what a Catalyst tenant gets when it has declared",
     "nothing of its own. It is not a description of any tenant's board, and a tool must never treat",
-    "it as one — .catalyst/config.json (Layer 1) and ~/.config/catalyst/config.json (Layer 2) win",
+    "it as one — .catalyst/catalyst.toml (Layer 1) and ~/.config/catalyst/config.json (Layer 2) win",
     "over every rung of it, and the GET /api/v1/agent/contract route will win over both once it",
     "exists (the CTC half of this pair).",
     "",

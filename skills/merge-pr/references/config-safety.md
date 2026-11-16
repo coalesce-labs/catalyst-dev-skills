@@ -2,33 +2,22 @@
 
 ## Configuration
 
-Read team configuration from `.catalyst/config.json`:
+The skill reads `.catalyst/catalyst.toml` and needs no other file; a checkout without one gets the defaults below.
 
 ```bash
-CONFIG_FILE=".catalyst/config.json"
-[[ ! -f "$CONFIG_FILE" ]] && CONFIG_FILE=".claude/config.json"
-TEAM_KEY=$(jq -r '.catalyst.linear.teamKey // "PROJ"' "$CONFIG_FILE")
-TEST_CMD=$(jq -r '.catalyst.pr.testCommand // "make test"' "$CONFIG_FILE")
+TEAM_KEY=$(awk -F'"' '/^\[project\]/{p=1;next} /^\[/{p=0} p && /^linear_team/{print $2; exit}' .catalyst/catalyst.toml 2>/dev/null)
+TEAM_KEY=${TEAM_KEY:-PROJ}
 ```
 
-Full schema:
+| What | Where it lives | Default |
+| -- | -- | -- |
+| Ticket prefix and Linear team | `[project] linear_team` | `PROJ` |
+| Merge policy, hold labels, required checks | `[merge]` (read by the cloud, not by this skill) | the cloud's |
+| Test command | no settings key; `CATALYST_TEST_COMMAND` for one run | `make test` |
+| Merge strategy | squash, always | squash |
+| Delete remote and local branch | always, local only outside a linked worktree | on |
 
-```json
-{
-  "catalyst": {
-    "project": { "ticketPrefix": "PROJ" },
-    "linear": { "teamKey": "PROJ" },
-    "pr": {
-      "defaultMergeStrategy": "squash",
-      "deleteRemoteBranch": true,
-      "deleteLocalBranch": true,
-      "requireApproval": false,
-      "requireCI": false,
-      "testCommand": "make test"
-    }
-  }
-}
-```
+Approval and CI requirements are the repository's branch protection and `[merge] required_checks`, never a local flag.
 
 ## Safety features
 

@@ -47,6 +47,6 @@ Resolve every blocker legitimately, or escalate with specifics. Never use `--adm
 | Adversarial pre-merge review of a risky diff (8-gate table, regression-risk scoring) | [verify-gates.md](references/verify-gates.md) |
 | Confirming a merged change deployed, with a live smoke check | [post-merge-deploy-verify.md](references/post-merge-deploy-verify.md) |
 | Flags (`--skip-tests`, `--keep-branch`), errors, examples | [flags-errors.md](references/flags-errors.md) |
-| Configuration (`.catalyst/config.json` schema, safety features) | [config-safety.md](references/config-safety.md) |
+| Configuration (`catalyst.toml` keys it reads, safety features) | [config-safety.md](references/config-safety.md) |
 
 Acceptance evals and their runner are in [evals/README.md](evals/README.md).
