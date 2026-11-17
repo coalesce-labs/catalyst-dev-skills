@@ -422,8 +422,11 @@ export function resolveLegacyPerTeamConfigPath(env = process.env, cwd = process.
           return join(dirname(resolveLayer2Path(env)), `config-${key}.json`);
         }
       } catch {
-        /* unreadable ancestor catalyst.toml: keep walking, matches the script's `|| true` swallow */
+        /* unreadable catalyst.toml: treat as naming no key */
       }
+      // The nearest catalyst.toml owns this checkout: one that names no repository must not hand
+      // back an enclosing repository's key (that would load another project's secrets).
+      return resolveLayer2Path(env);
     }
     const parent = dirname(dir);
     if (parent === dir) break; // reached the filesystem root

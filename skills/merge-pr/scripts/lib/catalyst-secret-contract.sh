@@ -559,8 +559,8 @@ _csc_resolve_env_file_presence() {
 # `[project.repositories] default`, which `lib/catalyst-toml.sh` reads; CTC-10759 moved it there
 # from the retired JSON settings file), and build the sibling config-<key>.json NEXT TO the
 # canonical Layer-2 directory (dirname of catalyst_secret_resolve_layer2_path), not a hardcoded
-# ${HOME}/.config/catalyst literal. Falls back to the canonical global path itself, with a stderr
-# warning, when no key is found anywhere in the ancestry or catalyst-toml.sh is not beside this file.
+# ${HOME}/.config/catalyst literal. Stops at the nearest catalyst.toml. Falls back to the canonical global path itself, with a stderr
+# warning, when that file names no key (or there is none) or catalyst-toml.sh is not beside this file.
 _csc_resolve_legacy_per_team_path() {
   local _dir="$PWD" _cfg _key _src _here
   if [[ -n "${ZSH_VERSION:-}" ]]; then
@@ -580,6 +580,9 @@ _csc_resolve_legacy_per_team_path() {
           printf '%s/config-%s.json' "$(dirname "$(catalyst_secret_resolve_layer2_path)")" "$_key"
           return 0
         fi
+        # The nearest catalyst.toml owns this checkout. One that names no repository must not
+        # hand back an enclosing repository's key (that would load another project's secrets).
+        break
       fi
       _dir="$(dirname "$_dir")"
     done

@@ -53,6 +53,7 @@
 // `catalyst doctor` and the bare-Node agent tools import this class of module without a
 // `bun install`, so it may never pull a package.
 
+import { spawnSync } from "node:child_process";
 import { existsSync, readFileSync } from "node:fs";
 import { homedir } from "node:os";
 import { dirname, join, resolve } from "node:path";
@@ -82,31 +83,36 @@ function resolveLayer1Path(env, layer1ConfigPath) {
   return "";
 }
 
-// teamFromCatalystToml — `[project] linear_team` from the nearest `.catalyst/catalyst.toml` at or
-// above cwd, read without a TOML parser (this module imports nothing outside node:). undefined when
-// there is no such file or key. Mirrors lib/catalyst-toml.sh's catalyst_toml_get.
+// teamFromTomlFile — `[project] linear_team` from one catalyst.toml, read without a TOML parser (this
+// module imports nothing outside node:). undefined when the file or key is absent. Mirrors
+// lib/catalyst-toml.sh's catalyst_toml_get.
+function teamFromTomlFile(file) {
+  let inProject = false;
+  let text;
+  try {
+    text = readFileSync(file, "utf8");
+  } catch {
+    return undefined;
+  }
+  for (const line of text.split("\n")) {
+    const header = /^\s*\[\s*([^\]]*?)\s*\]\s*(?:#.*)?$/.exec(line);
+    if (header) {
+      inProject = header[1] === "project";
+      continue;
+    }
+    if (!inProject) continue;
+    const m = /^\s*linear_team\s*=\s*(?:"([^"]*)"|'([^']*)')/.exec(line);
+    if (m) return m[1] ?? m[2];
+  }
+  return undefined;
+}
+
+// teamFromCatalystToml — the team from the nearest `.catalyst/catalyst.toml` at or above cwd.
 function teamFromCatalystToml(cwd = process.cwd()) {
   let dir = resolve(cwd);
   for (;;) {
     const candidate = join(dir, ".catalyst", "catalyst.toml");
-    if (existsSync(candidate)) {
-      let inProject = false;
-      try {
-        for (const line of readFileSync(candidate, "utf8").split("\n")) {
-          const header = /^\s*\[\s*([^\]]*?)\s*\]\s*(?:#.*)?$/.exec(line);
-          if (header) {
-            inProject = header[1] === "project";
-            continue;
-          }
-          if (!inProject) continue;
-          const m = /^\s*linear_team\s*=\s*(?:"([^"]*)"|'([^']*)')/.exec(line);
-          if (m) return m[1] ?? m[2];
-        }
-      } catch {
-        /* unreadable: treat as no team here */
-      }
-      return undefined;
-    }
+    if (existsSync(candidate)) return teamFromTomlFile(candidate);
     const parent = dirname(dir);
     if (parent === dir) return undefined;
     dir = parent;
@@ -146,16 +152,39 @@ function declared(value) {
 }
 
 /**
+ * defaultLinearIdentityCli — `catalyst identity linear status --json`, the Linear user this account
+ * matched from the roster: `{ linearUserId }`, or undefined when the CLI is absent, fails, times out
+ * or reports no match. Runs only for the real process environment: a caller that injects its own
+ * `env` (a test, a fixture home) never reaches a real account through it. Never throws.
+ */
+function defaultLinearIdentityCli(env) {
+  if (env !== process.env) return undefined;
+  try {
+    const r = spawnSync("catalyst", ["identity", "linear", "status", "--json"], { encoding: "utf8", timeout: 15000 });
+    if (r.status !== 0) return undefined;
+    const parsed = JSON.parse(r.stdout);
+    return parsed?.identity?.resolution === "resolved" ? parsed.identity : undefined;
+  } catch {
+    return undefined;
+  }
+}
+
+/**
  * resolveAskHuman — the Linear user id an ask is assigned to and whose comments count as
  * "the human's" on this tenant.
  *
  * @param {{env?: Record<string, string|undefined>, layer1ConfigPath?: string,
  *          layer2ConfigPath?: string}} [opts]
  * @returns {{ok: true, humanId: string, name: string|null,
- *            source: "env"|"layer1"|"layer2"}
+ *            source: "env"|"layer1"|"layer2"|"matched"}
  *          | {ok: false, reason: "human-not-configured", message: string}}
  */
-export function resolveAskHuman({ env = process.env, layer1ConfigPath, layer2ConfigPath } = {}) {
+export function resolveAskHuman({
+  env = process.env,
+  layer1ConfigPath,
+  layer2ConfigPath,
+  linearIdentityCli = defaultLinearIdentityCli,
+} = {}) {
   const layer1 = resolveLayer1Path(env, layer1ConfigPath);
   const layer2 = resolveLayer2Path(env, layer2ConfigPath);
 
@@ -172,6 +201,11 @@ export function resolveAskHuman({ env = process.env, layer1ConfigPath, layer2Con
 
   const fromLayer2 = declared(readConfigField(layer2, HUMAN_CONFIG_PATH));
   if (fromLayer2) return { ok: true, humanId: fromLayer2, name, source: "layer2" };
+
+  // The last rung: the Linear user this account matched from the workspace roster. Asked only when
+  // nothing above named a human, so an override never costs a process.
+  const fromMatched = declared(linearIdentityCli(env)?.linearUserId);
+  if (fromMatched) return { ok: true, humanId: fromMatched, name, source: "matched" };
 
   return {
     ok: false,
@@ -201,8 +235,11 @@ export function resolveAskTeam({ team, env = process.env, layer1ConfigPath } = {
   if (fromEnv) return { ok: true, team: fromEnv, source: "env" };
 
   const layer1 = resolveLayer1Path(env, layer1ConfigPath);
-  const fromLayer1 =
-    declared(readConfigField(layer1, "catalyst.linear.teamKey")) ?? declared(teamFromCatalystToml());
+  // An explicitly named catalyst.toml (CATALYST_CONFIG_FILE or layer1ConfigPath) is read where it is;
+  // anything else is searched for upward from cwd.
+  const fromLayer1 = layer1.endsWith(".toml")
+    ? declared(teamFromTomlFile(layer1))
+    : (declared(readConfigField(layer1, "catalyst.linear.teamKey")) ?? declared(teamFromCatalystToml()));
   if (fromLayer1) return { ok: true, team: fromLayer1, source: "layer1" };
 
   return {
