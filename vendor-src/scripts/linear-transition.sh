@@ -42,10 +42,9 @@
 #                        keeps the resolution chain (per-project stateMap > global
 #                        stateMap > registry triageStatus > bootstrap) as ONE
 #                        implementation rather than growing a second one for readers.
-#                        ⛔ REQUIRES jq and exits 1 without it: every config rung here is
-#                        jq-gated, so a jq-less host could only ever print the bootstrap,
-#                        and this value is interpolated into somebody else's query where a
-#                        wrong stage name returns an empty list instead of an error.
+#                        Reads catalyst.toml with awk alone. Only `--transition triage` needs jq,
+#                        and only when a registry file could name the team's triage stage: it
+#                        exits 1 without jq rather than print a guess.
 #   --json               Emit a JSON result to stdout (default: human-readable)
 #
 # Exit codes:
@@ -190,12 +189,18 @@ fi
 # stateMap.triage. Check the execution-core registry BEFORE falling through to
 # default_state_for's hardcoded "Triage", so this stays in sync with what
 # applyTriageStatus() actually verifies against.
-if [ -z "$TARGET_STATE" ] && [ "$TRANSITION" = "triage" ] && command -v jq >/dev/null 2>&1; then
+TRIAGE_REGISTRY_UNREAD=0
+if [ -z "$TARGET_STATE" ] && [ "$TRANSITION" = "triage" ]; then
   EXEC_REGISTRY_PATH="${CATALYST_DIR:-$HOME/catalyst}/execution-core/registry.json"
   if [ -f "$EXEC_REGISTRY_PATH" ]; then
-    TARGET_STATE=$(jq -r --arg t "$PROJECT_KEY" \
-      '(.projects[]? | select(.team == $t) | .eligibleQuery.triageStatus) // empty' \
-      "$EXEC_REGISTRY_PATH" 2>/dev/null)
+    if command -v jq >/dev/null 2>&1; then
+      TARGET_STATE=$(jq -r --arg t "$PROJECT_KEY" \
+        '(.projects[]? | select(.team == $t) | .eligibleQuery.triageStatus) // empty' \
+        "$EXEC_REGISTRY_PATH" 2>/dev/null)
+    else
+      # A registry could name this team's triage stage and only jq reads it (CTC-10759).
+      TRIAGE_REGISTRY_UNREAD=1
+    fi
   fi
 fi
 # ⛔ CTL-2300 — A CONFIGURED TENANT IS NEVER GUESSED AT. If this repo declares a stateMap
@@ -227,23 +232,13 @@ fi
 # ─── --print-state short-circuit (CTL-2300) ────────────────────────────────
 # Above the state-id cache and above every read: the caller is a `$(…)` inside a
 # `--status` argument in shipped skill text, and its whole job is to be cheaper and safer
-# than typing the stage name.
-#
-# ⛔ Codex P1 (round 2) — WITHOUT jq THIS COMMAND HAS NO ANSWER, ONLY A GUESS. Every rung
-# that reads the tenant's config above was `command -v jq`-gated, INCLUDING the refusal. So
-# on a jq-less host a repo mapping `inProgress` to "Building" reaches this line carrying
-# `default_state_for`'s "In Progress" and would print it with exit 0 — the caller then
-# queries a stage the board does not have, gets an EMPTY list rather than an error, and
-# reports a quiet morning. That is this ticket's own failure re-created by its own fix.
-#
-# The write path may keep degrading (a wrong `--status` there fails loudly at linearis, and
-# a jq-less host must still be able to close a ticket); a value INTERPOLATED INTO SOMEBODY
-# ELSE'S QUERY may not. So --print-state refuses, names jq, and exits non-zero.
+# than typing the stage name. The stage name comes from catalyst.toml with awk alone, so this
+# needs no jq (CTC-10759); a tenant that declares states and has none for the slot already
+# refused above, rather than printing this workspace's guess.
 if [ "$PRINT_STATE" -eq 1 ]; then
-  if ! command -v jq >/dev/null 2>&1; then
-    echo "ERROR: --print-state needs jq to read this tenant's stateMap, and jq is not on PATH." >&2
-    echo "       Refusing rather than printing this workspace's '$(default_state_for "$TRANSITION")'," >&2
-    echo "       which a board that renamed the stage would return an EMPTY list for, not an error." >&2
+  if [ "$TRIAGE_REGISTRY_UNREAD" -eq 1 ] && [ -z "$(catalyst_toml_inline "${CONFIG_PATH:-/dev/null}" project.linear states triage 2>/dev/null)" ]; then
+    echo "ERROR: --print-state for triage needs jq to read this team's registered triage stage, and jq is not on PATH." >&2
+    echo "       Refusing rather than printing '$TARGET_STATE', which a registry that renamed the stage would answer with an EMPTY list, not an error." >&2
     exit 1
   fi
   printf '%s\n' "$TARGET_STATE"
