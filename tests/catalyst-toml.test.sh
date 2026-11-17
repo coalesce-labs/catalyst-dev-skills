@@ -91,6 +91,45 @@ got="$(cd "$S" && CATALYST_LAYER2_CONFIG_FILE="$S/home/.config/catalyst/config.j
 [ "$got" = "$S/home/.config/catalyst/config.json" ]
 check "with no catalyst.toml the per-team path falls back to the global file" $?
 
+# A comma inside a quoted inline-table value is part of the value.
+cat > "$S/comma.toml" <<'TOML'
+[project.linear]
+states = { dispatch = "Todo", pr = "Review, QA", done = "Done" }
+TOML
+[ "$(catalyst_toml_inline "$S/comma.toml" project.linear states pr)" = "Review, QA" ]
+check "inline: a comma inside a quoted value stays in the value" $?
+[ "$(catalyst_toml_inline "$S/comma.toml" project.linear states done)" = Done ]
+check "inline: the entry after a quoted comma is still found" $?
+
+# The per-project secret file stops at the nearest catalyst.toml, declared default or not.
+mkdir -p "$S/outer/.catalyst" "$S/outer/inner/.catalyst"
+printf '[project.repositories]\ndefault = "acme/outer"\n' > "$S/outer/.catalyst/catalyst.toml"
+printf '[project]\nlinear_team = "ENG"\n' > "$S/outer/inner/.catalyst/catalyst.toml"
+got="$(cd "$S/outer/inner" && CATALYST_LAYER2_CONFIG_FILE="$S/home/.config/catalyst/config.json" _csc_resolve_legacy_per_team_path 2>/dev/null)"
+[ "$got" = "$S/home/.config/catalyst/config.json" ]
+check "a nested catalyst.toml with no default does not borrow the outer repository's key" $?
+
+# --print-state needs no jq: the stage name comes from catalyst.toml.
+mkdir -p "$S/nojq"
+for f in /usr/bin/* /bin/*; do b="${f##*/}"; [ "$b" = jq ] || [ -e "$S/nojq/$b" ] || ln -s "$f" "$S/nojq/$b" 2>/dev/null; done
+got="$(cd "$S/repo" && PATH="$S/nojq" bash "$V/linear-transition.sh" --ticket ACM-1 --transition inProgress --print-state 2>/dev/null)"
+[ "$got" = Building ] && ! PATH="$S/nojq" command -v jq >/dev/null
+check "linear-transition --print-state works on a host with no jq" $?
+
+# --print-state for triage needs jq when a registry names the team's triage stage: without jq the
+# registry cannot be read, and printing the built-in "Triage" would be a guess.
+mkdir -p "$S/cdir/execution-core"
+printf '{"projects":[{"team":"ACM","eligibleQuery":{"triageStatus":"Intake"}}]}\n' > "$S/cdir/execution-core/registry.json"
+got="$(cd "$S" && CATALYST_DIR="$S/cdir" bash "$V/linear-transition.sh" --ticket ACM-1 --transition triage --print-state 2>/dev/null)"
+[ "$got" = Intake ]
+check "linear-transition --print-state triage reads the registry's triage stage with jq" $?
+got="$(cd "$S" && CATALYST_DIR="$S/cdir" PATH="$S/nojq" bash "$V/linear-transition.sh" --ticket ACM-1 --transition triage --print-state 2>/dev/null)"; rc=$?
+[ "$rc" -ne 0 ] && [ -z "$got" ]
+check "linear-transition --print-state triage refuses without jq when a registry could name the stage" $?
+got="$(cd "$S" && CATALYST_DIR="$S/none" PATH="$S/nojq" bash "$V/linear-transition.sh" --ticket ACM-1 --transition triage --print-state 2>/dev/null)"
+[ "$got" = Triage ]
+check "linear-transition --print-state triage prints the bootstrap name without jq when no registry exists" $?
+
 # Thoughts: tests/thoughts-location.test.sh drives catalyst-thoughts.sh and create-worktree.sh from a
 # [project.thoughts] catalyst.toml, so it is not repeated here.
 

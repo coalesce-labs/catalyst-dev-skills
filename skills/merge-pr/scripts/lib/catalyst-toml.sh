@@ -94,7 +94,16 @@ catalyst_toml_inline() {
       for (i = length(v); i > 0; i--) if (substr(v, i, 1) == "}") { rb = i; break }
       if (lb == 0 || rb <= lb) exit
       body = substr(v, lb + 1, rb - lb - 1)
-      n = split(body, parts, ",")
+      # Split on commas outside quotes: a state name may hold one ("Review, QA").
+      n = 0; cur = ""; q = ""
+      for (c = 1; c <= length(body); c++) {
+        ch = substr(body, c, 1)
+        if (q != "") { if (ch == q) q = ""; cur = cur ch }
+        else if (ch == "\"" || ch == "\047") { q = ch; cur = cur ch }
+        else if (ch == ",") { parts[++n] = cur; cur = "" }
+        else cur = cur ch
+      }
+      parts[++n] = cur
       for (j = 1; j <= n; j++) {
         p = parts[j]; e = index(p, "=")
         if (e == 0) continue
