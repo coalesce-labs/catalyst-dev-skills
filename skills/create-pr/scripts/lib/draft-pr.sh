@@ -14,6 +14,8 @@
 #                                   .github/workflows/ file (CTL-1119)
 #   draft_pr_ensure BASE TICKET   — ensure a draft PR exists; echoes NUM<TAB>URL<TAB>ISDRAFT
 #   draft_pr_promote              — promote current branch's PR from draft to ready
+#   draft_pr_stack_change_number  — on a Mergify stack, print the open PR number of the change
+#                                   at HEAD; rc=8 when it cannot tell
 #   draft_pr_enabled              — read the catalyst.toml draft knob (default true)
 #
 # Reserved return codes:
@@ -35,6 +37,10 @@
 #   7 — draft_pr_push_verify: the remote branch moved and replaying the unpublished
 #       commits onto its tip conflicted. Nothing was pushed; the rebase is left in
 #       progress so the seat can resolve it. (CTC-5513)
+#   8 — draft_pr_stack_change_number: HEAD is a stack change and neither the stack's own
+#       list nor the remote could say whether it already has a pull request. Nothing was
+#       created; the caller stops before creating a second one and runs the lookup again.
+#       (CTC-11407)
 
 _draft_pr_warn() {
   printf 'draft-pr: %s\n' "$*" >&2
@@ -53,6 +59,7 @@ _DRAFT_PR_SAFETY_GATE_RC=4
 _DRAFT_PR_PERMISSION_RC=5
 _DRAFT_PR_STACK_RC=6
 _DRAFT_PR_REPLAY_CONFLICT_RC=7
+_DRAFT_PR_LOOKUP_RC=8
 
 # catalyst.toml is the only repository settings file (CTC-10759); lib/catalyst-toml.sh reads it.
 # shellcheck source=catalyst-toml.sh
@@ -562,6 +569,79 @@ draft_pr_head_oid() {
   oid="$(gh pr view --json headRefOid -q '.headRefOid' 2>/dev/null)" || oid=""
   [[ -n "$oid" ]] && { printf '%s\n' "$oid"; return 0; }
   return 1
+}
+
+# _draft_pr_open_number NUMBER — print NUMBER when that pull request is open, nothing when it is
+# closed or merged. Returns 8 when its state cannot be read.
+_draft_pr_open_number() {
+  local state
+  if ! state="$(gh pr view "$1" --json state -q '.state' 2>/dev/null)"; then
+    _draft_pr_warn "pull request lookup: could not read the state of #${1}. No pull request was created; run the lookup again."
+    return "$_DRAFT_PR_LOOKUP_RC"
+  fi
+  [[ "$state" == "OPEN" ]] && printf '%s\n' "$1"
+  return 0
+}
+
+# draft_pr_stack_change_number — on a Mergify stack, print the number of the open pull request for
+# the change at HEAD.
+#
+# A stack pull request's head is the stack tool's own branch
+# (stack/<user>/<branch>/<slug>--<change id>), and the local branch is never pushed under its own
+# name, so a lookup by branch name finds nothing. The lookup here is keyed on HEAD's Change-Id, so
+# a lower change's pull request is never returned for the change on top of it.
+#
+#   prints a number, returns 0 — this change has an open pull request
+#   prints nothing, returns 0  — HEAD carries no Change-Id trailer, so the caller does what it did
+#                                before; or the stack answered and this change has no open one
+#   prints nothing, returns 8  — HEAD is a stack change and nothing could say. The caller stops
+#                                before it creates a second pull request.
+#
+# The stack's own list is asked first. It has answered only when it holds exactly one entry for
+# this change. When it is unavailable or malformed, the remote is asked for the stack tool's
+# branch, which ends in "--" and the first eight characters of the Change-Id. (CTC-11407)
+draft_pr_stack_change_number() {
+  local change_id list entry num id8 remote heads stack_branch
+  change_id="$(git log -1 --format='%(trailers:key=Change-Id,valueonly)' HEAD 2>/dev/null | tr -d '[:space:]')" || change_id=""
+  [[ -n "$change_id" ]] || return 0
+  if ! command -v gh >/dev/null 2>&1; then
+    _draft_pr_warn "pull request lookup: gh unavailable on a stack-managed change. No pull request was created; run the lookup again."
+    return "$_DRAFT_PR_LOOKUP_RC"
+  fi
+
+  if command -v mergify >/dev/null 2>&1 && command -v jq >/dev/null 2>&1; then
+    list="$(mergify stack list --json 2>/dev/null)" || list=""
+    entry="$(printf '%s' "$list" | jq -c --arg id "$change_id" '[.entries[] | select(.change_id == $id)] | if length == 1 then .[0] else empty end' 2>/dev/null)" || entry=""
+    if [[ -n "$entry" ]]; then
+      num="$(printf '%s' "$entry" | jq -r '.pull_number // empty' 2>/dev/null)" || num=""
+      case "$num" in
+        '') return 0 ;;
+        *[!0-9]*) ;;
+        *)
+          _draft_pr_open_number "$num"
+          return $?
+          ;;
+      esac
+    fi
+  fi
+
+  id8="$(printf '%s' "${change_id#I}" | cut -c1-8)"
+  remote="$(_draft_pr_push_remote 2>/dev/null)" || remote="origin"
+  if ! heads="$(git ls-remote --heads "$remote" "*--${id8}" 2>/dev/null)"; then
+    _draft_pr_warn "pull request lookup: this is a stack-managed change, and neither \`mergify stack list\` nor ${remote} could say whether it already has a pull request. No pull request was created; run the lookup again."
+    return "$_DRAFT_PR_LOOKUP_RC"
+  fi
+  [[ -n "$heads" ]] || return 0
+  stack_branch="$(printf '%s\n' "$heads" | head -1 | sed 's#^.*refs/heads/##')"
+  if ! num="$(gh pr list --head "$stack_branch" --state open --json number -q '.[0].number // empty' 2>/dev/null)"; then
+    _draft_pr_warn "pull request lookup: could not list pull requests for ${stack_branch}. No pull request was created; run the lookup again."
+    return "$_DRAFT_PR_LOOKUP_RC"
+  fi
+  case "$num" in
+    '' | *[!0-9]*) ;;
+    *) printf '%s\n' "$num" ;;
+  esac
+  return 0
 }
 
 # draft_pr_enabled — the catalyst.toml draft knob, `[pull_requests] draft_until_validated`.
