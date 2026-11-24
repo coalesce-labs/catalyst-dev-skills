@@ -27,7 +27,11 @@
 #       into a push_denied_no_permission escalation.
 #   6 — draft_pr_push_verify: push rejected on a stack-managed branch (commits carry a
 #       Mergify Change-Id trailer). Nothing was replayed or pushed; the seat resyncs its
-#       stack with `mergify stack sync` + `mergify stack push`. (CTC-5513)
+#       stack with `mergify stack sync` + `mergify stack push
+#       --keep-pull-request-title-and-body`. The push updates every pull request in the
+#       stack whose commit moved, so the option is always passed: it keeps the title and
+#       description of each one that exists and still creates a new one from its commit.
+#       (CTC-5513)
 #   7 — draft_pr_push_verify: the remote branch moved and replaying the unpublished
 #       commits onto its tip conflicted. Nothing was pushed; the rebase is left in
 #       progress so the seat can resolve it. (CTC-5513)
@@ -474,7 +478,7 @@ _draft_pr_replay_unpublished() {
   # A Mergify stack is owned by `mergify stack push`: the local stack is authoritative,
   # so never replay it onto the remote tip and never force it.
   if git log --format='%(trailers:key=Change-Id,valueonly)' "${tip}..HEAD" 2>/dev/null | grep -q .; then
-    _draft_pr_warn "branch moved: ${remote}/${branch} is now ${tip}, and this is a stack-managed branch (Mergify Change-Id trailers). Nothing was replayed or pushed. The local stack is authoritative: resync it with \`mergify stack sync\`, then \`mergify stack push\`."
+    _draft_pr_warn "branch moved: ${remote}/${branch} is now ${tip}, and this is a stack-managed branch (Mergify Change-Id trailers). Nothing was replayed or pushed. The local stack is authoritative: resync it with \`mergify stack sync\`, then \`mergify stack push --keep-pull-request-title-and-body\`. The push updates every pull request in the stack whose commit moved: with the option each existing one keeps its title and description and a new one is still created from its commit, while a plain stack push replaces them with the commit messages."
     return "$_DRAFT_PR_STACK_RC"
   fi
   published="$(git merge-base HEAD "$tip" 2>/dev/null)" || published=""
