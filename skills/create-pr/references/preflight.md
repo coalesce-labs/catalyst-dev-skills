@@ -40,10 +40,20 @@ If behind: `git rebase origin/$base`. On conflicts: show conflicting files, erro
 ## Step 5 — Check for an existing PR
 
 ```bash
-gh pr view --json number,url,title,state 2>/dev/null
+# On a Mergify stack the pull request is on the stack tool's own branch, where a lookup by this
+# branch's name finds nothing, so the stack is asked first.
+source "${CLAUDE_SKILL_DIR}/scripts/lib/draft-pr.sh"
+LOOKUP_RC=0
+stack_pr="$(draft_pr_stack_change_number)" || LOOKUP_RC=$?
+[[ $LOOKUP_RC -ne 0 ]] && { echo "create-pr: could not tell whether this stack change already has a pull request (rc=${LOOKUP_RC}); run again" >&2; exit "$LOOKUP_RC"; }
+if [[ -n "$stack_pr" ]]; then
+  gh pr view "$stack_pr" --json number,url,title,state
+else
+  gh pr view --json number,url,title,state 2>/dev/null
+fi
 ```
 
-If one exists, show it and ask: "[D] Describe/update this PR  [S] Skip  [A] Abort". D → run the `describe-pr` skill and exit. S → exit success. A → exit. **This is the only interactive prompt in the happy path.**
+If one exists, show it and ask: "[D] Describe/update this PR  [S] Skip  [A] Abort". D → run the `describe-pr` skill with the `number` printed above and exit. Pass the number: on a stack, `describe-pr`'s own lookup by branch name does not find the pull request. S → exit success. A → exit. **This is the only interactive prompt in the happy path.**
 
 ## Step 6 — Extract ticket from branch name
 

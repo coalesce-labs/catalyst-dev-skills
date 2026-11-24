@@ -61,14 +61,30 @@ skip_block="$(linear_sibling_skip_block_from_branch "$ticket" "$branch")"
 
 $skip_block"
 
-gh pr create --title "$title" --body "$body" --base "$base"
+# On a Mergify stack, look before creating: after a stack push (Step 8, rc 6) this change already
+# has a pull request, on the stack tool's own branch. An ordinary branch creates as before.
+source "${CLAUDE_SKILL_DIR}/scripts/lib/draft-pr.sh"
+LOOKUP_RC=0
+pr_number="$(draft_pr_stack_change_number)" || LOOKUP_RC=$?
+[[ $LOOKUP_RC -ne 0 ]] && { echo "create-pr: could not tell whether this stack change already has a pull request (rc=${LOOKUP_RC}); none was created" >&2; exit "$LOOKUP_RC"; }
+if [[ -z "$pr_number" ]]; then
+  pr_url="$(gh pr create --title "$title" --body "$body" --base "$base")" || exit 1
+  pr_number="${pr_url##*/}"
+fi
+echo "$pr_number"
 ```
 
-The commit-message body makes the PR immediately readable even before the `describe-pr` skill runs.
+`draft_pr_stack_change_number` prints the open pull request of the change at HEAD when that change is on a Mergify stack, and nothing otherwise. It asks `mergify stack list --json` for the entry whose `Change-Id` is HEAD's, so a lower change's pull request is never taken for the one on top. An existing pull request keeps its title and description here, and Step 10 refines them.
+
+| rc | What happened | What the seat does |
+|---|---|---|
+| 8 | HEAD is a stack change, and neither the stack's list nor the remote could say whether it has a pull request. Nothing was created. | Run the step again once `mergify stack list` or the remote answers. Do not create the pull request by hand, because that can open a second one. |
+
+The commit-message body makes a new PR immediately readable even before the `describe-pr` skill runs.
 
 ## Step 10 — Run the describe-pr skill
 
-Immediately run the `describe-pr` skill with the PR number to generate the full description, refine the title, and save to `thoughts/`.
+Immediately run the `describe-pr` skill with `$pr_number` to generate the full description, refine the title, and save to `thoughts/`.
 
 ## Step 11 — Leave the ticket where it is
 
