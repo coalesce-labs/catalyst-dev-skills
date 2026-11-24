@@ -31,7 +31,7 @@ Branches are kept current while work is in flight, so the remote branch can hold
 
 | rc | What happened | What the seat does |
 |---|---|---|
-| 6 | The branch is stack-managed (its commits carry a Mergify `Change-Id` trailer). Nothing was replayed or pushed. | The local stack is authoritative: `mergify stack sync`, then `mergify stack push`. |
+| 6 | The branch is stack-managed (its commits carry a Mergify `Change-Id` trailer). Nothing was replayed or pushed. | The local stack is authoritative: `mergify stack sync`, then `mergify stack push`. When the pull request already exists, add `--keep-pull-request-title-and-body`, or the push replaces its title and description with the commit message. |
 | 7 | Replaying conflicted. Nothing was pushed; the message names the conflicting files and the rebase is left in progress. | Resolve the files, `git add` them, `git rebase --continue`, then push again. |
 
 Never fall back to `git push --force-with-lease` without an expected SHA: after any `git fetch` its lease matches the moved tip and overwrites the other writer's commit.

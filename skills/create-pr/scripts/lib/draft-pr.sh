@@ -27,7 +27,9 @@
 #       into a push_denied_no_permission escalation.
 #   6 — draft_pr_push_verify: push rejected on a stack-managed branch (commits carry a
 #       Mergify Change-Id trailer). Nothing was replayed or pushed; the seat resyncs its
-#       stack with `mergify stack sync` + `mergify stack push`. (CTC-5513)
+#       stack with `mergify stack sync` + `mergify stack push`, adding
+#       `--keep-pull-request-title-and-body` when the pull request exists, so the
+#       description written on it is not replaced by the commit message. (CTC-5513)
 #   7 — draft_pr_push_verify: the remote branch moved and replaying the unpublished
 #       commits onto its tip conflicted. Nothing was pushed; the rebase is left in
 #       progress so the seat can resolve it. (CTC-5513)
@@ -474,7 +476,7 @@ _draft_pr_replay_unpublished() {
   # A Mergify stack is owned by `mergify stack push`: the local stack is authoritative,
   # so never replay it onto the remote tip and never force it.
   if git log --format='%(trailers:key=Change-Id,valueonly)' "${tip}..HEAD" 2>/dev/null | grep -q .; then
-    _draft_pr_warn "branch moved: ${remote}/${branch} is now ${tip}, and this is a stack-managed branch (Mergify Change-Id trailers). Nothing was replayed or pushed. The local stack is authoritative: resync it with \`mergify stack sync\`, then \`mergify stack push\`."
+    _draft_pr_warn "branch moved: ${remote}/${branch} is now ${tip}, and this is a stack-managed branch (Mergify Change-Id trailers). Nothing was replayed or pushed. The local stack is authoritative: resync it with \`mergify stack sync\`, then \`mergify stack push\`. When its pull request already exists, add \`--keep-pull-request-title-and-body\`: a plain stack push replaces the pull request's title and description with the commit message."
     return "$_DRAFT_PR_STACK_RC"
   fi
   published="$(git merge-base HEAD "$tip" 2>/dev/null)" || published=""
