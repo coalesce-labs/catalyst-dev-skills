@@ -53,7 +53,7 @@ else
 fi
 ```
 
-If one exists, show it and ask: "[D] Describe/update this PR  [S] Skip  [A] Abort". D → run the `describe-pr` skill and exit. S → exit success. A → exit. **This is the only interactive prompt in the happy path.**
+If one exists, show it and ask: "[D] Describe/update this PR  [S] Skip  [A] Abort". D → run the `describe-pr` skill with the `number` printed above and exit. Pass the number: on a stack, `describe-pr`'s own lookup by branch name does not find the pull request. S → exit success. A → exit. **This is the only interactive prompt in the happy path.**
 
 ## Step 6 — Extract ticket from branch name
 

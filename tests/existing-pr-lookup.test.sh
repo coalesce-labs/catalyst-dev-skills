@@ -181,6 +181,31 @@ lookup "$TMP/s8/seat"
 check "the lookup returns the retriable code (rc=$RC)" "[[ $RC -eq 8 ]]"
 check "it prints nothing (got '$OUT')" "[[ -z '$OUT' ]]"
 
+echo "── scenario 9: two remote branches end in this change's suffix, and only the second has a pull request"
+repo s9 CTC-9 stack
+reset_fakes
+# "CTC-9-old" sorts before "CTC-9", so the branch with no pull request is listed first.
+git -C "$TMP/s9/seat" push -q origin "HEAD:refs/heads/stack/seat/CTC-9-old/$STACK_BRANCH_SUFFIX"
+git -C "$TMP/s9/seat" push -q origin "HEAD:refs/heads/stack/seat/CTC-9/$STACK_BRANCH_SUFFIX"
+echo 12 >"$FAKE/branch-stack_seat_CTC-9_$STACK_BRANCH_SUFFIX"
+lookup "$TMP/s9/seat"
+check "control: the branch with no pull request is the first one listed" "[[ \"\$(git -C '$TMP/s9/seat' ls-remote --heads origin '*--22222222' | head -1)\" == *CTC-9-old/* ]]"
+check "the lookup returns 0 (rc=$RC)" "[[ $RC -eq 0 ]]"
+check "it prints the pull request on the second branch (got '$OUT')" "[[ '$OUT' == 12 ]]"
+check "it asked about both branches" "[[ \"\$(grep -c '^gh pr list --head stack/seat/CTC-9' '$FAKE/calls.log')\" == 2 ]]"
+
+echo "── scenario 10: two remote branches for this change have different open pull requests"
+repo s10 CTC-10 stack
+reset_fakes
+git -C "$TMP/s10/seat" push -q origin "HEAD:refs/heads/stack/seat/CTC-10-old/$STACK_BRANCH_SUFFIX"
+git -C "$TMP/s10/seat" push -q origin "HEAD:refs/heads/stack/seat/CTC-10/$STACK_BRANCH_SUFFIX"
+echo 11 >"$FAKE/branch-stack_seat_CTC-10-old_$STACK_BRANCH_SUFFIX"
+echo 12 >"$FAKE/branch-stack_seat_CTC-10_$STACK_BRANCH_SUFFIX"
+lookup "$TMP/s10/seat"
+check "the lookup returns the retriable code (rc=$RC)" "[[ $RC -eq 8 ]]"
+check "it prints nothing: it does not choose between them (got '$OUT')" "[[ -z '$OUT' ]]"
+check "it names both pull requests" "grep -q '#11 and #12' '$ERR'"
+
 echo "── create-pr looks before it creates"
 LOOK_LINE="$(grep -n 'pr_number="\$(draft_pr_stack_change_number)"' "$STEP9" | head -1 | cut -d: -f1)"
 STOP_LINE="$(grep -n 'exit "\$LOOKUP_RC"' "$STEP9" | head -1 | cut -d: -f1)"
@@ -190,6 +215,7 @@ check "Step 9 still creates a pull request when there is none" "[[ -n '$CREATE_L
 check "Step 9 looks, then stops on a lookup it could not finish, then creates" "[[ -n '$LOOK_LINE' && -n '$STOP_LINE' && -n '$CREATE_LINE' && $LOOK_LINE -lt $STOP_LINE && $STOP_LINE -lt $CREATE_LINE ]]"
 check "Step 10 is handed the number either way" "grep -q 'describe-pr. skill with .\$pr_number.' '$STEP9'"
 check "the preflight's existing pull request check asks the stack first" "grep -q 'stack_pr=\"\$(draft_pr_stack_change_number)\"' '$PREFLIGHT'"
+check "the preflight's describe action is handed the number it found" "grep -q 'describe-pr. skill with the .number. printed above' '$PREFLIGHT'"
 check "the preflight keeps the lookup by branch name for an ordinary branch" "grep -q '^  gh pr view --json number,url,title,state 2>/dev/null' '$PREFLIGHT'"
 
 echo ""

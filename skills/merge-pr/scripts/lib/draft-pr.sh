@@ -594,14 +594,15 @@ _draft_pr_open_number() {
 #   prints a number, returns 0 — this change has an open pull request
 #   prints nothing, returns 0  — HEAD carries no Change-Id trailer, so the caller does what it did
 #                                before; or the stack answered and this change has no open one
-#   prints nothing, returns 8  — HEAD is a stack change and nothing could say. The caller stops
-#                                before it creates a second pull request.
+#   prints nothing, returns 8  — HEAD is a stack change and nothing could say, or the remote shows
+#                                two different open pull requests for it. The caller stops before
+#                                it creates another one.
 #
 # The stack's own list is asked first. It has answered only when it holds exactly one entry for
 # this change. When it is unavailable or malformed, the remote is asked for the stack tool's
 # branch, which ends in "--" and the first eight characters of the Change-Id. (CTC-11407)
 draft_pr_stack_change_number() {
-  local change_id list entry num id8 remote heads stack_branch
+  local change_id list entry num id8 remote heads stack_branch stack_branches found
   change_id="$(git log -1 --format='%(trailers:key=Change-Id,valueonly)' HEAD 2>/dev/null | tr -d '[:space:]')" || change_id=""
   [[ -n "$change_id" ]] || return 0
   if ! command -v gh >/dev/null 2>&1; then
@@ -632,15 +633,27 @@ draft_pr_stack_change_number() {
     return "$_DRAFT_PR_LOOKUP_RC"
   fi
   [[ -n "$heads" ]] || return 0
-  stack_branch="$(printf '%s\n' "$heads" | head -1 | sed 's#^.*refs/heads/##')"
-  if ! num="$(gh pr list --head "$stack_branch" --state open --json number -q '.[0].number // empty' 2>/dev/null)"; then
-    _draft_pr_warn "pull request lookup: could not list pull requests for ${stack_branch}. No pull request was created; run the lookup again."
-    return "$_DRAFT_PR_LOOKUP_RC"
-  fi
-  case "$num" in
-    '' | *[!0-9]*) ;;
-    *) printf '%s\n' "$num" ;;
-  esac
+  # More than one remote branch can end in this change's suffix, for example when the same change
+  # was pushed from two local branch names. Every one is asked before the lookup reports that
+  # there is no pull request, and two different open ones are not chosen between.
+  stack_branches="$(printf '%s\n' "$heads" | sed 's#^.*refs/heads/##')"
+  found=""
+  while IFS= read -r stack_branch; do
+    [[ -n "$stack_branch" ]] || continue
+    if ! num="$(gh pr list --head "$stack_branch" --state open --json number -q '.[0].number // empty' 2>/dev/null)"; then
+      _draft_pr_warn "pull request lookup: could not list pull requests for ${stack_branch}. No pull request was created; run the lookup again."
+      return "$_DRAFT_PR_LOOKUP_RC"
+    fi
+    case "$num" in
+      '' | *[!0-9]*) continue ;;
+    esac
+    if [[ -n "$found" && "$found" != "$num" ]]; then
+      _draft_pr_warn "pull request lookup: this change has two open pull requests, #${found} and #${num}. No pull request was created; close the one that is not wanted and run the lookup again."
+      return "$_DRAFT_PR_LOOKUP_RC"
+    fi
+    found="$num"
+  done <<<"$stack_branches"
+  [[ -n "$found" ]] && printf '%s\n' "$found"
   return 0
 }
 
