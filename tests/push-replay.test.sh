@@ -161,6 +161,7 @@ check "nothing was pushed" "[[ \"\$(remote_tip '$D/seat')\" == '$BEFORE' ]]"
 check "the local stack is untouched" "[[ \"\$(git -C '$D/seat' rev-parse HEAD)\" == '$LOCAL_BEFORE' ]]"
 check "no rebase was started" "[[ ! -d '$D/seat/.git/rebase-merge' ]]"
 check "the seat is told to resync its stack" "grep -q 'mergify stack sync' '$ERR'"
+check "the seat is told to push with the option that keeps pull request descriptions" "grep -q -- 'mergify stack push --keep-pull-request-title-and-body' '$ERR'"
 
 echo ""
 echo "push-replay: $PASS passed, $FAIL failed"
