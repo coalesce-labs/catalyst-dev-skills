@@ -16,7 +16,7 @@ The push is a plain fast-forward. If it is rejected because the branch moved, `g
 
 On merge conflict: `git merge --abort` and report the conflicting files (`git diff --name-only --diff-filter=U`, read before the abort) rather than guessing at a resolution — same rule as `merge-blocker-diagnosis.md`'s `conflicts` entry.
 
-A stack-managed branch (its commits carry a Mergify `Change-Id` trailer) is the exception: `mergify stack push` owns it and would discard a merge commit. Bring it current with `mergify stack sync`, then `mergify stack push`.
+A stack-managed branch (its commits carry a Mergify `Change-Id` trailer) is the exception: `mergify stack push` owns it and would discard a merge commit. Bring it current with `mergify stack sync`, then `mergify stack push --keep-pull-request-title-and-body`. Without that option the push replaces the pull request's title and description with the commit message, and anything written only on the pull request is lost.
 
 ## CI fix-up: bound the attempt count, then go back to the reactive wait
 

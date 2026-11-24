@@ -116,7 +116,7 @@ if [ "$1" = api ] && [[ "$2" == */pulls/* ]]; then
   exit 0
 fi
 exit 0`);
-  script("mergify", 'echo "mergify $*" >> "$CALL_LOG"');
+  script("mergify", options.mergify ?? 'echo "mergify $*" >> "$CALL_LOG"');
 
   let cwd = dir;
   const fixture = options.gitFixture
@@ -321,6 +321,41 @@ handle_waiter_wake "coalesce-labs/example" "fix-replica-x" ".catalyst/waiter.fix
   }
 });
 
+// The stand-in models the tool's documented default: a stack push rewrites the pull request's
+// description from the commit message unless it is given the keep option.
+const MERGIFY_REWRITES_DESCRIPTION = `echo "mergify $*" >> "$CALL_LOG"
+if [ "$1 $2" = "stack push" ]; then
+  case " $* " in
+    *" --keep-pull-request-title-and-body "*|*" -k "*) ;;
+    *) git log -1 --format=%B > "$PR_DESCRIPTION_FILE" ;;
+  esac
+fi`;
+
+test("conflict wake: a stack resync keeps the description written on the pull request", () => {
+  const written = "## Live proofs after deploy\n\n- the owner reads the first run after the deploy\n\n## Rollout\n\n- measured for one day\n";
+  const result = runWaiter({
+    gitFixture: "stack", gitBranch: "fix-replica-k", fixtureOpts: { trailer: "Change-Id: I8f2c1" },
+    mergify: MERGIFY_REWRITES_DESCRIPTION,
+    code: `${armBlock()}\n${wakeBlock()}
+mkdir -p .catalyst
+export PR_DESCRIPTION_FILE="$PWD/.catalyst/pr-description"
+printf '%b' '${written}' > "$PR_DESCRIPTION_FILE"
+{ printf '%s\\n' '${CONFLICT_EVENT(995803, "fix-replica-k")}'; echo 'cursor 995803'; echo 'waiter-rc 0'; } > .catalyst/waiter.fix-replica-k.log
+${writeWaiterState("coalesce-labs/example:fix-replica-k", 9001, 995788)}
+handle_waiter_wake "coalesce-labs/example" "fix-replica-k" ".catalyst/waiter.fix-replica-k.log"`,
+  });
+  try {
+    expect(result.status).toBe(0);
+    expect(result.calls.some((call) => call.startsWith("mergify stack push"))).toBe(true);
+    const after = readFileSync(join(result.fixture.seat, ".catalyst", "pr-description"), "utf8");
+    expect(after).toBe(written.replaceAll("\\n", "\n"));
+    expect(settleWaiterWaits(result)).toBe(true);
+  } finally {
+    killWaiters("fix-replica-k");
+    rmSync(result.dir, { recursive: true, force: true });
+  }
+});
+
 test("conflict wake: a stack branch resyncs through mergify instead of merging", () => {
   const result = runWaiter({
     gitFixture: "stack", gitBranch: "fix-replica-k", fixtureOpts: { trailer: "Change-Id: I8f2c1" },
@@ -333,7 +368,8 @@ handle_waiter_wake "coalesce-labs/example" "fix-replica-k" ".catalyst/waiter.fix
   try {
     expect(result.status).toBe(0);
     expect(result.calls).toContain("mergify stack sync");
-    expect(result.calls).toContain("mergify stack push");
+    expect(result.calls).toContain("mergify stack push --keep-pull-request-title-and-body");
+    expect(result.calls).not.toContain("mergify stack push"); // never the bare form
     const parents = spawnSync("git", ["show", "-s", "--format=%P", "HEAD"], { cwd: result.fixture.seat, encoding: "utf8" }).stdout.trim().split(" ");
     expect(parents).toHaveLength(1); // a stack branch is resynced, never merged
     expect(settleWaiterWaits(result)).toBe(true);
