@@ -39,6 +39,9 @@ jobs:
       - name: Development pack and Claude plugin versions agree
         run: npm run version:check
 
+      - name: Released catalyst CLI (tests/branch-waiter-cli.test.mjs runs the waiter's wait through it)
+        run: npm install --global @catalyst-cloud/cli@latest && catalyst --version
+
       - name: Tests (bun suites, then every tests/*.test.sh)
         run: bash scripts/run-tests.sh
 
