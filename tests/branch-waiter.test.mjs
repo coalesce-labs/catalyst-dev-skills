@@ -164,6 +164,9 @@ exit 0`);
     ? makeGitFixture(dir, options.gitFixture, options.gitBranch, options.fixtureOpts ?? {})
     : null;
   if (fixture) cwd = fixture.seat;
+  // The waiter keeps its files only in a checkout: outside one its listing of tracked waiter files fails,
+  // and a failed listing is a refusal. A control with no git fixture runs in an empty checkout.
+  else if (spawnSync("git", ["init", "-q"], { cwd: dir, env: { ...process.env, GIT_CONFIG_NOSYSTEM: "1", HOME: join(dir, "home") } }).status !== 0) throw new Error("git init failed");
 
   try {
     const result = spawnSync("bash", ["-c", options.code], {

@@ -62,7 +62,7 @@ function runPublishedWait(home, env) {
   const log = join(home, "waiter.log");
   const run = spawnSync(
     "bash",
-    ["-c", 'bash -c "$1" "$2" "$3" "$4" "$5" "$6" > "$5" 2>&1', "contract", publishedWait(), "coalesce-labs/example:fix-replica", "ENG-123", "1", log, "1"],
+    ["-c", 'bash -c "$1" "$2" "$3" "$4" "$6" > "$5" 2>&1', "contract", publishedWait(), "coalesce-labs/example:fix-replica", "ENG-123", "1", log, "1"],
     { env, encoding: "utf8", timeout: 60000 },
   );
   return { run, logged: existsSync(log) ? readFileSync(log, "utf8") : "" };
@@ -72,9 +72,9 @@ function runDirect(selected, args, env) {
 }
 
 // The wait the arm function starts, exactly as published: the single-quoted script it hands to
-// `bash -c`, followed by the ref, ticket, cursor, log path and timeout as positional arguments.
+// `bash -c`, followed by the ref, ticket, cursor and timeout as positional arguments.
 function publishedWait() {
-  const found = reference.match(/nohup bash -c '([^']+)' "\$ref" "\$ticket" "\$cursor" "\.catalyst\/waiter\.\$\{slug\}\.log" "\$secs" > "\.catalyst\/waiter\.\$\{slug\}\.log" 2>&1 &/);
+  const found = reference.match(/nohup bash -c '([^']+)' "\$ref" "\$ticket" "\$cursor" "\$secs" >&9 2>&1 &/);
   if (!found) throw new Error("the arm function no longer starts its wait in the form this control reads");
   return found[1];
 }
