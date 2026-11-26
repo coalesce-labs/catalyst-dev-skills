@@ -4,3 +4,12 @@ rev 2 (content) 2026-11-25 10:23 UTC
 rev 1 (initial) 2026-11-25 10:23 UTC
 
 <!-- mergify-revision-data: {"schema_version":1,"pull_number":181,"entries":[{"number":1,"change_type":"initial","old_sha":null,"new_sha":"530a29a549253bee5b7a8868e34d0c6eab96e5fb","timestamp_iso":"2026-11-25T10:23:04Z","reason":"","replay_sha":null,"compare_url":null},{"number":2,"change_type":"content","old_sha":"530a29a549253bee5b7a8868e34d0c6eab96e5fb","new_sha":"228ed0fed67c3fe003f8e5447f5d90696fb8ec2d","timestamp_iso":"2026-11-25T10:23:04Z","reason":"","replay_sha":null,"compare_url":"https://github.com/coalesce-labs/catalyst-dev-skills/compare/530a29a549253bee5b7a8868e34d0c6eab96e5fb...228ed0fed67c3fe003f8e5447f5d90696fb8ec2d"}]} -->
+
+Revision history for #181:
+
+rev 4 (content) 2026-11-25 19:40 UTC
+rev 3 (content) 2026-11-25 18:47 UTC
+rev 2 (content) 2026-11-25 10:23 UTC
+rev 1 (initial) 2026-11-25 10:23 UTC
+
+<!-- mergify-revision-data: {"schema_version":1,"pull_number":181,"entries":[{"number":1,"change_type":"initial","old_sha":null,"new_sha":"530a29a549253bee5b7a8868e34d0c6eab96e5fb","timestamp_iso":"2026-11-25T10:23:04Z","reason":"","replay_sha":null,"compare_url":null},{"number":2,"change_type":"content","old_sha":"530a29a549253bee5b7a8868e34d0c6eab96e5fb","new_sha":"228ed0fed67c3fe003f8e5447f5d90696fb8ec2d","timestamp_iso":"2026-11-25T10:23:04Z","reason":"","replay_sha":null,"compare_url":"https://github.com/coalesce-labs/catalyst-dev-skills/compare/530a29a549253bee5b7a8868e34d0c6eab96e5fb...228ed0fed67c3fe003f8e5447f5d90696fb8ec2d"},{"number":3,"change_type":"content","old_sha":"228ed0fed67c3fe003f8e5447f5d90696fb8ec2d","new_sha":"2f2ae09185be35352f790550ada03b476f4f611f","timestamp_iso":"2026-11-25T18:47:57Z","reason":"","replay_sha":null,"compare_url":"https://github.com/coalesce-labs/catalyst-dev-skills/compare/228ed0fed67c3fe003f8e5447f5d90696fb8ec2d...2f2ae09185be35352f790550ada03b476f4f611f"},{"number":4,"change_type":"content","old_sha":"2f2ae09185be35352f790550ada03b476f4f611f","new_sha":"5e7539d1a52151cfe71247c838b937fe682a9f9c","timestamp_iso":"2026-11-25T19:40:40Z","reason":"","replay_sha":null,"compare_url":"https://github.com/coalesce-labs/catalyst-dev-skills/compare/2f2ae09185be35352f790550ada03b476f4f611f...5e7539d1a52151cfe71247c838b937fe682a9f9c"}]} -->
