@@ -1,0 +1,1 @@
+Verify saved PR and checkout before signaling a waiter. Report invalid state and preserve ownership so a failed stop can be retried.
