@@ -1,0 +1,7 @@
+Revision history for #76:
+
+rev 3 (content) 2026-10-03 21:16 UTC
+rev 2 (content) 2026-10-03 20:34 UTC
+rev 1 (initial) 2026-10-03 20:34 UTC
+
+<!-- mergify-revision-data: {"schema_version":1,"pull_number":76,"entries":[{"number":1,"change_type":"initial","old_sha":null,"new_sha":"76a9e21361bd7531626933828e19b88d30733d01","timestamp_iso":"2026-10-03T20:34:11Z","reason":"","replay_sha":null,"compare_url":null},{"number":2,"change_type":"content","old_sha":"76a9e21361bd7531626933828e19b88d30733d01","new_sha":"1560529a71c77923a33343b948d14d410ee4a341","timestamp_iso":"2026-10-03T20:34:11Z","reason":"","replay_sha":null,"compare_url":"https://github.com/coalesce-labs/catalyst-dev-skills/compare/76a9e21361bd7531626933828e19b88d30733d01...1560529a71c77923a33343b948d14d410ee4a341"},{"number":3,"change_type":"content","old_sha":"1560529a71c77923a33343b948d14d410ee4a341","new_sha":"bd1860b16a9483923b04831824325bac4276295f","timestamp_iso":"2026-10-03T21:16:09Z","reason":"","replay_sha":null,"compare_url":"https://github.com/coalesce-labs/catalyst-dev-skills/compare/1560529a71c77923a33343b948d14d410ee4a341...bd1860b16a9483923b04831824325bac4276295f"}]} -->
