@@ -328,17 +328,93 @@ _pes_now() { date -u +%Y-%m-%dT%H:%M:%SZ; }
 
 _pes_no_record() { _pes_warn "could not write ${END_STATE}; nothing was recorded."; return "$_PES_RC"; }
 
+# _pes_wt_z - this Git's `worktree list` takes -z (Git 2.36 and newer). A version that cannot be read is
+# taken to have it: a Git that refuses -z then reads nothing, and nothing is never taken for the head.
+_pes_wt_z() {
+  local v
+  v="$(git --version 2>/dev/null)" || return 0
+  [[ "$v" =~ ^git\ version\ ([0-9]+)\.([0-9]+) ]] || return 0
+  [ "${BASH_REMATCH[1]}" -gt 2 ] || { [ "${BASH_REMATCH[1]}" -eq 2 ] && [ "${BASH_REMATCH[2]}" -ge 36 ]; }
+}
+
+# _pes_main_worktree - this checkout is the repository's main worktree, not a linked one: its git directory
+# is the common one.
+_pes_main_worktree() {
+  [ "$(git rev-parse --absolute-git-dir 2>/dev/null)" -ef "$(git rev-parse --git-common-dir 2>/dev/null)" ]
+}
+
+# _pes_head_here - prints "KIND<TAB>REF<TAB>SHA" for this checkout, read from ONE `git worktree list
+# --porcelain`. Git resolves HEAD once for each worktree and prints the branch it named and that branch's
+# commit in the same record, so the commit is always the one of the branch printed beside it. Reading them
+# with two commands let a checkout switch in between pair one branch's name with another's commit.
+#   KIND is branch (REF is refs/heads/NAME), detached (no REF), unreadable (HEAD does not resolve: a damaged
+#   branch ref) or bare. SHA is all zeros for a branch with no commit yet.
+# Which record is this checkout's, so the others are never taken for it:
+#   - the main worktree's record is the first, and Git prints the git directory there when that is not
+#     <checkout>/.git (a separate git directory, a submodule), so the first record is taken only when this
+#     checkout is the main worktree;
+#   - a linked worktree's record is the one whose path is this very directory (-ef compares the directory,
+#     not its spelling), and exactly one must match, else a moved or doubled entry reads as nothing.
+# Prints nothing and fails when the listing did not end well (Git failed or died part way, so the end mark
+# is missing), no single record is this checkout's, or, on a Git before 2.36, a path breaks the line form.
+# The listing is read from a pipe, never kept in a variable, which would drop its NUL bytes.
+# -z ends each field with a NUL, so a path with a newline or a quote is read whole. A Git before 2.36 has no
+# -z, and a newline in a path there cannot be told from the end of a line: any line that is not one of the
+# porcelain's own fails the read, so such a path reads as nothing and is never guessed at.
+_pes_head_here() {
+  local f path="" ref="" sha="" kind="" n=0 hits=0 hit="" end="" bad="" main="" delim=$'\n' strict=1 endmark='pes-read-complete\n'
+  _pes_main_worktree && main=1
+  if _pes_wt_z; then delim=""; strict=""; endmark='pes-read-complete\0'; fi
+  while IFS= read -r -d "$delim" f; do
+    case "$f" in
+      worktree\ *) path="${f#worktree }"; ref=""; sha=""; kind=unreadable; n=$((n + 1)) ;;
+      HEAD\ *) sha="${f#HEAD }" ;;
+      branch\ *) kind=branch; ref="${f#branch }" ;;
+      detached) kind=detached ;;
+      bare) kind=bare ;;
+      locked | locked\ * | prunable | prunable\ *) ;;
+      pes-read-complete) end=1 ;;
+      "")
+        # The end of a record.
+        if [ -n "$path" ] && { { [ -n "$main" ] && [ "$n" -eq 1 ]; } || { [ -z "$main" ] && [ "$path" -ef . ]; }; }; then
+          hits=$((hits + 1))
+          hit="${kind}"$'\t'"${ref}"$'\t'"${sha}"
+        fi
+        path=""
+        ;;
+      *) [ -z "$strict" ] || bad=1 ;;
+    esac
+  done < <(
+    if [ -z "$strict" ]; then git worktree list --porcelain -z; else git worktree list --porcelain; fi 2>/dev/null &&
+      printf "$endmark"
+  )
+  [ -n "$end" ] && [ -z "$bad" ] && [ "$hits" -eq 1 ] || return 1
+  printf '%s\n' "$hit"
+}
+
 # _pes_head_problem BRANCH SHA — prints why this checkout is not on the pull request's head, or
 # nothing when it is. The waiter's handler leaves a checkout on another branch untouched, and a
-# head this seat does not have is work it cannot bring current.
+# head this seat does not have is work it cannot bring current. The branch and the commit come
+# from one reading of the checkout (_pes_head_here) and are both compared with the ones asked for.
+# Nothing is ever read again to settle a doubt: a reading that cannot say is a problem too.
 _pes_head_problem() {
-  local here head
-  here="$(git branch --show-current 2>/dev/null)" || here=""
-  if [ "$here" != "$1" ]; then
-    printf 'this checkout is on %s, not on %s\n' "${here:-no branch}" "$1"
+  local seen kind ref head want="refs/heads/$1"
+  if ! seen="$(_pes_head_here)"; then
+    printf 'this checkout is not in the list of worktrees Git gave, so its branch and commit could not be read (a worktree moved by hand needs git worktree repair)\n'
     return 0
   fi
-  head="$(git rev-parse HEAD 2>/dev/null)" || head=""
+  IFS=$'\t' read -r kind ref head <<<"$seen"
+  case "$kind" in
+    branch) ;;
+    detached) printf 'this checkout is on no branch, not on %s\n' "$1"; return 0 ;;
+    bare) printf 'this is a bare repository with no checkout of %s\n' "$1"; return 0 ;;
+    *) printf 'this checkout is not on %s: its HEAD does not resolve to a branch at a commit\n' "$1"; return 0 ;;
+  esac
+  if [ "$ref" != "$want" ]; then
+    printf 'this checkout is on %s, not on %s\n' "${ref#refs/heads/}" "$1"
+    return 0
+  fi
+  [[ "$head" =~ ^0+$ ]] && head=""
   if [ -z "$2" ] || [ "$head" != "$2" ]; then
     printf 'the pull request is at %s and this branch is at %s\n' "${2:-an unknown commit}" "${head:-an unknown commit}"
   fi

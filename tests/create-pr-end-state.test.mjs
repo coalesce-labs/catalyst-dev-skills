@@ -27,6 +27,18 @@ for (const name of ["bash", "git", "jq", "nohup", "pgrep", "ps"]) {
   const found = (process.env.PATH ?? "").split(":").find((d) => d.startsWith("/") && existsSync(join(d, name)));
   if (found) SYSTEM_DIRS.push(found);
 }
+// The Git the controls run with: the first `git` in END_STATE_TEST_GIT_DIR when that names a directory (a
+// build of another version, for the version matrix), else on the system path.
+const GIT_DIR_OVERRIDE = process.env.END_STATE_TEST_GIT_DIR || "";
+const REAL_GIT = [GIT_DIR_OVERRIDE, ...SYSTEM_DIRS].filter(Boolean).map((d) => join(d, "git")).find((f) => existsSync(f)) ?? "git";
+// The ref storage formats this Git can create (reftable needs Git 2.45), so the controls that depend on how
+// refs are stored run once for each, on whatever this machine has.
+const REF_FORMATS = ["files"];
+{
+  const probe = mkdtempSync(join(tmpdir(), "create-pr-end-fmt-"));
+  if (spawnSync(REAL_GIT, ["init", "-q", "--ref-format=reftable", probe], { encoding: "utf8" }).status === 0) REF_FORMATS.push("reftable");
+  rmSync(probe, { recursive: true, force: true });
+}
 const LONG = 30000;
 
 // A branch name no other control uses, with no part that reads as a ticket key.
@@ -96,9 +108,36 @@ if [ "$1 $2" = "events wait-for" ]; then
 fi
 exit 0`);
   }
+  // A `git` between the script and the real one, for the controls that ask for it. It runs the real command,
+  // and then, after the FLIP_AFTER-th call that reads the checkout (not a call that only finds the repository
+  // or lists tracked files), switches the checkout to FLIP_TO: a second writer moving it between two reads.
+  // OBSERVE_LOG names a file that gets one line for each such call. OLD_GIT answers as a Git before 2.36, with
+  // no `worktree list -z`. DIE_MID makes `worktree list` print a whole record for FORGED_BRANCH at FORGED_SHA
+  // and then fail, as a Git that dies part way through its listing.
+  if (options.gitShim) {
+    tool("git", `real="${REAL_GIT}"
+case " $* " in
+  *" worktree list "*)
+    if [ -n "$DIE_MID" ]; then printf 'worktree %s\\0HEAD %s\\0branch refs/heads/%s\\0\\0' "$PWD" "$FORGED_SHA" "$FORGED_BRANCH"; exit 128; fi ;;
+esac
+if [ -n "$OLD_GIT" ]; then
+  case " $* " in
+    *" --version "*) echo "git version 2.34.1"; exit 0 ;;
+    *" worktree list "*" -z"*) echo "error: unknown switch z" >&2; exit 129 ;;
+  esac
+fi
+"$real" "$@"; rc=$?
+[ -n "$OBSERVE_LOG" ] || exit $rc
+case " $* " in *" ls-files "*|*" --show-toplevel "*|*" --git-dir "*|*" --absolute-git-dir "*|*" --git-common-dir "*|*" --version "*) exit $rc ;; esac
+echo "git $*" >> "$OBSERVE_LOG"
+if [ -n "$FLIP_TO" ] && [ "$(wc -l < "$OBSERVE_LOG")" -eq "\${FLIP_AFTER:-1}" ]; then
+  "$real" -c core.hooksPath=/dev/null switch -q "$FLIP_TO" >/dev/null 2>&1
+fi
+exit $rc`);
+  }
   const branch = options.branch ?? freshBranch();
   const env = {
-    PATH: `${bin}:${systemPath(dir, options.noCli === true)}`,
+    PATH: `${bin}:${GIT_DIR_OVERRIDE ? `${GIT_DIR_OVERRIDE}:` : ""}${systemPath(dir, options.noCli === true)}`,
     HOME: join(dir, "home"),
     CALL_LOG: calls,
     PR_STATE: "open",
@@ -113,18 +152,21 @@ exit 0`);
     PR_END_STATE_OWNER_PID: String(process.pid),
   };
   const git = (...args) => spawnSync("git", ["-c", "core.hooksPath=/dev/null", "-c", "user.name=Seat", "-c", "user.email=seat@example.com", ...args], { cwd: seat, env, encoding: "utf8" });
-  expect(git("init", "-q", "-b", branch).status).toBe(0);
+  const initArgs = ["init", "-q", "-b", branch];
+  if (options.refFormat && options.refFormat !== "files") initArgs.push(`--ref-format=${options.refFormat}`);
+  if (options.separateGitDir) initArgs.push("--separate-git-dir", join(dir, "gitdir"));
+  expect(git(...initArgs).status).toBe(0);
   expect(git("commit", "-q", "--allow-empty", "-m", "work").status).toBe(0);
   env.PR_HEAD_SHA = git("rev-parse", "HEAD").stdout.trim();
   expect(env.PR_HEAD_SHA).toMatch(/^[0-9a-f]{40}$/);
   return { dir, seat, calls, env, branch, ref: refOf(branch), git };
 }
 
-function run(s, args, extraEnv = {}) {
-  return spawnSync("bash", [script, ...args], { cwd: s.seat, env: { ...s.env, ...extraEnv }, encoding: "utf8", timeout: LONG });
+function run(s, args, extraEnv = {}, cwd = s.seat) {
+  return spawnSync("bash", [script, ...args], { cwd, env: { ...s.env, ...extraEnv }, encoding: "utf8", timeout: LONG });
 }
 
-const record = (s, pr = 77, ticket = "ENG-123", extraEnv = {}) => run(s, ["record", REPO, s.branch, String(pr), ticket], extraEnv);
+const record = (s, pr = 77, ticket = "ENG-123", extraEnv = {}, cwd = s.seat) => run(s, ["record", REPO, s.branch, String(pr), ticket], extraEnv, cwd);
 const handoff = (s, ...rest) => run(s, ["handoff", REPO, s.branch, "77", ...rest]);
 
 // The command run as the child of bash under another name, with no owner pid given and one
@@ -145,7 +187,7 @@ function runUnder(s, name, args) {
   // Two commands, so this bash stays as the parent and does not replace itself with the child.
   return spawnSync(parent, ["-c", 'bash "$0" "$@"; exit $?', script, ...args], { cwd: s.seat, env, encoding: "utf8", timeout: LONG });
 }
-const check = (s, pr = 77, extraEnv = {}) => run(s, ["check", REPO, s.branch, String(pr)], extraEnv);
+const check = (s, pr = 77, extraEnv = {}, cwd = s.seat) => run(s, ["check", REPO, s.branch, String(pr)], extraEnv, cwd);
 const endRecord = (s, pr = 77) => JSON.parse(readFileSync(join(s.seat, ".catalyst/create-pr-end.json"), "utf8"))[`${s.ref}#${pr}`];
 const hasEndFile = (s) => existsSync(join(s.seat, ".catalyst/create-pr-end.json"));
 const callLines = (s) => readFileSync(s.calls, "utf8").split("\n").filter(Boolean);
@@ -2150,6 +2192,391 @@ test("stop under errexit signals a waiter whose last child has already exited", 
     expect(named(waiterLog(s))).toBe(false);
   } finally {
     waiter.stdin.end();
+    cleanup(s);
+  }
+}, LONG);
+
+// ── One reading of the checkout ─────────────────────────────────────────────────────────────────────────────
+// The branch and the commit the head check compares come from one `git worktree list --porcelain` of the
+// checkout, never from two commands. Two commands let a switch between them pair one branch's name with the
+// other branch's commit, so a checkout that was never on the head passed as the owner. These controls drive
+// the public `record` and `check` commands, and the `git` stand-in switches the checkout between two reads.
+
+// Where Git keeps this checkout's refs, whichever way it stores them, left as it is on the disk: every file's
+// path, size, modification time and content, so a read that wrote anything shows.
+function gitDirState(s) {
+  const gitDir = join(s.seat, ".git");
+  if (!lstatSync(gitDir).isDirectory()) return null;
+  const out = [];
+  const walk = (dir) => {
+    for (const name of readdirSync(dir).sort()) {
+      const f = join(dir, name);
+      const st = lstatSync(f);
+      if (st.isDirectory()) walk(f);
+      else out.push(`${f.slice(gitDir.length)} ${st.size} ${st.mtimeMs} ${st.isFile() ? readFileSync(f).toString("base64") : ""}`);
+    }
+  };
+  walk(gitDir);
+  return out.join("\n");
+}
+// The seat, now on `line` with one commit that no other branch has. Back on its own branch afterwards.
+function commitOnlyOn(s, line, message) {
+  expect(s.git("switch", "-q", "-c", line).status).toBe(0);
+  expect(s.git("commit", "-q", "--allow-empty", "-m", message).status).toBe(0);
+  const sha = s.git("rev-parse", "HEAD").stdout.trim();
+  expect(s.git("switch", "-q", s.branch).status).toBe(0);
+  return sha;
+}
+const readLines = (file) => (existsSync(file) ? readFileSync(file, "utf8").split("\n").filter(Boolean) : []);
+
+for (const refFormat of REF_FORMATS) {
+  // FAILS on the two-command read: the first command says the checkout is on its branch, the checkout
+  // switches to the other branch, and the second command reads the other branch's commit, which is the
+  // pull request's head. Only the other branch ever held that commit.
+  test(`${refFormat} refs: a switch between the branch and the commit reads cannot make a checkout the owner of a commit only the other branch held`, () => {
+    const s = makeSeat({ gitShim: true, refFormat });
+    try {
+      const c1 = s.env.PR_HEAD_SHA;
+      const c2 = commitOnlyOn(s, "other-line", "only the other branch has this");
+      expect(c2).not.toBe(c1);
+      // CONTROL: on its own branch at the pull request's head, the checkout is the owner.
+      expect(record(s, 77, "ENG-123", { WAIT_SLEEP: "120" }).stdout).toMatch(/^OWNED: /);
+      expect(check(s).status).toBe(0);
+      // The pull request now sits at c2. CONTROL: with no switch the checkout is not on it.
+      const calm = check(s, 77, { PR_HEAD_SHA: c2 });
+      expect(calm.status).toBe(9);
+      expect(calm.stderr).toContain(`the pull request is at ${c2} and this branch is at ${c1}`);
+      // The switch happens right after the first read of the checkout.
+      const log = join(s.dir, "observed-race");
+      const raced = check(s, 77, { PR_HEAD_SHA: c2, OBSERVE_LOG: log, FLIP_TO: "other-line" });
+      // CONTROL: the switch really happened, so this run was raced.
+      expect(s.git("branch", "--show-current").stdout.trim()).toBe("other-line");
+      expect(raced.stdout).not.toContain("OWNED");
+      expect(raced.status).toBe(9);
+      expect(raced.stderr).toContain(`the pull request is at ${c2} and this branch is at ${c1}`);
+      // One Git read of the checkout for the one comparison, and it is the worktree listing.
+      expect(readLines(log)).toHaveLength(1);
+      expect(readLines(log)[0]).toMatch(/^git worktree list --porcelain/);
+    } finally {
+      cleanup(s);
+    }
+  }, LONG);
+
+  // FAILS on the two-command read: the first read is the branch, so a wait is armed for a checkout that is then
+  // found to be elsewhere, and is left running.
+  test(`${refFormat} refs: record starts no wait when a switch follows the first read of a commit only the other branch held`, () => {
+    const s = makeSeat({ gitShim: true, refFormat });
+    try {
+      const c1 = s.env.PR_HEAD_SHA;
+      const c2 = commitOnlyOn(s, "other-line", "only the other branch has this");
+      const r = record(s, 77, "ENG-123", { PR_HEAD_SHA: c2, OBSERVE_LOG: join(s.dir, "observed"), FLIP_TO: "other-line" });
+      expect(s.git("branch", "--show-current").stdout.trim()).toBe("other-line");
+      expect(r.status).toBe(0);
+      expect(r.stdout).not.toContain("OWNED");
+      expect(r.stdout).toMatch(new RegExp(`^NEEDS ATTENTION: pull request #77 is open and nothing owns it\\. the pull request is at ${c2} and this branch is at ${c1}`));
+      expect(waitPids(s.ref)).toEqual([]);
+      expect(endRecord(s).end).toBe("needs-attention");
+    } finally {
+      cleanup(s);
+    }
+  }, LONG);
+
+  // The scope of one reading. A switch after the read is not in it: the run reports what the read showed, and the
+  // next run reads the checkout again and says where it is.
+  test(`${refFormat} refs: a switch after the reading is not seen by it, and the next check reports it`, () => {
+    const s = makeSeat({ gitShim: true, refFormat });
+    try {
+      commitOnlyOn(s, "other-line", "somewhere else");
+      expect(record(s, 77, "ENG-123", { WAIT_SLEEP: "120" }).stdout).toMatch(/^OWNED: /);
+      const log = join(s.dir, "observed-after");
+      const r = check(s, 77, { OBSERVE_LOG: log, FLIP_TO: "other-line" });
+      expect(s.git("branch", "--show-current").stdout.trim()).toBe("other-line");
+      expect(r.status).toBe(0);
+      expect(r.stdout).toMatch(/^OWNED: /);
+      expect(readLines(log)).toHaveLength(1);
+      const next = check(s);
+      expect(next.status).toBe(9);
+      expect(next.stderr).toContain(`this checkout is on other-line, not on ${s.branch}`);
+    } finally {
+      cleanup(s);
+    }
+  }, LONG);
+
+  // The refs the read goes through. The branch is named by its full ref, so a tag of the same name is not it, and a
+  // branch that is only in packed-refs (or in the reftable) reads as it does when it is loose.
+  test(`${refFormat} refs: a same-named tag, packed refs and a loose ref over a packed one`, () => {
+    const s = makeSeat({ refFormat });
+    try {
+      const c1 = s.env.PR_HEAD_SHA;
+      const c2 = commitOnlyOn(s, "other-line", "only the other branch has this");
+      // A tag named like the branch, at the other commit: a read by short name would find the tag.
+      expect(s.git("tag", s.branch, c2).status).toBe(0);
+      const tagged = record(s, 77, "ENG-123", { PR_HEAD_SHA: c2 });
+      expect(tagged.stdout).toMatch(new RegExp(`^NEEDS ATTENTION: .* the pull request is at ${c2} and this branch is at ${c1}`));
+      expect(record(s, 77, "ENG-123", { WAIT_SLEEP: "120" }).stdout).toMatch(/^OWNED: /);
+      // Everything packed (the reftable is compacted).
+      expect(s.git("pack-refs", "--all").status).toBe(0);
+      expect(check(s).status).toBe(0);
+      const packedWrong = check(s, 77, { PR_HEAD_SHA: c2 });
+      expect(packedWrong.status).toBe(9);
+      expect(packedWrong.stderr).toContain(`the pull request is at ${c2} and this branch is at ${c1}`);
+      // A new commit is a loose ref over the packed one: the pull request's old head is no longer the branch's.
+      expect(s.git("commit", "-q", "--allow-empty", "-m", "newer than the packed ref").status).toBe(0);
+      const c3 = s.git("rev-parse", "HEAD").stdout.trim();
+      const stale = check(s, 77, { PR_HEAD_SHA: c1 });
+      expect(stale.status).toBe(9);
+      expect(stale.stderr).toContain(`the pull request is at ${c1} and this branch is at ${c3}`);
+      expect(check(s, 77, { PR_HEAD_SHA: c3 }).status).toBe(0);
+    } finally {
+      cleanup(s);
+    }
+  }, LONG);
+
+  // A read does not write: not a ref, not an index, not a lock, and no hook runs.
+  test(`${refFormat} refs: reading the checkout writes nothing under .git and runs no hook, also when .git is read-only`, () => {
+    const s = makeSeat({ refFormat });
+    const gitDir = join(s.seat, ".git");
+    try {
+      expect(record(s, 77, "ENG-123", { WAIT_SLEEP: "120" }).stdout).toMatch(/^OWNED: /);
+      const hookLog = join(s.dir, "hooks-run");
+      const hook = `#!/bin/sh\necho "$0" >> "${hookLog}"\ncat >/dev/null 2>&1\nexit 0\n`;
+      for (const name of ["reference-transaction", "post-checkout", "post-index-change", "post-commit", "post-merge", "post-rewrite", "pre-auto-gc"]) {
+        mkdirSync(join(gitDir, "hooks"), { recursive: true });
+        writeFileSync(join(gitDir, "hooks", name), hook, { mode: 0o755 });
+      }
+      const before = gitDirState(s);
+      const open = check(s);
+      expect(open.status).toBe(0);
+      expect(open.stdout).toMatch(/^OWNED: /);
+      const off = check(s, 77, { PR_HEAD_SHA: "f".repeat(40) });
+      expect(off.status).toBe(9);
+      expect(gitDirState(s)).toBe(before);
+      // The same with every file and directory of .git read-only (the check does not run as root where this binds).
+      expect(spawnSync("chmod", ["-R", "a-w", gitDir]).status).toBe(0);
+      const locked = check(s);
+      const lockedOff = check(s, 77, { PR_HEAD_SHA: "f".repeat(40) });
+      expect(spawnSync("chmod", ["-R", "u+w", gitDir]).status).toBe(0);
+      expect(locked.status).toBe(0);
+      expect(locked.stdout).toMatch(/^OWNED: /);
+      expect(lockedOff.status).toBe(9);
+      expect(lockedOff.stderr).toMatch(/the pull request is at f{40} and this branch is at [0-9a-f]{40}/);
+      expect(gitDirState(s)).toBe(before);
+      // No hook ran for any of it.
+      expect(existsSync(hookLog)).toBe(false);
+    } finally {
+      spawnSync("chmod", ["-R", "u+w", gitDir]);
+      cleanup(s);
+    }
+  }, LONG);
+
+  // Detached, no commit yet, and a branch ref that does not resolve each say so and never pass.
+  // CONTROL: the same checkout was the owner before.
+  test(`${refFormat} refs: a detached HEAD, a branch with no commit and a damaged branch ref are not owners`, () => {
+    const s = makeSeat({ refFormat });
+    try {
+      expect(record(s, 77, "ENG-123", { WAIT_SLEEP: "120" }).stdout).toMatch(/^OWNED: /);
+      expect(check(s).status).toBe(0);
+      if (refFormat === "files") {
+        // A branch ref that holds no object name.
+        const ref = join(s.seat, ".git/refs/heads", s.branch);
+        const good = readFileSync(ref, "utf8");
+        writeFileSync(ref, "damaged\n");
+        const damaged = check(s);
+        expect(damaged.status).toBe(9);
+        expect(damaged.stdout).not.toContain("OWNED");
+        expect(damaged.stderr).toContain(`this checkout is not on ${s.branch}: its HEAD does not resolve to a branch at a commit`);
+        writeFileSync(ref, good);
+        expect(check(s).status).toBe(0);
+      }
+      // No commit yet on the branch.
+      expect(s.git("update-ref", "-d", `refs/heads/${s.branch}`).status).toBe(0);
+      const unborn = check(s);
+      expect(unborn.status).toBe(9);
+      expect(unborn.stderr).toMatch(/NEEDS ATTENTION: .* the pull request is at [0-9a-f]{40} and this branch is at an unknown commit/);
+      expect(s.git("update-ref", `refs/heads/${s.branch}`, s.env.PR_HEAD_SHA).status).toBe(0);
+      expect(check(s).status).toBe(0);
+      // Detached, at the very commit.
+      expect(s.git("switch", "-q", "--detach", s.env.PR_HEAD_SHA).status).toBe(0);
+      const detached = check(s);
+      expect(detached.status).toBe(9);
+      expect(detached.stderr).toContain(`this checkout is on no branch, not on ${s.branch}`);
+      expect(record(s, 77, "ENG-123").stdout).toMatch(new RegExp(`^NEEDS ATTENTION: .*this checkout is on no branch, not on ${s.branch}`));
+    } finally {
+      cleanup(s);
+    }
+  }, LONG);
+}
+
+// The odd directory a linked checkout lives in: spaces, both quotes, a dollar sign, a semicolon, a newline and a
+// non-ASCII letter. (A newline ending the path is left out: the script reads the checkout's root through $(...), which
+// drops it, for every command, not only for this read.)
+const ODD_NAME = "odd dir \"q\" 'sq' $x; one\ntwo é";
+// The seat's main checkout stays on its branch at the pull request's head. A linked checkout in an odd directory is
+// on a branch of its own, and a second linked checkout is detached at the head.
+function withLinked(s, oddName = ODD_NAME) {
+  const odd = join(s.dir, oddName);
+  const sibling = join(s.dir, "sibling");
+  expect(s.git("worktree", "add", "-q", "-b", "linked-line", odd).status).toBe(0);
+  expect(spawnSync("git", ["-c", "core.hooksPath=/dev/null", "-c", "user.name=Seat", "-c", "user.email=seat@example.com", "commit", "-q", "--allow-empty", "-m", "linked work"], { cwd: odd, env: s.env, encoding: "utf8" }).status).toBe(0);
+  const linkedSha = spawnSync("git", ["rev-parse", "HEAD"], { cwd: odd, env: s.env, encoding: "utf8" }).stdout.trim();
+  expect(s.git("worktree", "add", "-q", "--detach", sibling, s.env.PR_HEAD_SHA).status).toBe(0);
+  return { odd, sibling, linkedSha, linkedRef: refOf("linked-line") };
+}
+const recordFor = (s, branch, sha, cwd, extraEnv = {}) => run(s, ["record", REPO, branch, "77", "ENG-123"], { PR_HEAD_SHA: sha, ...extraEnv }, cwd);
+const checkFor = (s, branch, sha, cwd, extraEnv = {}) => run(s, ["check", REPO, branch, "77"], { PR_HEAD_SHA: sha, ...extraEnv }, cwd);
+
+for (const refFormat of REF_FORMATS) {
+  // The main checkout is on the branch asked for, at the pull request's head, and a second linked checkout is detached at
+  // that commit. A read that took the first record, or any record but this checkout's, would pass this one.
+  test(`${refFormat} refs: a linked checkout in an odd directory is read as itself, not as the main checkout or another linked one`, () => {
+    const s = makeSeat({ refFormat });
+    const l = withLinked(s);
+    try {
+      const wrong = recordFor(s, s.branch, s.env.PR_HEAD_SHA, l.odd);
+      expect(wrong.status).toBe(0);
+      expect(wrong.stdout).not.toContain("OWNED");
+      expect(wrong.stdout).toContain(`this checkout is on linked-line, not on ${s.branch}`);
+      expect(waitPids(s.ref)).toEqual([]);
+      const wrongCheck = checkFor(s, s.branch, s.env.PR_HEAD_SHA, l.odd);
+      expect(wrongCheck.status).toBe(9);
+      // Its own branch at a commit the pull request is not at, though the main and the second checkout are at the head.
+      const off = recordFor(s, "linked-line", s.env.PR_HEAD_SHA, l.odd);
+      expect(off.stdout).toMatch(new RegExp(`^NEEDS ATTENTION: .* the pull request is at ${s.env.PR_HEAD_SHA} and this branch is at ${l.linkedSha}`));
+      expect(waitPids(l.linkedRef)).toEqual([]);
+      // CONTROL: its own branch at its own head is the owner, from the same directory.
+      const own = recordFor(s, "linked-line", l.linkedSha, l.odd, { WAIT_SLEEP: "120" });
+      expect(own.stdout).toMatch(/^OWNED: /);
+      expect(waitPids(l.linkedRef).length).toBeGreaterThan(0);
+      const ownCheck = checkFor(s, "linked-line", l.linkedSha, l.odd);
+      expect(ownCheck.status).toBe(0);
+      expect(ownCheck.stdout).toMatch(/^OWNED: /);
+      // The main checkout is read as itself too: the linked checkouts are not it.
+      const main = record(s, 77, "ENG-123", { WAIT_SLEEP: "120" });
+      expect(main.stdout).toMatch(/^OWNED: /);
+      expect(check(s).status).toBe(0);
+    } finally {
+      stopWaits(refOf("linked-line"));
+      cleanup(s);
+    }
+  }, LONG);
+
+  // Where the checkout is, spelled and moved. A link to it is the same directory; a move Git knows about keeps its
+  // record; a move by hand leaves a record at the old place, and reads as nothing until Git repairs it.
+  test(`${refFormat} refs: the checkout is found by its directory, through a link, after git worktree move, and not after a move by hand`, () => {
+    const s = makeSeat({ refFormat });
+    const l = withLinked(s, "first place");
+    try {
+      const viaLink = join(s.dir, "link-to-linked");
+      symlinkSync(l.odd, viaLink);
+      expect(recordFor(s, "linked-line", l.linkedSha, viaLink, { WAIT_SLEEP: "120" }).stdout).toMatch(/^OWNED: /);
+      expect(checkFor(s, "linked-line", l.linkedSha, viaLink).status).toBe(0);
+      expect(checkFor(s, "linked-line", l.linkedSha, l.odd).status).toBe(0);
+      stopWaits(l.linkedRef);
+      // A move that Git made.
+      const moved = join(s.dir, "second place");
+      expect(s.git("worktree", "move", l.odd, moved).status).toBe(0);
+      const afterMove = recordFor(s, "linked-line", l.linkedSha, moved, { WAIT_SLEEP: "120" });
+      expect(afterMove.stdout).toMatch(/^OWNED: /);
+      stopWaits(l.linkedRef);
+      // A move by hand.
+      const byHand = join(s.dir, "third place");
+      renameSync(moved, byHand);
+      const lost = recordFor(s, "linked-line", l.linkedSha, byHand);
+      expect(lost.status).toBe(0);
+      expect(lost.stdout).not.toContain("OWNED");
+      expect(lost.stdout).toContain("this checkout is not in the list of worktrees Git gave");
+      expect(lost.stdout).toContain("git worktree repair");
+      expect(waitPids(l.linkedRef)).toEqual([]);
+      expect(s.git("worktree", "repair", byHand).status).toBe(0);
+      expect(recordFor(s, "linked-line", l.linkedSha, byHand, { WAIT_SLEEP: "120" }).stdout).toMatch(/^OWNED: /);
+    } finally {
+      stopWaits(refOf("linked-line"));
+      cleanup(s);
+    }
+  }, LONG);
+
+  // The main checkout when its git directory is somewhere else: Git lists the git directory as that worktree's path.
+  test(`${refFormat} refs: a main checkout whose git directory is elsewhere is still read as itself`, () => {
+    const s = makeSeat({ refFormat, separateGitDir: true });
+    try {
+      const listing = spawnSync("git", ["worktree", "list", "--porcelain"], { cwd: s.seat, env: s.env, encoding: "utf8" }).stdout;
+      // CONTROL: Git does list the git directory, not the checkout.
+      expect(listing).toContain(`worktree ${realpathSync(join(s.dir, "gitdir"))}\n`);
+      expect(listing).not.toContain(`worktree ${realpathSync(s.seat)}\n`);
+      expect(record(s, 77, "ENG-123", { WAIT_SLEEP: "120" }).stdout).toMatch(/^OWNED: /);
+      expect(check(s).status).toBe(0);
+      const off = check(s, 77, { PR_HEAD_SHA: "e".repeat(40) });
+      expect(off.status).toBe(9);
+      expect(off.stderr).toContain(`the pull request is at ${"e".repeat(40)} and this branch is at ${s.env.PR_HEAD_SHA}`);
+    } finally {
+      cleanup(s);
+    }
+  }, LONG);
+}
+
+// A listing that did not end well says nothing about the checkout, whatever it shows before it ends.
+test("a worktree listing that fails part way is not a reading, even when its first record looks right", () => {
+  const s = makeSeat({ gitShim: true });
+  try {
+    const c2 = commitOnlyOn(s, "other-line", "somewhere else");
+    // The checkout is not on the head, and the dying Git's record says it is on the branch at the head.
+    const r = record(s, 77, "ENG-123", { PR_HEAD_SHA: c2, DIE_MID: "1", FORGED_SHA: c2, FORGED_BRANCH: s.branch });
+    expect(r.status).toBe(0);
+    expect(r.stdout).not.toContain("OWNED");
+    expect(r.stdout).toContain("this checkout is not in the list of worktrees Git gave");
+    expect(waitPids(s.ref)).toEqual([]);
+    // CONTROL: without the failure the same stand-in reads the checkout, which is not on c2.
+    expect(record(s, 77, "ENG-123", { PR_HEAD_SHA: c2 }).stdout).toMatch(new RegExp(`the pull request is at ${c2} and this branch is at ${s.env.PR_HEAD_SHA}`));
+  } finally {
+    cleanup(s);
+  }
+}, LONG);
+
+// No Git before 2.36 has `worktree list -z`. The line form of the same listing is read there, still once.
+// A path with a newline in it cannot be told from two lines in that form, so a listing that holds one reads as nothing.
+test("a Git without worktree list -z reads the same one listing as lines, and refuses one a newline in a path breaks", () => {
+  const s = makeSeat({ gitShim: true });
+  try {
+    const log = join(s.dir, "observed-old");
+    const old = { OLD_GIT: "1", OBSERVE_LOG: log };
+    const first = record(s, 77, "ENG-123", { ...old, WAIT_SLEEP: "120" });
+    expect(first.stdout).toMatch(/^OWNED: /);
+    expect(readLines(log).every((l) => /^git worktree list --porcelain$/.test(l))).toBe(true);
+    const c = check(s, 77, old);
+    expect(c.status).toBe(0);
+    const off = check(s, 77, { ...old, PR_HEAD_SHA: "d".repeat(40) });
+    expect(off.status).toBe(9);
+    expect(off.stderr).toContain(`the pull request is at ${"d".repeat(40)} and this branch is at ${s.env.PR_HEAD_SHA}`);
+    // CONTROL: the same listing, read the new way, with the odd checkout beside it.
+    const l = withLinked(s);
+    expect(check(s).status).toBe(0);
+    // A listing the odd path breaks is not read, and the checkout is not taken for an owner.
+    const broken = check(s, 77, old);
+    expect(broken.status).toBe(9);
+    expect(broken.stderr).toContain("this checkout is not in the list of worktrees Git gave");
+    expect(l.odd).toContain("\n");
+  } finally {
+    cleanup(s);
+  }
+}, LONG);
+
+// Where the command is not run from a checkout there is nothing to read, and it says so as it did.
+test("from a bare repository, from inside .git and from outside any repository, check reads nothing and writes nothing", () => {
+  const s = makeSeat();
+  try {
+    const bare = join(s.dir, "bare.git");
+    expect(spawnSync("git", ["clone", "-q", "--bare", s.seat, bare], { env: s.env, encoding: "utf8" }).status).toBe(0);
+    const outside = join(s.dir, "outside");
+    mkdirSync(outside);
+    for (const cwd of [bare, join(s.seat, ".git"), outside]) {
+      const r = check(s, 77, {}, cwd);
+      expect(r.status).toBe(9);
+      expect(r.stderr).toContain("not in a git checkout");
+      expect(r.stdout).not.toContain("OWNED");
+      expect(existsSync(join(cwd, ".catalyst"))).toBe(false);
+    }
+    expect(existsSync(join(s.seat, ".catalyst/create-pr-end.json"))).toBe(false);
+  } finally {
     cleanup(s);
   }
 }, LONG);
