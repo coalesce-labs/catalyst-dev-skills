@@ -37,7 +37,20 @@ git log HEAD..origin/$base --oneline | grep -q . && echo "Branch is behind $base
 
 If behind: `git rebase origin/$base`. On conflicts: show conflicting files, error "Rebase conflicts detected. Resolve conflicts and run the create-pr skill again.", exit.
 
-## Step 5 — Check for an existing PR
+## Step 5 — Extract ticket from branch name
+
+```bash
+# The team key is `linear_team` under [project] in .catalyst/catalyst.toml, however the file
+# indents it; a checkout without the file or the key falls back to PROJ.
+source "${CLAUDE_SKILL_DIR}/scripts/lib/catalyst-toml.sh"
+TEAM_KEY="$(catalyst_toml_get "$(catalyst_toml_find)" project linear_team)" || TEAM_KEY=PROJ
+
+branch=$(git branch --show-current)
+ticket="" # nothing before this step sets it on purpose, and a branch with no ticket must not keep an old one
+[[ "$branch" =~ ($TEAM_KEY-[0-9]+) ]] && ticket="${BASH_REMATCH[1]}"
+```
+
+## Step 6 — Check for an existing PR
 
 ```bash
 # On a Mergify stack the pull request is on the stack tool's own branch, where a lookup by this
@@ -53,16 +66,4 @@ else
 fi
 ```
 
-If one exists, show it and ask: "[D] Describe/update this PR  [S] Skip  [A] Abort". D → run the `describe-pr` skill with the `number` printed above and exit. Pass the number: on a stack, `describe-pr`'s own lookup by branch name does not find the pull request. S → exit success. A → exit. **This is the only interactive prompt in the happy path.**
-
-## Step 6 — Extract ticket from branch name
-
-```bash
-# The team key is `linear_team` under [project] in .catalyst/catalyst.toml; a checkout without the
-# file falls back to PROJ.
-TEAM_KEY=$(awk -F'"' '/^\[project\]/{p=1;next} /^\[/{p=0} p && /^linear_team/{print $2; exit}' .catalyst/catalyst.toml 2>/dev/null)
-TEAM_KEY=${TEAM_KEY:-PROJ}
-
-branch=$(git branch --show-current)
-[[ "$branch" =~ ($TEAM_KEY-[0-9]+) ]] && ticket="${BASH_REMATCH[1]}"
-```
+If one exists, show it and ask: "[D] Describe/update this PR  [S] Skip  [A] Abort". D → run the `describe-pr` skill with the `number` printed above, run `bash "${CLAUDE_SKILL_DIR}/scripts/pr-end-state.sh" record <owner/name> <branch> <number> <ticket>` with the ticket Step 5 found (nothing in its place when the branch names none) so the record says who owns the open pull request, then run `bash "${CLAUDE_SKILL_DIR}/scripts/pr-end-state.sh" check <owner/name> <branch> <number>`, put its line in the report, and exit. Pass the number: on a stack, `describe-pr`'s own lookup by branch name does not find the pull request. S → exit success. A → exit. **This is the only interactive prompt in the happy path.**

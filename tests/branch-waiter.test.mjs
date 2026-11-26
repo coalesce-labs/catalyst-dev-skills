@@ -14,6 +14,7 @@ import { mkdtempSync, mkdirSync, readdirSync, readFileSync, rmSync, symlinkSync,
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { spawnSync } from "node:child_process";
+import { createHash } from "node:crypto";
 import { fileURLToPath } from "node:url";
 
 const rootUrl = new URL("../", import.meta.url);
@@ -164,6 +165,9 @@ exit 0`);
     ? makeGitFixture(dir, options.gitFixture, options.gitBranch, options.fixtureOpts ?? {})
     : null;
   if (fixture) cwd = fixture.seat;
+  // The waiter keeps its files only in a checkout: outside one its listing of tracked waiter files fails,
+  // and a failed listing is a refusal. A control with no git fixture runs in an empty checkout.
+  else if (spawnSync("git", ["init", "-q"], { cwd: dir, env: { ...process.env, GIT_CONFIG_NOSYSTEM: "1", HOME: join(dir, "home") } }).status !== 0) throw new Error("git init failed");
 
   try {
     const result = spawnSync("bash", ["-c", options.code], {
@@ -244,7 +248,16 @@ const armCall = (branch) => `arm_branch_waiter "coalesce-labs/example" "${branch
 const fullWait = (after, seconds = 14400) =>
   `catalyst events wait-for --ticket ENG-123 --after ${after} --timeout ${seconds}`;
 const statePath = (result) => join(result.cwd, ".catalyst", "branch-waiter.json");
-const waiterLogPath = (result, branch) => join(result.cwd, ".catalyst", `waiter.${branch.replace(/[^A-Za-z0-9._-]/g, "-")}.log`);
+// The name of a branch's log inside .catalyst, as the arm writes and prints it: the branch with every character
+// outside A-Za-z0-9._- turned into "-" and cut to 80, then 32 hex of Git's blob hash of "<repository, lowercase>:<branch>".
+// The controls that write a wake log by hand write it under this name, with no first line of their own, as the log
+// of an older copy of this page reads; the handler is given the path the arm printed.
+const logName = (branch, repo = "coalesce-labs/example") => {
+  const text = `${repo.toLowerCase()}:${branch}`;
+  const sum = createHash("sha1").update(`blob ${Buffer.byteLength(text)}\0${text}`).digest("hex");
+  return `waiter.${branch.replace(/[^A-Za-z0-9._-]/g, "-").slice(0, 80)}.${sum.slice(0, 32)}.log`;
+};
+const waiterLogPath = (result, branch) => join(result.cwd, ".catalyst", logName(branch));
 const killWaiters = (branch) => {
   // The "--" separator matters: a pattern beginning with "--ref" parses as a long option and
   // pkill exits 2 without killing anything, leaking sleepers into later runs.
@@ -284,7 +297,10 @@ test("CTC-10679: the inbox check, not the waiter, is how a seat receives and ack
 
 test("the shared reference exists within the line budget and names every required fact", () => {
   const text = referenceText();
-  expect(text.split("\n").length).toBeLessThanOrEqual(150);
+  // 150 until the waiter kept one identity and one log per branch, which added 27 lines of shell. All but
+  // 24 of the page's lines are shell, so no cut of its text reaches the old number. The budget still stops
+  // the page growing without a decision.
+  expect(text.split("\n").length).toBeLessThanOrEqual(177);
   for (const phrase of ["does not promise", "next turn boundary", "Monitor", "event in", "herdr", "not an instruction"]) {
     expect(text).toContain(phrase);
   }
@@ -331,9 +347,9 @@ test("conflict wake: REST base ref, --no-ff merge, guarded push, re-arm from the
     gitFixture: "conflict", gitBranch: "fix-replica-c",
     code: `${armBlock()}\n${wakeBlock()}
 mkdir -p .catalyst
-{ printf '%s\\n' '${CONFLICT_EVENT(995801, "fix-replica-c")}'; echo 'cursor 995801'; echo 'waiter-rc 0'; } > .catalyst/waiter.fix-replica-c.log
+{ printf '%s\\n' '${CONFLICT_EVENT(995801, "fix-replica-c")}'; echo 'cursor 995801'; echo 'waiter-rc 0'; } > .catalyst/${logName("fix-replica-c")}
 ${writeWaiterState("coalesce-labs/example:fix-replica-c", 9001, 995788)}
-handle_waiter_wake "coalesce-labs/example" "fix-replica-c" ".catalyst/waiter.fix-replica-c.log"`,
+handle_waiter_wake "coalesce-labs/example" "fix-replica-c" ".catalyst/${logName("fix-replica-c")}"`,
   });
   try {
     expect(result.status).toBe(0);
@@ -363,9 +379,9 @@ test("conflict wake: a merge conflict aborts, reports paths, pushes nothing, sti
     gitFixture: "abort", gitBranch: "fix-replica-x", fixtureOpts: { conflictMain: true },
     code: `${armBlock()}\n${wakeBlock()}
 mkdir -p .catalyst
-{ printf '%s\\n' '${CONFLICT_EVENT(995802, "fix-replica-x")}'; echo 'cursor 995802'; echo 'waiter-rc 0'; } > .catalyst/waiter.fix-replica-x.log
+{ printf '%s\\n' '${CONFLICT_EVENT(995802, "fix-replica-x")}'; echo 'cursor 995802'; echo 'waiter-rc 0'; } > .catalyst/${logName("fix-replica-x")}
 ${writeWaiterState("coalesce-labs/example:fix-replica-x", 9001, 995788)}
-handle_waiter_wake "coalesce-labs/example" "fix-replica-x" ".catalyst/waiter.fix-replica-x.log"`,
+handle_waiter_wake "coalesce-labs/example" "fix-replica-x" ".catalyst/${logName("fix-replica-x")}"`,
   });
   try {
     expect(result.status).toBe(0);
@@ -399,9 +415,9 @@ test("conflict wake: a stack resync keeps the description written on the pull re
 mkdir -p .catalyst
 export PR_DESCRIPTION_FILE="$PWD/.catalyst/pr-description"
 printf '%b' '${written}' > "$PR_DESCRIPTION_FILE"
-{ printf '%s\\n' '${CONFLICT_EVENT(995803, STACK_REF("fix-replica-k"))}'; echo 'cursor 995803'; echo 'waiter-rc 0'; } > .catalyst/waiter.fix-replica-k.log
+{ printf '%s\\n' '${CONFLICT_EVENT(995803, STACK_REF("fix-replica-k"))}'; echo 'cursor 995803'; echo 'waiter-rc 0'; } > .catalyst/${logName("fix-replica-k")}
 ${writeWaiterState("coalesce-labs/example:fix-replica-k", 9001, 995788)}
-handle_waiter_wake "coalesce-labs/example" "fix-replica-k" ".catalyst/waiter.fix-replica-k.log"`,
+handle_waiter_wake "coalesce-labs/example" "fix-replica-k" ".catalyst/${logName("fix-replica-k")}"`,
   });
   try {
     expect(result.status).toBe(0);
@@ -423,9 +439,9 @@ test("conflict wake: a change of this branch's stack resyncs through mergify, th
     prHead: STACK_REF("fix-replica-k"), stackList: stackList([9000, 9001]),
     code: `${armBlock()}\n${wakeBlock()}
 mkdir -p .catalyst
-{ printf '%s\\n' '${CONFLICT_EVENT(995803, STACK_REF("fix-replica-k"))}'; echo 'cursor 995803'; echo 'waiter-rc 0'; } > .catalyst/waiter.fix-replica-k.log
+{ printf '%s\\n' '${CONFLICT_EVENT(995803, STACK_REF("fix-replica-k"))}'; echo 'cursor 995803'; echo 'waiter-rc 0'; } > .catalyst/${logName("fix-replica-k")}
 ${writeWaiterState("coalesce-labs/example:fix-replica-k", 9001, 995788)}
-handle_waiter_wake "coalesce-labs/example" "fix-replica-k" ".catalyst/waiter.fix-replica-k.log"`,
+handle_waiter_wake "coalesce-labs/example" "fix-replica-k" ".catalyst/${logName("fix-replica-k")}"`,
   });
   try {
     expect(result.status).toBe(0);
@@ -452,9 +468,9 @@ test("ordinary branch: Change-Id trailers alone never send a branch through a st
     gitFixture: "ordinary", gitBranch: "fix-replica-p", fixtureOpts: { trailer: "Change-Id: I8f2c1" },
     code: `${armBlock()}\n${wakeBlock()}
 mkdir -p .catalyst
-{ printf '%s\\n' '${CONFLICT_EVENT(995806, "fix-replica-p")}'; echo 'cursor 995806'; echo 'waiter-rc 0'; } > .catalyst/waiter.fix-replica-p.log
+{ printf '%s\\n' '${CONFLICT_EVENT(995806, "fix-replica-p")}'; echo 'cursor 995806'; echo 'waiter-rc 0'; } > .catalyst/${logName("fix-replica-p")}
 ${writeWaiterState("coalesce-labs/example:fix-replica-p", 9001, 995788)}
-handle_waiter_wake "coalesce-labs/example" "fix-replica-p" ".catalyst/waiter.fix-replica-p.log"`,
+handle_waiter_wake "coalesce-labs/example" "fix-replica-p" ".catalyst/${logName("fix-replica-p")}"`,
   });
   try {
     expect(result.status).toBe(0);
@@ -477,9 +493,9 @@ test("foreign head: a pull request whose head this branch's stack does not list 
     prHead: STACK_REF("another-branch"), stackList: stackList([9000], "fix-replica-f"),
     code: `${armBlock()}\n${wakeBlock()}
 mkdir -p .catalyst
-{ printf '%s\\n' '${CONFLICT_EVENT(995807, STACK_REF("another-branch"))}'; echo 'cursor 995807'; echo 'waiter-rc 0'; } > .catalyst/waiter.fix-replica-f.log
+{ printf '%s\\n' '${CONFLICT_EVENT(995807, STACK_REF("another-branch"))}'; echo 'cursor 995807'; echo 'waiter-rc 0'; } > .catalyst/${logName("fix-replica-f")}
 ${writeWaiterState("coalesce-labs/example:fix-replica-f", 9001, 995788)}
-handle_waiter_wake "coalesce-labs/example" "fix-replica-f" ".catalyst/waiter.fix-replica-f.log"`,
+handle_waiter_wake "coalesce-labs/example" "fix-replica-f" ".catalyst/${logName("fix-replica-f")}"`,
   });
   try {
     expect(result.status).toBe(0);
@@ -500,9 +516,9 @@ test("wrong HEAD: a wake for branch-a while branch-b is checked out merges and p
     code: `${armBlock()}\n${wakeBlock()}
 git checkout -q -b fix-replica-h1 && git push -q -u origin fix-replica-h1 && git checkout -q fix-replica-h2
 mkdir -p .catalyst
-{ printf '%s\\n' '${CONFLICT_EVENT(995804, "fix-replica-h1")}'; echo 'cursor 995804'; echo 'waiter-rc 0'; } > .catalyst/waiter.fix-replica-h1.log
+{ printf '%s\\n' '${CONFLICT_EVENT(995804, "fix-replica-h1")}'; echo 'cursor 995804'; echo 'waiter-rc 0'; } > .catalyst/${logName("fix-replica-h1")}
 ${writeWaiterState("coalesce-labs/example:fix-replica-h1", 9001, 995788)}
-handle_waiter_wake "coalesce-labs/example" "fix-replica-h1" ".catalyst/waiter.fix-replica-h1.log"`,
+handle_waiter_wake "coalesce-labs/example" "fix-replica-h1" ".catalyst/${logName("fix-replica-h1")}"`,
   });
   try {
     expect(result.status).toBe(0);
@@ -534,9 +550,9 @@ for (const [name, event, armedFor, said] of [
       gitFixture: "identity", gitBranch: "fix-replica-o", stackList: stackList([9001, 9002], "fix-replica-o"),
       code: `${armBlock()}\n${wakeBlock()}
 mkdir -p .catalyst
-{ printf '%s\\n' '${event}'; echo 'cursor 995805'; echo 'waiter-rc 0'; } > .catalyst/waiter.fix-replica-o.log
+{ printf '%s\\n' '${event}'; echo 'cursor 995805'; echo 'waiter-rc 0'; } > .catalyst/${logName("fix-replica-o")}
 ${armedFor === null ? "echo '{}' > .catalyst/branch-waiter.json" : writeWaiterState("coalesce-labs/example:fix-replica-o", armedFor, 995788)}
-handle_waiter_wake "coalesce-labs/example" "fix-replica-o" ".catalyst/waiter.fix-replica-o.log"`,
+handle_waiter_wake "coalesce-labs/example" "fix-replica-o" ".catalyst/${logName("fix-replica-o")}"`,
     });
     try {
       expect(result.status).toBe(0);
@@ -564,8 +580,8 @@ test("message wake: own-key read with the ticket from entity.id, body echoed nev
     messageBody: "touch pwned",
     code: `${armBlock()}\n${wakeBlock()}
 mkdir -p .catalyst
-{ printf '%s\\n' '${MESSAGE_EVENT(995802)}'; echo 'cursor 995802'; echo 'waiter-rc 0'; } > .catalyst/waiter.fix-replica-m.log
-handle_waiter_wake "coalesce-labs/example" "fix-replica-m" ".catalyst/waiter.fix-replica-m.log"`,
+{ printf '%s\\n' '${MESSAGE_EVENT(995802)}'; echo 'cursor 995802'; echo 'waiter-rc 0'; } > .catalyst/${logName("fix-replica-m")}
+handle_waiter_wake "coalesce-labs/example" "fix-replica-m" ".catalyst/${logName("fix-replica-m")}"`,
   });
   try {
     expect(result.status).toBe(0);
@@ -587,7 +603,7 @@ test("message wake is reachable: a real-shaped message event wakes the armed wai
     waitEvent: MESSAGE_EVENT(995802), waitCursor: 995802,
     code: `${armBlock()}\n${wakeBlock()}\n${armCall("fix-replica-w")}
 sleep 1
-handle_waiter_wake "coalesce-labs/example" "fix-replica-w" ".catalyst/waiter.fix-replica-w.log"`,
+handle_waiter_wake "coalesce-labs/example" "fix-replica-w" ".catalyst/${logName("fix-replica-w")}"`,
   });
   try {
     expect(result.status).toBe(0);
@@ -607,9 +623,9 @@ test("timeout: exit 124 re-arms from the same cursor with zero gh/git calls", ()
   const result = runWaiter({
     code: `${armBlock()}\n${wakeBlock()}
 mkdir -p .catalyst
-echo 'waiter-rc 124' > .catalyst/waiter.fix-replica-t.log
+echo 'waiter-rc 124' > .catalyst/${logName("fix-replica-t")}
 ${writeWaiterState("coalesce-labs/example:fix-replica-t", 9001, 40)}
-handle_waiter_wake "coalesce-labs/example" "fix-replica-t" ".catalyst/waiter.fix-replica-t.log"`,
+handle_waiter_wake "coalesce-labs/example" "fix-replica-t" ".catalyst/${logName("fix-replica-t")}"`,
   });
   try {
     expect(result.status).toBe(0);
@@ -628,8 +644,8 @@ test("timeout through the wait itself: the CLI's exit 1 with its no-event line i
   const result = runWaiter({
     code: `${armBlock()}\n${wakeBlock()}\n${armCall("fix-replica-q")}
 wait
-cat .catalyst/waiter.fix-replica-q.log
-handle_waiter_wake "coalesce-labs/example" "fix-replica-q" ".catalyst/waiter.fix-replica-q.log"`,
+cat .catalyst/${logName("fix-replica-q")}
+handle_waiter_wake "coalesce-labs/example" "fix-replica-q" ".catalyst/${logName("fix-replica-q")}"`,
   });
   try {
     expect(result.status).toBe(0);
@@ -650,7 +666,7 @@ test("failed wait: any other failure keeps its exit code and the CLI's message, 
     waitRc: 2, waitErr: "catalyst: not connected yet",
     code: `${armBlock()}\n${wakeBlock()}\n${armCall("fix-replica-e")}
 wait
-handle_waiter_wake "coalesce-labs/example" "fix-replica-e" ".catalyst/waiter.fix-replica-e.log"`,
+handle_waiter_wake "coalesce-labs/example" "fix-replica-e" ".catalyst/${logName("fix-replica-e")}"`,
   });
   try {
     expect(result.status).toBe(0);
@@ -697,8 +713,8 @@ test("failed wait: an exit 1 without the no-event line is a failure, never a tim
     code: `${armBlock()}\n${wakeBlock()}\nWAITER_TIMEOUT_SECONDS=4h ${armCall("fix-replica-u")}
 echo "state: $(cat .catalyst/branch-waiter.json 2>/dev/null)"
 mkdir -p .catalyst
-{ echo '--timeout must be an integer'; echo 'Usage: catalyst events ...'; echo 'cursor 40'; echo 'waiter-rc 1'; } > .catalyst/waiter.fix-replica-u.log
-handle_waiter_wake "coalesce-labs/example" "fix-replica-u" ".catalyst/waiter.fix-replica-u.log"`,
+{ echo '--timeout must be an integer'; echo 'Usage: catalyst events ...'; echo 'cursor 40'; echo 'waiter-rc 1'; } > .catalyst/${logName("fix-replica-u")}
+handle_waiter_wake "coalesce-labs/example" "fix-replica-u" ".catalyst/${logName("fix-replica-u")}"`,
   });
   try {
     expect(result.status).toBe(0);
@@ -719,7 +735,7 @@ test("selection: the waiter skips another event of the ticket and wakes on the c
     waitEvents: [other, CONFLICT_EVENT(42, STACK_REF("fix-replica-s"))],
     code: `${armBlock()}\n${armCall("fix-replica-s")}
 wait
-cat .catalyst/waiter.fix-replica-s.log`,
+cat .catalyst/${logName("fix-replica-s")}`,
   });
   try {
     expect(result.status).toBe(0);
@@ -744,8 +760,8 @@ test("timeout after skipped events: the next wait starts from the sequence the w
     waitEvents: [other],
     code: `${armBlock()}\n${wakeBlock()}\n${armCall("fix-replica-k2")}
 wait
-cat .catalyst/waiter.fix-replica-k2.log
-handle_waiter_wake "coalesce-labs/example" "fix-replica-k2" ".catalyst/waiter.fix-replica-k2.log"`,
+cat .catalyst/${logName("fix-replica-k2")}
+handle_waiter_wake "coalesce-labs/example" "fix-replica-k2" ".catalyst/${logName("fix-replica-k2")}"`,
   });
   try {
     expect(result.status).toBe(0);
@@ -766,9 +782,9 @@ test("refusal: exit 3 reports the refusal and does not re-arm", () => {
   const result = runWaiter({
     code: `${armBlock()}\n${wakeBlock()}
 mkdir -p .catalyst
-echo 'waiter-rc 3' > .catalyst/waiter.fix-replica-r.log
+echo 'waiter-rc 3' > .catalyst/${logName("fix-replica-r")}
 ${writeWaiterState("coalesce-labs/example:fix-replica-r", 9001, 40)}
-handle_waiter_wake "coalesce-labs/example" "fix-replica-r" ".catalyst/waiter.fix-replica-r.log"`,
+handle_waiter_wake "coalesce-labs/example" "fix-replica-r" ".catalyst/${logName("fix-replica-r")}"`,
   });
   try {
     expect(result.status).toBe(0);
@@ -829,15 +845,15 @@ test("failed read, then recovery: nothing is pushed on the failed read, the wait
     prHead: STACK_REF("fix-replica-r"), stackList: stackList([9001], "fix-replica-r"), ghFailReads: 1,
     code: `${armBlock()}\n${wakeBlock()}
 mkdir -p .catalyst
-{ printf '%s\\n' '${CONFLICT_EVENT(995803, STACK_REF("fix-replica-r"))}'; echo 'cursor 995803'; echo 'waiter-rc 0'; } > .catalyst/waiter.fix-replica-r.log
+{ printf '%s\\n' '${CONFLICT_EVENT(995803, STACK_REF("fix-replica-r"))}'; echo 'cursor 995803'; echo 'waiter-rc 0'; } > .catalyst/${logName("fix-replica-r")}
 ${writeWaiterState("coalesce-labs/example:fix-replica-r", 9001, 995788)}
-handle_waiter_wake "coalesce-labs/example" "fix-replica-r" ".catalyst/waiter.fix-replica-r.log"
+handle_waiter_wake "coalesce-labs/example" "fix-replica-r" ".catalyst/${logName("fix-replica-r")}"
 echo "calls after the failed read: $(grep -c '^mergify ' "$CALL_LOG")"
 wait
 echo "state after the failed read: $(jq -c . .catalyst/branch-waiter.json)"
-echo "log of the retry wait: $(tr '\\n' ' ' < .catalyst/waiter.fix-replica-r.log)"
+echo "log of the retry wait: $(tr '\\n' ' ' < .catalyst/${logName("fix-replica-r")})"
 ${backdateDue("coalesce-labs/example:fix-replica-r")}
-handle_waiter_wake "coalesce-labs/example" "fix-replica-r" ".catalyst/waiter.fix-replica-r.log"`,
+handle_waiter_wake "coalesce-labs/example" "fix-replica-r" ".catalyst/${logName("fix-replica-r")}"`,
   });
   try {
     expect(result.status).toBe(0);
@@ -871,9 +887,9 @@ test("pending conflict, a wait that ends with no event before the due time: no t
       code: `${armBlock()}\n${wakeBlock()}
 ${retry ? `export WAITER_RETRY_SECONDS=${retry}` : ""}
 mkdir -p .catalyst
-{ echo 'events: no matching event within 5 s'; echo 'cursor 995803'; echo 'waiter-rc 124'; } > .catalyst/waiter.fix-replica-e1.log
+{ echo 'events: no matching event within 5 s'; echo 'cursor 995803'; echo 'waiter-rc 124'; } > .catalyst/${logName("fix-replica-e1")}
 ${writePendingState("coalesce-labs/example:fix-replica-e1", 2, 120)}
-handle_waiter_wake "coalesce-labs/example" "fix-replica-e1" ".catalyst/waiter.fix-replica-e1.log"`,
+handle_waiter_wake "coalesce-labs/example" "fix-replica-e1" ".catalyst/${logName("fix-replica-e1")}"`,
     });
     try {
       expect(result.status).toBe(0);
@@ -901,9 +917,9 @@ test("pending conflict, a message read that runs past the due time: the retry ru
     gitFixture: "slowread", gitBranch: "fix-replica-e2", ghFailReads: 9, messagesSleep: 4,
     code: `${armBlock()}\n${wakeBlock()}
 mkdir -p .catalyst
-{ printf '%s\\n' '${MESSAGE_EVENT(995811)}'; echo 'cursor 995811'; echo 'waiter-rc 0'; } > .catalyst/waiter.fix-replica-e2.log
+{ printf '%s\\n' '${MESSAGE_EVENT(995811)}'; echo 'cursor 995811'; echo 'waiter-rc 0'; } > .catalyst/${logName("fix-replica-e2")}
 ${writePendingState("coalesce-labs/example:fix-replica-e2", 1, 2)}
-handle_waiter_wake "coalesce-labs/example" "fix-replica-e2" ".catalyst/waiter.fix-replica-e2.log"`,
+handle_waiter_wake "coalesce-labs/example" "fix-replica-e2" ".catalyst/${logName("fix-replica-e2")}"`,
   });
   try {
     expect(result.status).toBe(0);
@@ -928,10 +944,10 @@ test("pending conflict, a slow failed try: the next due time is counted from the
     gitFixture: "slowtry", gitBranch: "fix-replica-e3", ghFailReads: 9, ghSleep: 3,
     code: `${armBlock()}\n${wakeBlock()}
 mkdir -p .catalyst
-{ printf '%s\\n' '${CONFLICT_EVENT(995803, "fix-replica-e3")}'; echo 'cursor 995803'; echo 'waiter-rc 0'; } > .catalyst/waiter.fix-replica-e3.log
+{ printf '%s\\n' '${CONFLICT_EVENT(995803, "fix-replica-e3")}'; echo 'cursor 995803'; echo 'waiter-rc 0'; } > .catalyst/${logName("fix-replica-e3")}
 ${writeWaiterState("coalesce-labs/example:fix-replica-e3", 9001, 995788)}
 echo "start $(date +%s)"
-handle_waiter_wake "coalesce-labs/example" "fix-replica-e3" ".catalyst/waiter.fix-replica-e3.log"`,
+handle_waiter_wake "coalesce-labs/example" "fix-replica-e3" ".catalyst/${logName("fix-replica-e3")}"`,
   });
   try {
     expect(result.status).toBe(0);
@@ -954,9 +970,9 @@ test("pending conflict: a conflict on another pull request uses no try, keeps th
   const result = runWaiter({
     code: `${armBlock()}\n${wakeBlock()}
 mkdir -p .catalyst
-{ printf '%s\\n' '${CONFLICT_EVENT(995803, "fix-replica-p", "main", 9002)}'; echo 'cursor 995803'; echo 'waiter-rc 0'; } > .catalyst/waiter.fix-replica-p.log
+{ printf '%s\\n' '${CONFLICT_EVENT(995803, "fix-replica-p", "main", 9002)}'; echo 'cursor 995803'; echo 'waiter-rc 0'; } > .catalyst/${logName("fix-replica-p")}
 ${writePendingState("coalesce-labs/example:fix-replica-p", 1, 120)}
-handle_waiter_wake "coalesce-labs/example" "fix-replica-p" ".catalyst/waiter.fix-replica-p.log"`,
+handle_waiter_wake "coalesce-labs/example" "fix-replica-p" ".catalyst/${logName("fix-replica-p")}"`,
   });
   try {
     expect(result.status).toBe(0);
@@ -978,8 +994,8 @@ handle_waiter_wake "coalesce-labs/example" "fix-replica-p" ".catalyst/waiter.fix
 // A message is a wake too. It must not move the time the pending conflict is due, must not use
 // one of its three tries, and must not hold the retry back once that time has come.
 test("pending conflict, early messages: each keeps the due time, uses no try and arms only the time left", () => {
-  const messageWake = (sequence) => `{ printf '%s\\n' '${MESSAGE_EVENT(sequence)}'; echo 'cursor ${sequence}'; echo 'waiter-rc 0'; } > .catalyst/waiter.fix-replica-m1.log
-handle_waiter_wake "coalesce-labs/example" "fix-replica-m1" ".catalyst/waiter.fix-replica-m1.log"; wait`;
+  const messageWake = (sequence) => `{ printf '%s\\n' '${MESSAGE_EVENT(sequence)}'; echo 'cursor ${sequence}'; echo 'waiter-rc 0'; } > .catalyst/${logName("fix-replica-m1")}
+handle_waiter_wake "coalesce-labs/example" "fix-replica-m1" ".catalyst/${logName("fix-replica-m1")}"; wait`;
   const result = runWaiter({
     code: `${armBlock()}\n${wakeBlock()}
 mkdir -p .catalyst
@@ -1008,9 +1024,9 @@ test("pending conflict, a message at or after the due time: the retry runs on th
     gitFixture: "due", gitBranch: "fix-replica-m2", ghFailReads: 9,
     code: `${armBlock()}\n${wakeBlock()}
 mkdir -p .catalyst
-{ printf '%s\\n' '${MESSAGE_EVENT(995811)}'; echo 'cursor 995811'; echo 'waiter-rc 0'; } > .catalyst/waiter.fix-replica-m2.log
+{ printf '%s\\n' '${MESSAGE_EVENT(995811)}'; echo 'cursor 995811'; echo 'waiter-rc 0'; } > .catalyst/${logName("fix-replica-m2")}
 ${writePendingState("coalesce-labs/example:fix-replica-m2", 1, -5)}
-handle_waiter_wake "coalesce-labs/example" "fix-replica-m2" ".catalyst/waiter.fix-replica-m2.log"`,
+handle_waiter_wake "coalesce-labs/example" "fix-replica-m2" ".catalyst/${logName("fix-replica-m2")}"`,
   });
   try {
     expect(result.status).toBe(0);
@@ -1041,10 +1057,10 @@ test("pending conflict, a missing or unreadable due time: the due time is a full
     const result = runWaiter({
       code: `${armBlock()}\n${wakeBlock()}
 mkdir -p .catalyst
-{ printf '%s\\n' '${MESSAGE_EVENT(995811)}'; echo 'cursor 995811'; echo 'waiter-rc 0'; } > .catalyst/waiter.fix-replica-m3.log
+{ printf '%s\\n' '${MESSAGE_EVENT(995811)}'; echo 'cursor 995811'; echo 'waiter-rc 0'; } > .catalyst/${logName("fix-replica-m3")}
 printf '%s\\n' '${JSON.stringify({ "coalesce-labs/example:fix-replica-m3": entry })}' > .catalyst/branch-waiter.json
 date() { local n; n=$(cat .catalyst/clock-readings 2>/dev/null || echo 0); echo $((n + 1)) > .catalyst/clock-readings; echo $((${first} + n * ${step})); }
-handle_waiter_wake "coalesce-labs/example" "fix-replica-m3" ".catalyst/waiter.fix-replica-m3.log"
+handle_waiter_wake "coalesce-labs/example" "fix-replica-m3" ".catalyst/${logName("fix-replica-m3")}"
 echo "clock readings: $(cat .catalyst/clock-readings)"`,
     });
     try {
@@ -1069,9 +1085,9 @@ test("pending conflict overdue on a wake that is neither a message nor a conflic
   const result = runWaiter({
     code: `${armBlock()}\n${wakeBlock()}
 mkdir -p .catalyst
-{ printf '%s\\n' '${other}'; echo 'cursor 995811'; echo 'waiter-rc 0'; } > .catalyst/waiter.fix-replica-m4.log
+{ printf '%s\\n' '${other}'; echo 'cursor 995811'; echo 'waiter-rc 0'; } > .catalyst/${logName("fix-replica-m4")}
 ${writePendingState("coalesce-labs/example:fix-replica-m4", 1, -5)}
-handle_waiter_wake "coalesce-labs/example" "fix-replica-m4" ".catalyst/waiter.fix-replica-m4.log"`,
+handle_waiter_wake "coalesce-labs/example" "fix-replica-m4" ".catalyst/${logName("fix-replica-m4")}"`,
   });
   try {
     expect(result.status).toBe(0);
@@ -1088,17 +1104,17 @@ handle_waiter_wake "coalesce-labs/example" "fix-replica-m4" ".catalyst/waiter.fi
 // The whole sequence in real time, with a 6 s retry wait: the read fails, two messages arrive
 // before the retry is due, and a third arrives after it. No quiet period is needed.
 test("pending conflict, a message stream that crosses the due time: early messages use no try, and the first message after it resyncs once", () => {
-  const messageWake = (sequence) => `{ printf '%s\\n' '${MESSAGE_EVENT(sequence)}'; echo 'cursor ${sequence}'; echo 'waiter-rc 0'; } > .catalyst/waiter.fix-replica-m5.log
-handle_waiter_wake "coalesce-labs/example" "fix-replica-m5" ".catalyst/waiter.fix-replica-m5.log"; wait`;
+  const messageWake = (sequence) => `{ printf '%s\\n' '${MESSAGE_EVENT(sequence)}'; echo 'cursor ${sequence}'; echo 'waiter-rc 0'; } > .catalyst/${logName("fix-replica-m5")}
+handle_waiter_wake "coalesce-labs/example" "fix-replica-m5" ".catalyst/${logName("fix-replica-m5")}"; wait`;
   const result = runWaiter({
     gitFixture: "stream", gitBranch: "fix-replica-m5", fixtureOpts: { trailer: "Change-Id: I8f2c1" },
     prHead: STACK_REF("fix-replica-m5"), stackList: stackList([9001], "fix-replica-m5"), ghFailReads: 1,
     code: `${armBlock()}\n${wakeBlock()}
 export WAITER_RETRY_SECONDS=6
 mkdir -p .catalyst
-{ printf '%s\\n' '${CONFLICT_EVENT(995803, STACK_REF("fix-replica-m5"))}'; echo 'cursor 995803'; echo 'waiter-rc 0'; } > .catalyst/waiter.fix-replica-m5.log
+{ printf '%s\\n' '${CONFLICT_EVENT(995803, STACK_REF("fix-replica-m5"))}'; echo 'cursor 995803'; echo 'waiter-rc 0'; } > .catalyst/${logName("fix-replica-m5")}
 ${writeWaiterState("coalesce-labs/example:fix-replica-m5", 9001, 995788)}
-handle_waiter_wake "coalesce-labs/example" "fix-replica-m5" ".catalyst/waiter.fix-replica-m5.log"; wait
+handle_waiter_wake "coalesce-labs/example" "fix-replica-m5" ".catalyst/${logName("fix-replica-m5")}"; wait
 ${[995811, 995812].map(messageWake).join("\n")}
 echo "reads before the due time: $(grep -c '^gh api repos/coalesce-labs/example/pulls/9001 --jq .base.ref' "$CALL_LOG")"
 echo "pushes before the due time: $(grep -c '^mergify stack push' "$CALL_LOG")"
@@ -1168,12 +1184,12 @@ test("pending conflict on another branch: each wake there uses up a try, so the 
     code: `${armBlock()}\n${wakeBlock()}
 mkdir -p .catalyst
 git checkout -q -b elsewhere
-{ echo 'events: no matching event within 300 s'; echo 'cursor 995803'; echo 'waiter-rc 124'; } > .catalyst/waiter.fix-replica-h.log
+{ echo 'events: no matching event within 300 s'; echo 'cursor 995803'; echo 'waiter-rc 124'; } > .catalyst/${logName("fix-replica-h")}
 printf '%s\\n' '${JSON.stringify({ "coalesce-labs/example:fix-replica-h": { pr: 9001, ticket: "ENG-123", cursor: 995803, pending: 1, due: 1 } })}' > .catalyst/branch-waiter.json
-handle_waiter_wake "coalesce-labs/example" "fix-replica-h" ".catalyst/waiter.fix-replica-h.log"; wait
+handle_waiter_wake "coalesce-labs/example" "fix-replica-h" ".catalyst/${logName("fix-replica-h")}"; wait
 echo "state after one wake: $(jq -c '.[]' .catalyst/branch-waiter.json)"
 ${backdateDue("coalesce-labs/example:fix-replica-h")}
-handle_waiter_wake "coalesce-labs/example" "fix-replica-h" ".catalyst/waiter.fix-replica-h.log"; wait`,
+handle_waiter_wake "coalesce-labs/example" "fix-replica-h" ".catalyst/${logName("fix-replica-h")}"; wait`,
   });
   try {
     expect(result.status).toBe(0);
@@ -1196,9 +1212,9 @@ test("failed read, three times: the handler gives up on that conflict, says so, 
     gitFixture: "giveup", gitBranch: "fix-replica-g", ghFailReads: 9,
     code: `${armBlock()}\n${wakeBlock()}
 mkdir -p .catalyst
-{ printf '%s\\n' '${CONFLICT_EVENT(995803, "fix-replica-g")}'; echo 'cursor 995803'; echo 'waiter-rc 0'; } > .catalyst/waiter.fix-replica-g.log
+{ printf '%s\\n' '${CONFLICT_EVENT(995803, "fix-replica-g")}'; echo 'cursor 995803'; echo 'waiter-rc 0'; } > .catalyst/${logName("fix-replica-g")}
 ${writeWaiterState("coalesce-labs/example:fix-replica-g", 9001, 995788)}
-for try in 1 2 3; do handle_waiter_wake "coalesce-labs/example" "fix-replica-g" ".catalyst/waiter.fix-replica-g.log"; wait; ${backdateDue("coalesce-labs/example:fix-replica-g")}; done`,
+for try in 1 2 3; do handle_waiter_wake "coalesce-labs/example" "fix-replica-g" ".catalyst/${logName("fix-replica-g")}"; wait; ${backdateDue("coalesce-labs/example:fix-replica-g")}; done`,
   });
   try {
     expect(result.status).toBe(0);
@@ -1239,9 +1255,9 @@ test("failed status read at a re-arm: the saved sequence is kept and each wake a
     statusRc: 4,
     code: `${armBlock()}\n${wakeBlock()}
 mkdir -p .catalyst
-{ echo 'events: no matching event within 14400 s'; echo 'cursor 995803'; echo 'waiter-rc 124'; } > .catalyst/waiter.fix-replica-s2.log
+{ echo 'events: no matching event within 14400 s'; echo 'cursor 995803'; echo 'waiter-rc 124'; } > .catalyst/${logName("fix-replica-s2")}
 ${writeWaiterState("coalesce-labs/example:fix-replica-s2", 9001, 995788)}
-for wake in 1 2 3; do handle_waiter_wake "coalesce-labs/example" "fix-replica-s2" ".catalyst/waiter.fix-replica-s2.log"; wait; done`,
+for wake in 1 2 3; do handle_waiter_wake "coalesce-labs/example" "fix-replica-s2" ".catalyst/${logName("fix-replica-s2")}"; wait; done`,
   });
   try {
     expect(result.status).toBe(0);
@@ -1261,10 +1277,10 @@ test("failed status read at a re-arm while a waiter lives: no second wait is sta
     statusRc: 4, waitSleep: 30,
     code: `${armBlock()}\n${wakeBlock()}
 mkdir -p .catalyst
-{ echo 'cursor 995803'; echo 'waiter-rc 124'; } > .catalyst/waiter.fix-replica-s3.log
+{ echo 'cursor 995803'; echo 'waiter-rc 124'; } > .catalyst/${logName("fix-replica-s3")}
 ${writeWaiterState("coalesce-labs/example:fix-replica-s3", 9001, 995803)}
-handle_waiter_wake "coalesce-labs/example" "fix-replica-s3" ".catalyst/waiter.fix-replica-s3.log"
-handle_waiter_wake "coalesce-labs/example" "fix-replica-s3" ".catalyst/waiter.fix-replica-s3.log"`,
+handle_waiter_wake "coalesce-labs/example" "fix-replica-s3" ".catalyst/${logName("fix-replica-s3")}"
+handle_waiter_wake "coalesce-labs/example" "fix-replica-s3" ".catalyst/${logName("fix-replica-s3")}"`,
   });
   try {
     expect(result.status).toBe(0);
@@ -1285,14 +1301,14 @@ test("failed read and failed status read together: the conflict stays pending, o
     prHead: STACK_REF("fix-replica-b"), stackList: stackList([9001], "fix-replica-b"), ghFailReads: 1, statusFailCalls: 1,
     code: `${armBlock()}\n${wakeBlock()}
 mkdir -p .catalyst
-{ printf '%s\\n' '${CONFLICT_EVENT(995803, STACK_REF("fix-replica-b"))}'; echo 'cursor 995803'; echo 'waiter-rc 0'; } > .catalyst/waiter.fix-replica-b.log
+{ printf '%s\\n' '${CONFLICT_EVENT(995803, STACK_REF("fix-replica-b"))}'; echo 'cursor 995803'; echo 'waiter-rc 0'; } > .catalyst/${logName("fix-replica-b")}
 ${writeWaiterState("coalesce-labs/example:fix-replica-b", 9001, 995788)}
-handle_waiter_wake "coalesce-labs/example" "fix-replica-b" ".catalyst/waiter.fix-replica-b.log"
+handle_waiter_wake "coalesce-labs/example" "fix-replica-b" ".catalyst/${logName("fix-replica-b")}"
 wait
 echo "state after the failed reads: $(jq -c . .catalyst/branch-waiter.json)"
 echo "waits after the failed reads: $(grep -c '^catalyst events wait-for ' "$CALL_LOG")"
 ${backdateDue("coalesce-labs/example:fix-replica-b")}
-handle_waiter_wake "coalesce-labs/example" "fix-replica-b" ".catalyst/waiter.fix-replica-b.log"`,
+handle_waiter_wake "coalesce-labs/example" "fix-replica-b" ".catalyst/${logName("fix-replica-b")}"`,
   });
   try {
     expect(result.status).toBe(0);
@@ -1323,9 +1339,9 @@ test("failed wait with a saved sequence: exit 1, 2 and 3 still stop without armi
       statusRc: 4,
       code: `${armBlock()}\n${wakeBlock()}
 mkdir -p .catalyst
-{ echo 'events: the request failed'; echo 'cursor 995803'; echo 'waiter-rc ${rc}'; } > .catalyst/waiter.fix-replica-t.log
+{ echo 'events: the request failed'; echo 'cursor 995803'; echo 'waiter-rc ${rc}'; } > .catalyst/${logName("fix-replica-t")}
 ${writeWaiterState("coalesce-labs/example:fix-replica-t", 9001, 995803)}
-handle_waiter_wake "coalesce-labs/example" "fix-replica-t" ".catalyst/waiter.fix-replica-t.log"`,
+handle_waiter_wake "coalesce-labs/example" "fix-replica-t" ".catalyst/${logName("fix-replica-t")}"`,
     });
     try {
       expect(result.status).toBe(0);

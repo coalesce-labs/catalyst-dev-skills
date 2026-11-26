@@ -61,6 +61,9 @@ skip_block="$(linear_sibling_skip_block_from_branch "$ticket" "$branch")"
 
 $skip_block"
 
+# The repository is read first: a lookup that fails here leaves no pull request behind it.
+repo="$(gh repo view --json nameWithOwner -q .nameWithOwner)" || { echo "create-pr: could not read the repository name; no pull request was created, run the step again" >&2; exit 1; }
+
 # On a Mergify stack, look before creating: after a stack push (Step 8, rc 6) this change already
 # has a pull request, on the stack tool's own branch. An ordinary branch creates as before.
 source "${CLAUDE_SKILL_DIR}/scripts/lib/draft-pr.sh"
@@ -72,6 +75,12 @@ if [[ -z "$pr_number" ]]; then
   pr_number="${pr_url##*/}"
 fi
 echo "$pr_number"
+
+# Record who owns the open pull request: a branch waiter this session will answer, or nobody,
+# with the reason. It runs here, in the step that opens the pull request, so a run that stops
+# before the monitoring step still leaves the record.
+branch="${branch:-$(git branch --show-current)}"
+bash "${CLAUDE_SKILL_DIR}/scripts/pr-end-state.sh" record "$repo" "$branch" "$pr_number" "${ticket:-}" || exit $?
 ```
 
 `draft_pr_stack_change_number` prints the open pull request of the change at HEAD when that change is on a Mergify stack, and nothing otherwise. It asks `mergify stack list --json` for the entry whose `Change-Id` is HEAD's, so a lower change's pull request is never taken for the one on top. An existing pull request keeps its title and description here, and Step 10 refines them.
@@ -79,6 +88,21 @@ echo "$pr_number"
 | rc | What happened | What the seat does |
 |---|---|---|
 | 8 | HEAD is a stack change, and neither the stack's list nor the remote could say whether it has a pull request. Nothing was created. | Run the step again once `mergify stack list` or the remote answers. Do not create the pull request by hand, because that can open a second one. |
+
+`pr-end-state.sh record` reads the pull request and leaves one record in `.catalyst/create-pr-end.json`. The record belongs to this checkout and is not meant to be committed. Nothing here ignores it, so it shows as untracked in `git status`; leave it out of commits, because once the repository tracks it the script refuses to read or write it. Its line starts with the answer:
+
+| First word | What it means | What the seat does |
+|---|---|---|
+| `OWNED` | The arm function from [`../assets/references/branch-waiter.md`](../assets/references/branch-waiter.md) has a wait running for this pull request, and the record names the agent session that reads its wake at its next turn. | Go on. The pull request stops being owned when that session's process ends. |
+| `NEEDS ATTENTION` | The pull request is open and nothing owns it: no wait could start (a branch with no ticket key, a machine with no `catalyst` CLI, a failed event status read, an earlier wait for this pull request that failed or was refused, or one that woke on an event nothing has handled yet, which `handle_waiter_wake` from the waiter reference reads and arms again), no agent session above this command could be named, the wait was started in another checkout, or this checkout is not on the pull request's head. The line gives the reason. | Go on with the run, but a reason is not an owner. Send the pull request to a ticket or a session with `catalyst inbox send`, then record what the send returned: `bash "${CLAUDE_SKILL_DIR}/scripts/pr-end-state.sh" handoff "<owner/name>" "<branch>" "<pr>" "<ticket:KEY-123 or session:id>" "<message id>" "<next-turn or next-phase>"`. An `undeliverable` answer has no reader and is refused. Otherwise report the pull request as unowned. Never report the run as finished unattended. |
+| `HANDED-OFF` | A delivered handoff for this pull request is already on record. It was kept, and no wait was started. | Go on. |
+| `FINISHED` | The pull request is already merged or closed. | Nothing. |
+
+Recording here does not replace the last step, which runs `record` again: that starts nothing while a wait runs, and it puts a reader on record when this attempt could not. The wait holds one event connection until it wakes or times out, four hours by default, also when the session that armed it has ended. A run that stops early therefore leaves a wait behind on a machine that stays up; the check reports that pull request as `NEEDS ATTENTION`, and nothing in this skill stops the wait.
+
+| rc | What happened | What the seat does |
+|---|---|---|
+| 9 | The pull request could not be read, or the record could not be written. There is no record. | Run the `record` command again for the pull request number already printed, then continue at Step 10 with that number. Do not run `gh pr create` again, and do not report the run as finished without the record. |
 
 The commit-message body makes a new PR immediately readable even before the `describe-pr` skill runs.
 
