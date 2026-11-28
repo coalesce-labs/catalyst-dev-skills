@@ -7,7 +7,7 @@
     { "stage": "implement", "skill": "implement-plan", "artifact": "implement.md", "owner": "runner", "thoughts_kind": null, "verify": "repo-gate" },
     { "stage": "validate", "skill": "validate-plan", "artifact": "validation.md", "thoughts_kind": "validation", "verify": "scripts/verify-validation" },
     { "stage": "pr", "skill": "describe-pr", "artifact": "pr.md", "thoughts_kind": "pr", "verify": null },
-    { "stage": "review", "skill": "review-and-verify", "artifact": "review-result.json", "thoughts_kind": null, "verify": "scripts/verify-review" }
+    { "stage": "review", "skill": "review-and-verify", "artifact": "review-result.json", "runner": false, "thoughts_kind": null, "verify": "scripts/verify-review" }
   ],
   "max_attempts_per_stage": 2
 }
