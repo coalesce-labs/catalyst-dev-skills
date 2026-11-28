@@ -2,6 +2,7 @@
 import { accessSync, constants, lstatSync, readlinkSync, readdirSync, statSync } from 'node:fs';
 import { dirname, basename, resolve, isAbsolute, join } from 'node:path';
 import { homedir, userInfo } from 'node:os';
+import { Buffer } from 'node:buffer';
 import { spawnSync } from 'node:child_process';
 import { specialKind } from './bounded-read.mjs';
 
@@ -31,12 +32,19 @@ export function resolveLinks(path) {
   return resolved;
 }
 
+// CTC-11314: no path the kernel accepts is longer than this (Linux PATH_MAX is 4096 bytes with its NUL,
+// macOS's is 1024, and a JS string is never longer than its UTF-8 bytes). A longer value is cut back to
+// whole components, which bounds the work of every caller whatever a command line contains.
+export const PATH_LIMIT = 4096;
+const expandHome = (value, home) => value.replace(/^(?:~|\$HOME|\$\{HOME\})(?=\/)/, home);
+
 export function canonicalPath(value, { home = homedir(), cwd } = {}) {
   if (typeof value !== 'string' || !value) return null;
-  value = value.replace(/^(?:~|\$HOME|\$\{HOME\})(?=\/)/, home);
+  value = expandHome(value, home);
   if (!isAbsolute(value) && !cwd) return null;
   // Keep parent components until symlinks are resolved.
   let path = isAbsolute(value) ? value : `${cwd}/${value}`;
+  if (path.length > PATH_LIMIT) { const cut = path.lastIndexOf('/', PATH_LIMIT); path = cut > 0 ? path.slice(0, cut) : '/'; }
   // Resolve .. components one by one, after the links before them.
   if (path.split('/').includes('..')) {
     let current = '/';
@@ -57,23 +65,63 @@ export function canonicalPath(value, { home = homedir(), cwd } = {}) {
   }
 }
 
-// Preserve quoted operands, split shell operators, and never evaluate substitutions.
+// Preserve quoted operands, split shell operators, and never evaluate substitutions. Each run of
+// ordinary characters is appended with one slice, so a huge word never costs a string per character.
+const RUN_PLAIN = /[^\\"'\s;|&<>]+/y; const RUN_DOUBLE = /[^"\\]+/y; const RUN_SINGLE = /[^']+/y;
 function words(text) {
-  const out = []; let word = '', quote = null;
-  for (let i = 0; i < text.length; i++) {
+  const out = []; let word = '', quote = null; let i = 0; const n = text.length;
+  while (i < n) {
     const c = text[i];
-    if (c === '\\' && quote !== "'" && i + 1 < text.length) { word += text[++i]; continue; }
-    if (quote) { if (c === quote) quote = null; else word += c; continue; }
-    if (c === '"' || c === "'") { quote = c; continue; }
-    if (/\s|[;|&<>]/.test(c)) { if (word) out.push(word); word = ''; } else word += c;
+    if (c === '\\' && quote !== "'" && i + 1 < n) { word += text[i + 1]; i += 2; continue; }
+    const run = quote === "'" ? RUN_SINGLE : quote === '"' ? RUN_DOUBLE : RUN_PLAIN;
+    run.lastIndex = i;
+    const m = run.exec(text);
+    if (m) { word += m[0]; i += m[0].length; continue; }
+    if (quote) { if (c === quote) quote = null; else word += c; }
+    else if (c === '"' || c === "'") quote = c;
+    else if (/\s|[;|&<>]/.test(c)) { if (word) out.push(word); word = ''; }
+    else word += c;
+    i++;
   }
   if (word) out.push(word);
   return out;
 }
-export function argumentPaths(argv, context = {}) {
+
+// The paths a flattened ps row can name without quoting. Each path start gets one window that ends
+// just before the next path start's slash, or at the first of `"';|<>`; a window is extended past
+// that slash only while it resolves completely (a real directory whose name ends in whitespace).
+// The windows' components are a prefix of the old rest-of-line candidate's, so the same tree is held,
+// and the total length is linear in the line.
+const PATH_START = /(?:^|[\s="'])(\/|~\/|\$HOME\/|\$\{HOME\}\/)/g;
+const DELIMITER = /["';|<>]/g;
+function* pathWindows(arg, home) {
+  const starts = [];
+  for (const m of arg.matchAll(PATH_START)) {
+    const start = m.index + m[0].length - m[1].length;
+    starts.push({ start, slash: start + m[1].length - 1 });
+  }
+  let cut = -1;
+  for (let i = 0; i < starts.length; i++) {
+    const { start } = starts[i];
+    if (cut < start) { DELIMITER.lastIndex = start; const d = DELIMITER.exec(arg); cut = d ? d.index : arg.length; }
+    const slashOf = (j) => (j < starts.length && starts[j].slash < cut ? starts[j].slash : cut);
+    let next = i + 1; let end = slashOf(next);
+    while (end < cut) {
+      const window = expandHome(arg.slice(start, end), home);
+      if (window.length > PATH_LIMIT) break;
+      try { resolveLinks(window); } catch { break; }
+      end = slashOf(++next);
+    }
+    yield arg.slice(start, end);
+  }
+}
+
+export function argumentPaths(argv, context = {}, seen = new Set()) {
   const result = new Set();
   const add = (value) => {
     value = value.replace(/^(?:--?[\w-]+|[A-Za-z_][\w]*)=/, '');
+    if (seen.has(value)) return;
+    seen.add(value);
     if ((!value.includes('/') && (!context.cwd || value.startsWith('-'))) || /\$\(|`/.test(value)) return;
     const path = canonicalPath(value, context);
     if (path) result.add(path);
@@ -83,13 +131,8 @@ export function argumentPaths(argv, context = {}) {
       const tokens = words(arg);
       for (const token of tokens) add(token);
       // Also re-read the words as argv, so a quoted `bash -lc '…'` inside this command is unwrapped too.
-      for (const path of argumentPaths(tokens, { ...context, flattened: false })) result.add(path);
-      if (context.flattened) {
-        for (const match of arg.matchAll(/(?:^|[\s="'])(\/|~\/|\$HOME\/|\$\{HOME\}\/)/g)) {
-          const start = match.index + match[0].length - match[1].length;
-          add(arg.slice(start).replace(/["';|<>].*$/, ""));
-        }
-      }
+      for (const path of argumentPaths(tokens, { ...context, flattened: false }, seen)) result.add(path);
+      if (context.flattened) for (const window of pathWindows(arg, context.home ?? homedir())) add(window);
     } else add(arg);
   }
   return [...result];
@@ -186,24 +229,80 @@ export function collectScheduled({ home = process.env.HOME || homedir(), user = 
   return snapshot;
 }
 
+// A record over this many bytes is outside every case the reader was written for. It is still read in
+// full, and also searched as plain text for each tree's path (CTC-11314).
+export const RECORD_LIMIT = 65536;
+export function recordBytes(record) {
+  if (record.bytes === undefined) {
+    const argv = record.argv || [];
+    let bytes = Math.max(0, argv.length - 1);
+    for (const arg of argv) bytes += Buffer.byteLength(arg);
+    record.bytes = bytes;
+  }
+  return record.bytes;
+}
+// A process-table line the reader could not parse becomes its own record, searched as plain text.
+export const unparseableRecord = (source, line, text, afterPid) =>
+  ({ pid: null, unparseable: true, source, line, afterPid, argv: [text], flattened: true });
+
+// The needle is present, and the next character is absent or not part of a name, so `wt-a` is found in
+// `--paths=/a:wt-a:/b` but not in `wt-ab` or `wt-a-sibling`.
+function mentionsAtBoundary(text, needle) {
+  if (!needle) return false;
+  for (let at = text.indexOf(needle); at !== -1; at = text.indexOf(needle, at + 1)) {
+    const next = text[at + needle.length];
+    if (next === undefined || !/[A-Za-z0-9._-]/.test(next)) return true;
+  }
+  return false;
+}
+
 export function processHolders(tree, records, selfPid = process.pid, { foldCase = FOLD_CASE } = {}) {
   const t = canonicalPath(tree); const holders = new Map();
+  const ft = fold(t, foldCase);
+  const needles = [...new Set([t, tree].filter(Boolean).map(v => fold(v, foldCase)))];
   for (const record of records) {
-    if (record.cwd && contains(t, record.cwdPath ??= canonicalPath(record.cwd), foldCase)) { holders.set(record.pid, { pid: record.pid, argument: false }); continue; }
-    if (record.pid === selfPid || holders.has(record.pid)) continue;
+    const key = record.unparseable ? `unparsed:${record.source}:${record.line}` : record.pid;
+    if (!record.unparseable && record.cwd && contains(t, record.cwdPath ??= canonicalPath(record.cwd), foldCase)) { holders.set(key, { pid: record.pid, argument: false }); continue; }
+    if (record.pid === selfPid || holders.has(key)) continue;
     const paths = record.paths ??= argumentPaths(record.argv || [], { cwd: record.cwd, flattened: record.flattened });
+    const argv = foldCase ? (record.foldedArgv ??= (record.argv || []).map(arg => arg.toLowerCase())) : (record.argv || []);
     // ps flattens argv. Preserve plausible spaced operands instead of claiming they are safe.
-    const ft = fold(t, foldCase);
-    const flattened = record.flattened && (record.argv || []).some(arg => fold(arg, foldCase).includes(ft + '/') || fold(arg, foldCase).includes(ft + ' '));
-    if (flattened || paths.some(path => contains(t, path, foldCase))) holders.set(record.pid, { pid: record.pid, argument: true });
+    const named = (record.flattened && argv.some(arg => arg.includes(ft + '/') || arg.includes(ft + ' ')))
+      || paths.some(path => contains(t, path, foldCase))
+      || (record.unparseable
+        ? argv.some(arg => needles.some(needle => needle && arg.includes(needle)))
+        : recordBytes(record) > RECORD_LIMIT && argv.some(arg => needles.some(needle => mentionsAtBoundary(arg, needle))));
+    if (!named) continue;
+    holders.set(key, record.unparseable
+      ? { pid: null, argument: false, unparseable: true, source: record.source, line: record.line }
+      : { pid: record.pid, argument: true });
   }
   return [...holders.values()];
 }
 
-// macOS ps output loses argv boundaries; retain that fact for conservative matching.
+// macOS ps output loses argv boundaries; retain that fact for conservative matching. A line that does
+// not start with a pid becomes an unparseable record, named by line number and never by content.
 export function processArgumentRows(text) {
-  return text.split("\n").flatMap(line => {
+  const rows = []; let afterPid = null;
+  for (const [index, line] of text.split("\n").entries()) {
     const match = line.match(/^\s*(\d+)\s+(.*)$/);
-    return match ? [{ pid: Number(match[1]), argv: [match[2]], flattened: true }] : [];
-  });
+    if (match) { afterPid = Number(match[1]); rows.push({ pid: afterPid, argv: [match[2]], flattened: true }); }
+    else if (line.trim()) rows.push(unparseableRecord('ps', index + 1, line, afterPid));
+  }
+  return rows;
+}
+
+// Counts for the run report. Records are named by pid, output line and size, never by their text.
+export function recordNotes(records, listed = 20) {
+  const notes = { oversized: 0, oversizedRecords: [], unparsed: 0, unparsedRecords: [] };
+  for (const record of records) {
+    if (record.unparseable) {
+      notes.unparsed++;
+      if (notes.unparsedRecords.length < listed) notes.unparsedRecords.push({ source: record.source, line: record.line, bytes: recordBytes(record), afterPid: record.afterPid });
+    } else if (recordBytes(record) > RECORD_LIMIT) {
+      notes.oversized++;
+      if (notes.oversizedRecords.length < listed) notes.oversizedRecords.push({ pid: record.pid, bytes: recordBytes(record) });
+    }
+  }
+  return notes;
 }
