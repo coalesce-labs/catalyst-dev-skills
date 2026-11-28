@@ -28,7 +28,9 @@
 //   * Removal needs positive evidence: a PR MERGED or CLOSED unmerged, HEAD
 //     already in origin's default branch, or (with --include-shipped) the
 //     ticket shipped or Done in Linear. STALE needs --include-stale.
-//   * LIVE: any visible process cwd or argument inside a tree protects it. The scan runs
+//   * LIVE: any visible process cwd or argument inside a tree protects it. A command line over 64 KB is
+//     read in full and also searched as text, and a process-table line that cannot be parsed keeps
+//     every tree it names; both are reported in liveScan. The scan runs
 //     once per run and again right before each removal. If the scan fails,
 //     every tree is treated as LIVE and nothing is removed.
 //   * `git worktree remove --force` runs only when every change in the tree is
@@ -57,6 +59,7 @@
 //   CATALYST_PRUNE_RECENT_HOURS   recency guard (default 6)
 //   CATALYST_PRUNE_LINEARIS_MAX   linearis reads per run when there is no replica (default 100)
 //   CATALYST_PRUNE_LSOF           lsof binary; forces the lsof process scan (tests)
+//   CATALYST_PRUNE_PS             ps binary; runs the ps argument scan with CATALYST_PRUNE_LSOF on any platform (tests)
 //   CATALYST_PRUNE_OPEN_TIMEOUT_S seconds before an open that does not return is given up on (default 30)
 
 import { execFileSync, spawnSync } from "node:child_process";
@@ -66,7 +69,7 @@ import { basename, delimiter, dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { loadMachinePaths, machinePathsFile } from "./lib/paths/node.js";
 
-import { collectScheduled, referenceReason, processHolders, processArgumentRows, resolveLinks } from "./lib/worktree-references.mjs";
+import { collectScheduled, referenceReason, processHolders, processArgumentRows, recordNotes, unparseableRecord, RECORD_LIMIT, resolveLinks } from "./lib/worktree-references.mjs";
 import { boundedProbe, describeUnopened, fileKind, formatSeconds, isSpecial, openTimeoutMs } from "./lib/bounded-read.mjs";
 
 const HOME = process.env.HOME || homedir();
@@ -328,14 +331,18 @@ function processCwds() {
     if (r.error) throw new Error(`${lsof}: ${r.error.message}`);
     if (r.status !== 0) throw new Error(`${lsof}: exit ${r.status}`);
     let pid = null;
-    for (const line of String(r.stdout || "").split("\n")) {
-      if (line.startsWith("p")) pid = Number(line.slice(1));
+    let lastPid = null;
+    for (const [index, line] of String(r.stdout || "").split("\n").entries()) {
+      if (line.startsWith("p")) { pid = Number(line.slice(1)); if (pid) lastPid = pid; }
       else if (line.startsWith("n") && pid) cwds.push({ pid, cwd: line.slice(1) });
+      // A name line with no process to own it is kept as a record, searched as text (CTC-11314).
+      else if (line.startsWith("n") && line.length > 1) cwds.push(unparseableRecord("lsof", index + 1, line.slice(1), lastPid));
     }
-    if (process.platform === "darwin") {
-      const ps = spawnSync("ps", ["-ww", "-axo", "pid=,command="], { encoding: "utf8", timeout: 10_000, maxBuffer: 64 * 1024 * 1024 });
+    if (process.platform === "darwin" || process.env.CATALYST_PRUNE_PS) {
+      const ps = spawnSync(process.env.CATALYST_PRUNE_PS || "ps", ["-ww", "-axo", "pid=,command="], { encoding: "utf8", timeout: 10_000, maxBuffer: 64 * 1024 * 1024 });
       if (ps.error || ps.status !== 0) throw new Error(`ps argument scan failed: ${ps.error?.message || ps.stderr}`);
       for (const argument of processArgumentRows(ps.stdout)) {
+        if (argument.unparseable) { cwds.push(argument); continue; }
         const record = cwds.find(c => c.pid === argument.pid);
         if (record) Object.assign(record, argument);
         else cwds.push(argument);
@@ -364,7 +371,8 @@ function liveHolders(tree, cwds) {
 function holderReason(holders) {
   const argument = holders.find(h => h.argument);
   return argument ? `process references tree (pid ${argument.pid}; argument)`
-    : `process cwd'd here (pid ${holders.slice(0, 3).map(h => h.pid).join(", ")})`;
+    : holders.some(h => !h.unparseable) ? `process cwd'd here (pid ${holders.filter(h => !h.unparseable).slice(0, 3).map(h => h.pid).join(", ")})`
+    : `process record could not be parsed and names this tree (${holders[0].source} output line ${holders[0].line})`;
 }
 function scheduledSnapshot() {
   const snapshot = collectScheduled({ home: HOME });
@@ -1007,6 +1015,11 @@ async function buildPlan({ wantProtected = false, sizes = true } = {}) {
     liveScanError = String(err.message).slice(0, 300);
     say(`  WARN: process scan failed (${liveScanError}); every tree is treated as LIVE and nothing will be removed`);
   }
+  const scanNotes = cwds ? recordNotes(cwds) : { oversized: 0, oversizedRecords: [], unparsed: 0, unparsedRecords: [] };
+  if (scanNotes.oversized) say(`  note: process scan: ${scanNotes.oversized} oversized process record(s) over ${RECORD_LIMIT} bytes, each read in full: ${scanNotes.oversizedRecords.map(o => `pid ${o.pid} (${o.bytes} bytes)`).join(", ")}${scanNotes.oversized > scanNotes.oversizedRecords.length ? `, and ${scanNotes.oversized - scanNotes.oversizedRecords.length} more` : ""}`);
+  for (const u of scanNotes.unparsedRecords)
+    say(`  WARN: process scan: ${u.source} output line ${u.line} (${u.bytes} bytes, ${u.afterPid === null ? "no pid before it" : `after pid ${u.afterPid}`}) could not be parsed; every tree it names is kept LIVE`);
+  if (scanNotes.unparsed > scanNotes.unparsedRecords.length) say(`  WARN: process scan: ${scanNotes.unparsed - scanNotes.unparsedRecords.length} more unparseable process records`);
   const scheduled = scheduledSnapshot();
   if (scheduled.errors.length) process.exitCode = 3;
   const keepList = readFarmKeepList();
@@ -1028,7 +1041,7 @@ async function buildPlan({ wantProtected = false, sizes = true } = {}) {
   }
 
   const plan = {
-    root: WT_ROOT, roots: { ...ROOTS }, liveScan: { ok: !liveScanError, error: liveScanError, processes: cwds?.length ?? 0 },
+    root: WT_ROOT, roots: { ...ROOTS }, liveScan: { ok: !liveScanError, error: liveScanError, processes: cwds ? cwds.filter(c => !c.unparseable).length : 0, ...scanNotes },
     linearSource: linear.source, repos: [], strays, clones, unchecked, unopened: UNOPENED, totals: {},
   };
   const T = (plan.totals = {
