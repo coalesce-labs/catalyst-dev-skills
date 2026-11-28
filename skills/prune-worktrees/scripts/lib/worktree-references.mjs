@@ -42,9 +42,20 @@ export function canonicalPath(value, { home = homedir(), cwd } = {}) {
   if (typeof value !== 'string' || !value) return null;
   value = expandHome(value, home);
   if (!isAbsolute(value) && !cwd) return null;
+  // The bound measures what a process can hand the kernel: for an absolute value that is the value
+  // itself, for a relative one the operand, not the operand joined with the cwd. A bound on the
+  // joined path would let a long cwd eat the operand's budget, and the cut could drop its `..` or
+  // its tail, releasing a tree that operand still names. A cut keeps whole components, so it never
+  // leaves a partial name that could match an unrelated entry; a relative operand with no `/`
+  // within the limit has no whole component to keep and is not read as a path at all.
+  if (value.length > PATH_LIMIT) {
+    const cut = value.lastIndexOf('/', PATH_LIMIT);
+    if (isAbsolute(value)) value = cut > 0 ? value.slice(0, cut) : '/';
+    else if (cut <= 0) return null;
+    else value = value.slice(0, cut);
+  }
   // Keep parent components until symlinks are resolved.
   let path = isAbsolute(value) ? value : `${cwd}/${value}`;
-  if (path.length > PATH_LIMIT) { const cut = path.lastIndexOf('/', PATH_LIMIT); path = cut > 0 ? path.slice(0, cut) : '/'; }
   // Resolve .. components one by one, after the links before them.
   if (path.split('/').includes('..')) {
     let current = '/';

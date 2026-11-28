@@ -466,6 +466,26 @@ test("a later path's dot-dot no longer climbs into the path before it", () => {
   } finally { rmSync(T, { recursive: true, force: true }); }
 });
 
+test('the PATH_LIMIT bound measures a relative operand, not the path joined with the cwd', () => {
+  const T = realpathSync(mkdtempSync(join(tmpdir(), 'operand-bound-')));
+  try {
+    mkdirSync(`${T}/wt-a/job`, { recursive: true });
+    const cwd = `${T}/` + 'd'.repeat(115 - T.length);
+    mkdirSync(cwd);
+    const operand = './'.repeat(2000) + '../wt-a/job';
+    expect(cwd.length).toBe(116);
+    expect(operand.length).toBeLessThanOrEqual(PATH_LIMIT);
+    expect(`${cwd}/${operand}`.length).toBeGreaterThan(PATH_LIMIT);
+    // The operand is within the bound, so its `..` resolution and its tail survive the cwd join.
+    expect(canonicalPath(operand, { cwd })).toBe(`${T}/wt-a/job`);
+    expect(processHolders(`${T}/wt-a`, [{ pid: 4242, argv: ['rm', operand], cwd }], 1)).toEqual([{ pid: 4242, argument: true }]);
+    // An operand past the limit is cut to its own whole components, so the cut no longer reaches
+    // its `..`; a relative operand with no `/` within the limit is not read as a path at all.
+    expect(canonicalPath('./'.repeat(3000) + '../wt-a/job', { cwd })).toBe(cwd);
+    expect(canonicalPath('x'.repeat(PATH_LIMIT + 1), { cwd })).toBeNull();
+  } finally { rmSync(T, { recursive: true, force: true }); }
+});
+
 test('an unparseable ps line keeps every tree its raw text names', () => {
   const T = realpathSync(mkdtempSync(join(tmpdir(), 'unparseable-')));
   try {
