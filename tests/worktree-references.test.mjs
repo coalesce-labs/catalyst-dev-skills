@@ -366,7 +366,7 @@ test('a worktree path with spaces is held in every shape a process names it', ()
     expect(held(rows(`  9 tail -f ${tree}\n`))).toBe(true);
     expect(held([{ pid: 9, argv: [`${tree}/run.sh`], cwd: '/outside' }])).toBe(true);
     expect(held([{ pid: 9, argv: ['sh', '-c', `cd "${tree}" && make`], cwd: '/outside' }])).toBe(true);
-    expect(held([{ pid: 9, argv: ['sh', '-c', `cd ${tree.replace(/ /g, '\\ ')} && make`], cwd: '/outside' }])).toBe(true);
+    expect(held([{ pid: 9, argv: ['sh', '-c', `cd ${tree.replace(/\\/g, '\\\\').replace(/ /g, '\\ ')} && make`], cwd: '/outside' }])).toBe(true);
     expect(held(rows(`  9 bash ${T}/space alias/wt with space/run.sh\n`))).toBe(true);
     expect(held(rows(`  9 bash ${'/tmp/nothing-here '.repeat(4000)}${tree}/run.sh\n`))).toBe(true);
     expect(held(rows('  9 sleep 1\n'))).toBe(false);
