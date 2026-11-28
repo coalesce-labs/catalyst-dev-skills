@@ -1003,3 +1003,136 @@ test("the skill documents the open deadline and unchecked trees", () => {
   expect(safety).toMatch(/\.keep-worktrees[^\n]*every tree is kept|every tree is kept[^\n]*\.keep-worktrees/);
   expect(read("references/workflows.md")).toContain("gave up on an open");
 });
+
+// ─── CTC-11314: a huge or unparseable process record ─────────────────────────────────────────────
+// The process table is synthetic: `lsof-fixture` and `ps-fixture` shims print what the case needs, so
+// neither /proc nor the real `ps` is read. Runs are bounded by a timeout and an address-space cap.
+function syntheticTable(fx, psText, lsofBefore = "") {
+  writeFileSync(`${fx.T}/ps.txt`, psText);
+  tool(fx, "ps-fixture", `cat '${fx.T}/ps.txt'`);
+  writeFileSync(`${fx.T}/lsof-before.txt`, lsofBefore);
+  tool(fx, "lsof-fixture", `cat '${fx.T}/lsof-before.txt'\necho p$PPID\necho n${fx.T}`);
+  return { CATALYST_PRUNE_LSOF: `${fx.T}/bin/lsof-fixture`, CATALYST_PRUNE_PS: `${fx.T}/bin/ps-fixture` };
+}
+function runBounded(fx, args, envOverride = {}) {
+  const env = { ...fx.env, ...envOverride };
+  const started = performance.now();
+  const r = Bun.spawnSync(["sh", "-c", 'ulimit -v 4194304 2>/dev/null; exec "$@"', "sh", "bun", SCRIPT, ...args], { cwd: fx.T, env, stdout: "pipe", stderr: "pipe", timeout: 60_000 });
+  const ms = Math.round(performance.now() - started);
+  const stdout = r.stdout.toString();
+  let json = null;
+  try { json = JSON.parse(stdout); } catch { /* not a --json run */ }
+  return { code: r.exitCode, stdout, stderr: r.stderr.toString(), json, ms, maxRSS: r.resourceUsage?.maxRSS, timedOut: r.exitedDueToTimeout === true };
+}
+const tempPathsText = (fx, count, minBytes = 0) => {
+  const out = [];
+  for (let i = 0; i < count; i++) {
+    const base = `${fx.T}/tmp/rm-tmp-${String(i).padStart(8, "0")}-`;
+    out.push(base + "x".repeat(Math.max(1, 53 - base.length)));
+  }
+  const text = out.join(" ");
+  if (Buffer.byteLength(text) < minBytes) throw new Error("synthetic record too small");
+  return text;
+};
+const classes = (plan) => Object.fromEntries(rows(plan).map((r) => [r.path, `${r.classification}|${r.reason ?? ""}`]));
+
+describe("a synthetic process table with huge or unparseable records", () => {
+  test("a 1 MB command line does not stall the scan and is recorded as oversized", () => {
+    const fx = buildFarm(); age(fx);
+    const control = runBounded(fx, ["scan", "--json", "--no-sizes"], syntheticTable(fx, "  4242 sleep 1\n"));
+    expect(control.code).toBe(0);
+    const row = `  4242 rm -rf ${tempPathsText(fx, 20000, 1_048_576)}`;
+    const env = syntheticTable(fx, `${row}\n`);
+    const r = runBounded(fx, ["scan", "--json", "--no-sizes"], env);
+    console.log(`CTC-11314 1 MB scan: ${r.ms} ms, maxRSS ${r.maxRSS}`);
+    expect(r.timedOut).toBe(false);
+    expect(r.code).toBe(0);
+    expect(classes(r.json)).toEqual(classes(control.json));
+    expect(r.ms).toBeLessThan(10_000);
+    expect(typeof r.maxRSS).toBe("number");
+    expect(r.maxRSS).toBeLessThan(256_000_000);
+    const bytes = Buffer.byteLength(row.replace(/^\s*\d+\s+/, ""));
+    expect(r.json.liveScan.oversized).toBe(1);
+    expect(r.json.liveScan.oversizedRecords).toEqual([{ pid: 4242, bytes }]);
+    const last = runLog(fx).at(-1);
+    expect(last.mode).toBe("scan");
+    expect(last.liveScan.oversized).toBe(1);
+    expect(last.liveScan.oversizedRecords).toEqual([{ pid: 4242, bytes }]);
+    expect(r.stderr).toContain("1 oversized process record");
+    expect(r.stderr).toContain("pid 4242");
+  });
+
+  test("an oversized record naming wt-in-use after its first 64 KB keeps that tree LIVE", () => {
+    const fx = buildFarm();
+    const tree = addMergedTree(fx, "wt-in-use", 6); age(fx);
+    const env = syntheticTable(fx, `  4242 rm -rf ${tempPathsText(fx, 1400)} ${tree}/out.log\n`);
+    const r = runBounded(fx, ["apply", "--json", "--include-shipped"], env);
+    expect(r.code).toBe(0);
+    const row = rowFor(r.json, "wt-in-use");
+    expect(row.classification).toBe("LIVE");
+    expect(row.reason).toBe("process references tree (pid 4242; argument)");
+    expect(r.json.repos.flatMap((x) => x.prunable).some((x) => x.path.endsWith("/wt-in-use"))).toBe(false);
+    expect(existsSync(tree)).toBe(true);
+    expect(fx.g("-C", fx.R, "branch", "--list", "wt-in-use").trim()).not.toBe("");
+    const removed = runBounded(fx, ["remove", "--path", tree, "--why", "test", "--json"], env);
+    expect(removed.json.results[0].action).toBe("kept-live");
+  });
+
+  test("an unparseable ps line keeps every tree it names and is named in the output", () => {
+    const fx = buildFarm();
+    addMergedTree(fx, "wt-held", 6); addMergedTree(fx, "wt-comma", 7); age(fx);
+    const env = syntheticTable(fx, `  4242 sh -c "echo\ncontinued ${fx.W}/wt-held/job ${fx.W}/wt-comma,x\n  4243 sleep 1\n`);
+    const r = runBounded(fx, ["apply", "--json"], env);
+    expect(r.code).toBe(0);
+    const reason = "process record could not be parsed and names this tree (ps output line 2)";
+    for (const name of ["wt-held", "wt-comma"]) {
+      expect(rowFor(r.json, name).classification).toBe("LIVE");
+      expect(rowFor(r.json, name).reason).toBe(reason);
+      expect(existsSync(`${fx.W}/${name}`)).toBe(true);
+    }
+    expect(rowFor(r.json, "merged-residue").action).toBe("removed");
+    const line = `continued ${fx.W}/wt-held/job ${fx.W}/wt-comma,x`;
+    const entry = { source: "ps", line: 2, bytes: Buffer.byteLength(line), afterPid: 4242 };
+    expect(r.json.liveScan.unparsed).toBe(1);
+    expect(r.json.liveScan.unparsedRecords).toEqual([entry]);
+    const last = runLog(fx).at(-1);
+    expect(last.mode).toBe("apply");
+    expect(last.liveScan.unparsed).toBe(1);
+    expect(last.liveScan.unparsedRecords).toEqual([entry]);
+    expect(r.stderr).toContain("ps output line 2");
+    expect(r.stderr).not.toContain("continued");
+    expect(readFileSync(`${fx.T}/state/catalyst/logs/worktree-prune/runs.jsonl`, "utf8")).not.toContain("continued");
+  });
+
+  test("an lsof name line with no process keeps the tree it names", () => {
+    const fx = buildFarm();
+    addMergedTree(fx, "wt-held", 6); age(fx);
+    const lsofLine = `n${fx.W}/wt-held`;
+    const r = runBounded(fx, ["scan", "--json", "--no-sizes"], syntheticTable(fx, "  4242 sleep 1\n", `${lsofLine}\n`));
+    expect(r.code).toBe(0);
+    const row = rowFor(r.json, "wt-held");
+    expect(row.classification).toBe("LIVE");
+    expect(row.reason).toBe("process record could not be parsed and names this tree (lsof output line 1)");
+    expect(r.json.liveScan.unparsedRecords[0]).toEqual({ source: "lsof", line: 1, bytes: Buffer.byteLength(lsofLine.slice(1)), afterPid: null });
+  });
+
+  test("a worktree whose path has spaces is LIVE when a ps row names it", () => {
+    const fx = buildFarm();
+    const tree = `${fx.T}/wt/prune test/wt with space`;
+    mkdirSync(dirname(tree), { recursive: true });
+    fx.g("-C", fx.R, "worktree", "add", "-q", "-b", "spaced", tree, "main");
+    writeFileSync(`${tree}/spaced.txt`, "work\n");
+    fx.g("-C", tree, "add", ".");
+    fx.g("-C", tree, "commit", "-q", "-m", "work on spaced");
+    const prs = JSON.parse(readFileSync(fx.prs, "utf8"));
+    prs.push({ number: 8, title: "spaced", headRefName: "spaced", state: "MERGED" });
+    writeFileSync(fx.prs, JSON.stringify(prs));
+    age(fx);
+    const find = (plan) => rows(plan).find((x) => x.path.endsWith("/prune test/wt with space"));
+    const named = runBounded(fx, ["scan", "--json", "--no-sizes"], syntheticTable(fx, `  4242 bash ${tree}/run.sh\n`));
+    expect(find(named.json).classification).toBe("LIVE");
+    const control = runBounded(fx, ["scan", "--json", "--no-sizes"], syntheticTable(fx, "  4242 sleep 1\n"));
+    expect(find(control.json).classification).toBe("MERGED");
+    expect(control.json.repos.flatMap((x) => x.prunable).some((x) => x.path.endsWith("/prune test/wt with space"))).toBe(true);
+  });
+});

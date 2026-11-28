@@ -3,6 +3,10 @@ import { execFileSync } from 'node:child_process';
 import { chmodSync, existsSync, mkdtempSync, mkdirSync, realpathSync, symlinkSync, readFileSync, writeFileSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
+import { fileURLToPath } from 'node:url';
+import { Buffer } from 'node:buffer';
+import { PATH_LIMIT, RECORD_LIMIT, recordNotes } from '../skills/prune-worktrees/scripts/lib/worktree-references.mjs';
+import * as before from './lib/worktree-references-before.mjs';
 import { canonicalPath, argumentPaths, collectScheduled, referenceReason, processHolders, processArgumentRows, resolveLinks } from '../skills/prune-worktrees/scripts/lib/worktree-references.mjs';
 
 const mkfifo = (path) => execFileSync('mkfifo', [path]);
@@ -289,4 +293,203 @@ test('special plists never reach plutil', () => {
     expect(seen).toEqual([`${root}/b.plist`]);
     expect(user.errors).toEqual([`${root}/a.plist: a named pipe, not a regular file; never opened`]);
   } finally { rmSync(t, { recursive: true, force: true }); }
+});
+
+// ─── CTC-11314: a huge command line is read in linear time, and no tree it names is released ───────
+// Performance cases run in a child process under a timeout and an address-space cap, on synthetic
+// records only. No test here reads the live process table.
+const HARNESS = fileURLToPath(new URL('./lib/huge-process-record.mjs', import.meta.url));
+function harness(...args) {
+  const r = Bun.spawnSync(['sh', '-c', 'ulimit -v 4194304 2>/dev/null; exec "$@"', 'sh', 'bun', HARNESS, ...args], { timeout: 30_000, stdout: 'pipe', stderr: 'pipe' });
+  return {
+    timedOut: r.exitedDueToTimeout === true, exitCode: r.exitCode, maxRSS: r.resourceUsage?.maxRSS,
+    lines: r.stdout.toString().split('\n').filter(Boolean).map(l => JSON.parse(l)), stderr: r.stderr.toString(),
+  };
+}
+
+test('a 1 MB process record of 20,000 temp paths classifies in under 10 s and under 256 MB', () => {
+  for (const shape of ['flattened', 'argv', 'shell']) {
+    const r = harness('big', shape);
+    expect({ shape, timedOut: r.timedOut, exitCode: r.exitCode, stderr: r.stderr.slice(-300) }).toEqual({ shape, timedOut: false, exitCode: 0, stderr: r.stderr.slice(-300) });
+    expect(typeof r.maxRSS).toBe('number');
+    expect(r.maxRSS).toBeLessThan(256_000_000);
+    const [line] = r.lines;
+    console.log(`CTC-11314 big ${shape}: ${line.ms} ms, maxRSS ${r.maxRSS}`);
+    expect(line.bytes).toBeGreaterThanOrEqual(1_048_576);
+    expect(line.ms).toBeLessThan(10_000);
+    expect(line.held).toEqual([]);
+  }
+}, 120_000);
+
+test('a record just under 64 KB and one huge argument classify in under 2 s', () => {
+  const under = harness('under');
+  expect({ timedOut: under.timedOut, exitCode: under.exitCode }).toEqual({ timedOut: false, exitCode: 0 });
+  expect(under.lines[0].bytes).toBeLessThan(65_536);
+  expect(under.lines[0].ms).toBeLessThan(2000);
+  expect(under.lines[0].held).toEqual([]);
+  for (const shape of ['argv', 'flattened']) {
+    const r = harness('blob', shape);
+    expect({ shape, timedOut: r.timedOut, exitCode: r.exitCode }).toEqual({ shape, timedOut: false, exitCode: 0 });
+    expect(r.lines[0].ms).toBeLessThan(2000);
+    expect(r.lines[0].held).toEqual([]);
+  }
+}, 120_000);
+
+test('canonicalPath reads whole components within the first 4096 characters', () => {
+  const r = harness('path');
+  expect({ timedOut: r.timedOut, exitCode: r.exitCode }).toEqual({ timedOut: false, exitCode: 0 });
+  expect(r.lines[0].ms).toBeLessThan(2000);
+  expect(r.lines[0].length).toBeLessThanOrEqual(PATH_LIMIT);
+  expect(r.lines[0].prefixOk).toBe(true);
+}, 60_000);
+
+test('an oversized record keeps a tree it names after its first 64 KB', () => {
+  const r = harness('in-use');
+  expect({ timedOut: r.timedOut, exitCode: r.exitCode }).toEqual({ timedOut: false, exitCode: 0 });
+  const held = Object.fromEntries(r.lines.map(l => [l.form, l.held]));
+  for (const line of r.lines) expect(line.bytes).toBeGreaterThan(RECORD_LIMIT);
+  for (const form of ['flattened-file', 'flattened-bare', 'argv-file', 'shell-cd', 'flattened-colon', 'argv-colon']) expect(held[form]).toEqual(['wt-in-use']);
+  // A sibling named only by its own path never holds the tree whose name it extends.
+  for (const form of ['flattened-sibling', 'argv-sibling']) expect(held[form]).toEqual(['wt-in-use-sibling']);
+  for (const form of ['flattened-spaced', 'flattened-alias-spaced']) expect(held[form]).toEqual(['prune test/wt with space']);
+}, 60_000);
+
+test('a worktree path with spaces is held in every shape a process names it', () => {
+  const T = realpathSync(mkdtempSync(join(tmpdir(), 'prune test root-')));
+  try {
+    const tree = `${T}/prune test/wt with space`;
+    mkdirSync(tree, { recursive: true });
+    symlinkSync(`${T}/prune test`, `${T}/space alias`);
+    const rows = (text) => processArgumentRows(text);
+    const held = (records) => processHolders(tree, records, 1).length > 0;
+    expect(held(rows(`  9 bash ${tree}/run.sh\n`))).toBe(true);
+    expect(held(rows(`  9 tail -f ${tree}\n`))).toBe(true);
+    expect(held([{ pid: 9, argv: [`${tree}/run.sh`], cwd: '/outside' }])).toBe(true);
+    expect(held([{ pid: 9, argv: ['sh', '-c', `cd "${tree}" && make`], cwd: '/outside' }])).toBe(true);
+    expect(held([{ pid: 9, argv: ['sh', '-c', `cd ${tree.replace(/ /g, '\\ ')} && make`], cwd: '/outside' }])).toBe(true);
+    expect(held(rows(`  9 bash ${T}/space alias/wt with space/run.sh\n`))).toBe(true);
+    expect(held(rows(`  9 bash ${'/tmp/nothing-here '.repeat(4000)}${tree}/run.sh\n`))).toBe(true);
+    expect(held(rows('  9 sleep 1\n'))).toBe(false);
+  } finally { rmSync(T, { recursive: true, force: true }); }
+});
+
+// A seeded generator of command lines over a fixture of real, linked, missing and spaced paths.
+function differentialFixture() {
+  const T = realpathSync(mkdtempSync(join(tmpdir(), 'differential-')));
+  for (const dir of ['real/sub', 'dir /wt', 'a b c/wt-a', 'wt-a', 'wt-ab', 'prune test/wt with space']) mkdirSync(`${T}/${dir}`, { recursive: true });
+  writeFileSync(`${T}/real/f`, '');
+  symlinkSync(`${T}/real`, `${T}/space alias`); symlinkSync(`${T}/real`, `${T}/alias`);
+  symlinkSync('../wt-a', `${T}/real/up`); symlinkSync('nowhere', `${T}/dangling`);
+  const trees = ['real', 'real/sub', 'dir ', 'dir /wt', 'a b c', 'a b c/wt-a', 'wt-a', 'wt-ab', 'prune test', 'prune test/wt with space'].map(n => `${T}/${n}`);
+  return { T, trees: [...trees, T] };
+}
+function seeded(seed) {
+  let a = seed >>> 0;
+  return () => { a = (a + 0x6D2B79F5) >>> 0; let t = Math.imul(a ^ (a >>> 15), 1 | a); t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t; return ((t ^ (t >>> 14)) >>> 0) / 4294967296; };
+}
+function generateLines(T) {
+  const rand = seeded(20261128);
+  const pick = (list) => list[Math.floor(rand() * list.length)];
+  const bases = [T, T, T, T, '~', '$HOME', '/tmp', '/nonexistent'];
+  const comps = ['real', 'sub', 'f', 'space alias', 'alias', 'up', 'dangling', 'dir ', 'wt', 'a b c', 'wt-a', 'wt-ab', 'prune test', 'wt with space', 'missing', '.', 'x y', 'job.sh'];
+  const path = () => {
+    let out = pick(bases), named = 0, dots = 0;
+    for (let n = 1 + Math.floor(rand() * 4); n > 0; n--) {
+      const c = pick(comps); out += `/${c}`; if (c !== '.') named++;
+      if (named > dots && rand() < 0.2) { out += '/..'; dots++; named--; }
+    }
+    return out;
+  };
+  const token = () => {
+    const r = rand();
+    if (r < 0.45) return path();
+    if (r < 0.55) return `--out=${path()}`;
+    if (r < 0.65) return `"${path()}"`;
+    if (r < 0.72) return `'${path()}'`;
+    return pick(['-c', '-lc', '--flag', 'VAR=1', 'rm', 'cat', ';', '|', '>', '&&', 'make']);
+  };
+  const lines = [
+    `bash ${T}/space alias/job.sh --flag`, `cp ${T}/space alias ${T}/x`, `rm -rf ${T}/wt-a-sibling/x ${T}/other`, `tool --out=${T}/wt-a/log`,
+    `sh -c 'cd "${T}/prune test/wt with space" && make'`, `cat ${T}/dir /wt/log`, `exec ${T}/real/up/x`, `cat ${T}/alias/../wt-ab/x`,
+    `bash ${T}/space alias/job.sh --arg=${'x'.repeat(20000)}`,
+  ];
+  for (let i = 0; i < 600; i++) lines.push(Array.from({ length: 1 + Math.floor(rand() * 6) }, token).join(' '));
+  for (let i = 0; i < 10; i++) {
+    const parts = [];
+    for (let n = 10 + Math.floor(rand() * 21), size = 0; n > 0 || size < 20000; n--) {
+      const filler = 'f'.repeat(200 + Math.floor(rand() * 2500)) + (rand() < 0.33 ? '/' : '');
+      const word = rand() < 0.5 ? token() : filler;
+      parts.push(word); size += word.length + 1;
+    }
+    lines.push(parts.join(' '));
+  }
+  return lines;
+}
+
+test('normal command lines give the same holder decisions as the reader before this change', () => {
+  const { T, trees } = differentialFixture();
+  try {
+    const shapes = {
+      flattened: (reader, line, i) => reader.processArgumentRows(`  4242 ${line}\n`),
+      argv: (reader, line, i) => [{ pid: 4242, argv: line.split(' '), ...(i % 2 ? { cwd: T } : {}) }],
+      shell: (reader, line, i) => [{ pid: 4242, argv: ['sh', '-c', line], ...(i % 2 ? { cwd: T } : {}) }],
+    };
+    for (const [i, line] of generateLines(T).entries()) {
+      for (const [shape, build] of Object.entries(shapes)) {
+        for (const foldCase of [false, true]) {
+          const now = build({ processArgumentRows }, line, i); const old = build(before, line, i);
+          for (const tree of trees) {
+            const a = processHolders(tree, now, 1, { foldCase }).length > 0;
+            const b = before.processHolders(tree, old, 1, { foldCase }).length > 0;
+            if (a !== b) throw new Error(`decision differs (reader now ${a}, before ${b}) for line ${i} shape ${shape} foldCase ${foldCase} tree ${tree}: ${line.slice(0, 300)}`);
+          }
+        }
+      }
+    }
+  } finally { rmSync(T, { recursive: true, force: true }); }
+}, 60_000);
+
+test("a later path's dot-dot no longer climbs into the path before it", () => {
+  const T = realpathSync(mkdtempSync(join(tmpdir(), 'dotdot-')));
+  try {
+    mkdirSync(`${T}/wt-a`); mkdirSync(`${T}/dir /wt`, { recursive: true });
+    const row = (text) => [processArgumentRows(`  7 ${text}\n`), before.processArgumentRows(`  7 ${text}\n`)];
+    const [now, old] = row(`rm ${T}/missing /../wt-a`);
+    expect(before.processHolders(`${T}/wt-a`, old, 1)).toHaveLength(1);
+    expect(processHolders(`${T}/wt-a`, now, 1)).toHaveLength(0);
+    for (const text of [`rm ${T}/missing ${T}/x/../wt-a`]) {
+      const [n, o] = row(text);
+      expect(processHolders(`${T}/wt-a`, n, 1)).toHaveLength(1); expect(before.processHolders(`${T}/wt-a`, o, 1)).toHaveLength(1);
+    }
+    const [n, o] = row(`cat ${T}/dir /wt/log`);
+    expect(processHolders(`${T}/dir /wt`, n, 1)).toHaveLength(1); expect(before.processHolders(`${T}/dir /wt`, o, 1)).toHaveLength(1);
+  } finally { rmSync(T, { recursive: true, force: true }); }
+});
+
+test('an unparseable ps line keeps every tree its raw text names', () => {
+  const T = realpathSync(mkdtempSync(join(tmpdir(), 'unparseable-')));
+  try {
+    const trees = ['a', 'b', 'c', 'd', 'e', 'f'].map(n => { mkdirSync(`${T}/wt-${n}`); return `${T}/wt-${n}`; });
+    const rows = processArgumentRows(`  17 sh -c "echo\nsecond line ${T}/wt-a/job\n  18 ok\n  12 cat ${T}/wt-b/x\r\nlist ${T}/wt-d,x (${T}/wt-e) ${T}/wt-f-sibling/y\n\n   \n`);
+    expect(rows.map(r => r.pid)).toEqual([17, null, 18, null, null]);
+    expect(rows[0]).toEqual({ pid: 17, argv: ['sh -c "echo'], flattened: true });
+    expect(rows.slice(1).filter(r => r.unparseable).map(r => [r.line, r.afterPid])).toEqual([[2, 17], [4, 18], [5, 18]]);
+    const [a, b, c, d, e, f] = trees;
+    expect(processHolders(a, rows, 1)).toEqual([{ pid: null, argument: false, unparseable: true, source: 'ps', line: 2 }]);
+    for (const tree of [b, d, e, f]) expect(processHolders(tree, rows, 1)).toHaveLength(1);
+    expect(processHolders(c, rows, 1)).toEqual([]);
+  } finally { rmSync(T, { recursive: true, force: true }); }
+});
+
+test('recordNotes counts oversized records and lists unparseable ones by position', () => {
+  const big = { pid: 5, argv: ['x'.repeat(70_000)] };
+  const notes = recordNotes([big, { pid: 6, argv: ['sleep', '1'] }, ...processArgumentRows('secret one\n  3 ok\nsecret two\n')]);
+  expect(notes).toEqual({
+    oversized: 1, oversizedRecords: [{ pid: 5, bytes: 70_000 }], unparsed: 2,
+    unparsedRecords: [{ source: 'ps', line: 1, bytes: 10, afterPid: null }, { source: 'ps', line: 3, bytes: 10, afterPid: 3 }],
+  });
+  expect(JSON.stringify(notes)).not.toContain('secret');
+  const many = recordNotes(processArgumentRows('junk\n'.repeat(25)));
+  expect(many.unparsed).toBe(25);
+  expect(many.unparsedRecords).toHaveLength(20);
 });
